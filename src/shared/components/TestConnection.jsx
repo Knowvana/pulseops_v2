@@ -63,6 +63,7 @@ export default function TestConnection({
   });
 
   const [connectionStatus, setConnectionStatus] = useState(null);
+  const [lastTestedTime, setLastTestedTime] = useState(null);
   const [isTesting, setIsTesting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [showPasswords, setShowPasswords] = useState({});
@@ -79,6 +80,9 @@ export default function TestConnection({
 
     try {
       const result = await onTest(config);
+      const now = new Date();
+      const timeString = now.toLocaleString();
+      setLastTestedTime(timeString);
       
       if (result.success) {
         setConnectionStatus({
@@ -86,6 +90,7 @@ export default function TestConnection({
           status: 'success',
           message: result.message || 'Connection successful',
           meta: result.meta || null,
+          lastTested: timeString,
         });
       } else {
         setConnectionStatus({
@@ -93,14 +98,20 @@ export default function TestConnection({
           status: 'error',
           message: result.message || 'Connection failed',
           meta: result.meta || null,
+          lastTested: timeString,
         });
       }
     } catch (error) {
+      const now = new Date();
+      const timeString = now.toLocaleString();
+      setLastTestedTime(timeString);
+      
       setConnectionStatus({
         type: title,
         status: 'error',
         message: error.message || 'Connection test failed',
         meta: null,
+        lastTested: timeString,
       });
     } finally {
       setIsTesting(false);
@@ -190,6 +201,8 @@ export default function TestConnection({
           status={connectionStatus.status}
           message={connectionStatus.message}
           meta={connectionStatus.meta}
+          lastTested={connectionStatus.lastTested}
+          showBadge={true}
         />
       )}
 

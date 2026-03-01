@@ -140,37 +140,45 @@ export default function TestPage() {
         {/* ConnectionStatus Component Test */}
         <section className="bg-white rounded-2xl p-6 shadow-sm border border-surface-200">
           <h2 className="text-xl font-bold text-surface-800 mb-4">ConnectionStatus Component</h2>
-          <p className="text-sm text-surface-600 mb-4">Reusable component for displaying connection states (including loading with progress)</p>
+          <p className="text-sm text-surface-600 mb-4">Reusable component for displaying connection states with Last Tested timestamp and status badges</p>
           <div className="space-y-4">
             <ConnectionStatus
               type="Database Connection"
               status="loading"
               message="Connecting to PostgreSQL..."
               progress={Math.min(loadingProgress, 100)}
+              showBadge={true}
             />
             <ConnectionStatus
               type="Database Connection"
               status="success"
               message="Connected to PostgreSQL successfully"
               meta="Response: 45ms • Version: 14.2"
+              lastTested="3/1/2026, 10:30:19 PM"
+              showBadge={true}
             />
             <ConnectionStatus
               type="API Connection"
               status="error"
               message="Connection refused: Service unavailable"
               meta="Last attempt: 2 minutes ago"
+              lastTested="3/1/2026, 10:25:45 PM"
+              showBadge={true}
             />
             <ConnectionStatus
               type="External Service"
               status="warning"
               message="Connection established with high latency"
               meta="Response: 2500ms • Consider optimization"
+              lastTested="3/1/2026, 10:28:10 PM"
+              showBadge={true}
             />
             <ConnectionStatus
               type="Cache Server"
               status="neutral"
               message="Not configured"
               meta="Configure Redis connection in settings"
+              showBadge={false}
             />
           </div>
         </section>
