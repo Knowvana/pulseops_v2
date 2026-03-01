@@ -9,7 +9,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
-import TestPage from '@shared/components/TestPage.jsx';
+import { TestPage } from '@shared';
 import '@src/index.css';
 
 ReactDOM.createRoot(document.getElementById('root')).render(

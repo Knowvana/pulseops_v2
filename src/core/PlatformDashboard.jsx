@@ -14,6 +14,7 @@
 import React from 'react';
 import { useParams } from 'react-router-dom';
 import globalText from '@config/globalText.json';
+import { ButtonShowcase } from '@shared';
 
 export default function PlatformDashboard() {
   const { moduleId, viewId } = useParams();
@@ -26,22 +27,8 @@ export default function PlatformDashboard() {
       </header>
 
       {/* Main content area */}
-      <main className="p-6">
-        <div className="max-w-5xl mx-auto">
-          <div className="bg-white rounded-xl shadow-sm border border-surface-200 p-8 text-center">
-            <h2 className="text-xl font-bold text-surface-800 mb-2">
-              {globalText.platform.welcomeTitle}
-            </h2>
-            <p className="text-sm text-surface-500 mb-4">
-              {globalText.platform.welcomeSubtitle}
-            </p>
-            <p className="text-xs text-surface-400">
-              {moduleId
-                ? `Active: ${moduleId} / ${viewId || 'dashboard'}`
-                : globalText.platform.noModuleSelected}
-            </p>
-          </div>
-        </div>
+      <main>
+        <ButtonShowcase />
       </main>
     </div>
   );

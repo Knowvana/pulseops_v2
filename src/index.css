@@ -7,7 +7,15 @@
    USAGE: Use Tailwind classes like `bg-brand-500`, `text-surface-700`, etc.
    ============================================================================ */
 
-@import 'tailwindcss';
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-surface-50 text-surface-800 font-sans;
+  }
+}
 
 /* ── Brand Colors (Primary) ─────────────────────────────────────────────── */
 :root {
