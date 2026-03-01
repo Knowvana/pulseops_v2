@@ -1,0 +1,123 @@
+// ============================================================================
+// ConnectionStatus — PulseOps V2 Design System
+//
+// PURPOSE: Reusable component to display connection status for any service
+// (database, API, external service, etc.). Shows status indicator, message,
+// and optional metadata like latency or version info.
+//
+// USAGE:
+//   import { ConnectionStatus } from '@shared';
+//   <ConnectionStatus
+//     type="Database Connection"
+//     status="success"
+//     message="Connected to PostgreSQL"
+//     meta="Response: 45ms • Version: 14.2"
+//   />
+//
+// PROPS:
+//   type    — Connection type label (e.g., "Database Connection", "API Connection")
+//   status  — 'success' | 'error' | 'warning' | 'neutral' | 'loading' (required)
+//   message — Status message (required)
+//   meta    — Additional metadata text (optional)
+//   icon    — Custom Lucide icon component (optional)
+//   progress — Progress percentage 0-100 (optional, used with loading status)
+//
+// ARCHITECTURE: Fully reusable across all modules for any connection type.
+// Consistent styling with semantic color tokens.
+// ============================================================================
+import React from 'react';
+import { CheckCircle2, XCircle, AlertTriangle, Info, Loader } from 'lucide-react';
+
+const STATUS_CONFIG = {
+  success: {
+    bg: 'bg-gradient-to-r from-emerald-50 to-teal-50',
+    border: 'border-emerald-200',
+    iconBg: 'bg-gradient-to-br from-emerald-100 to-teal-100',
+    iconColor: 'text-emerald-600',
+    textColor: 'text-emerald-700',
+    labelColor: 'text-surface-700',
+    metaColor: 'text-surface-500',
+    icon: CheckCircle2,
+  },
+  error: {
+    bg: 'bg-gradient-to-r from-rose-50 to-red-50',
+    border: 'border-rose-200',
+    iconBg: 'bg-gradient-to-br from-rose-100 to-red-100',
+    iconColor: 'text-rose-600',
+    textColor: 'text-rose-700',
+    labelColor: 'text-rose-800',
+    metaColor: 'text-rose-600',
+    icon: XCircle,
+  },
+  warning: {
+    bg: 'bg-gradient-to-r from-amber-50 to-orange-50',
+    border: 'border-amber-200',
+    iconBg: 'bg-gradient-to-br from-amber-100 to-orange-100',
+    iconColor: 'text-amber-600',
+    textColor: 'text-amber-700',
+    labelColor: 'text-amber-800',
+    metaColor: 'text-amber-600',
+    icon: AlertTriangle,
+  },
+  neutral: {
+    bg: 'bg-gradient-to-r from-surface-50 to-slate-50',
+    border: 'border-surface-200',
+    iconBg: 'bg-gradient-to-br from-surface-100 to-slate-100',
+    iconColor: 'text-surface-600',
+    textColor: 'text-surface-700',
+    labelColor: 'text-surface-700',
+    metaColor: 'text-surface-500',
+    icon: Info,
+  },
+  loading: {
+    bg: 'bg-gradient-to-r from-brand-50 to-cyan-50',
+    border: 'border-brand-200',
+    iconBg: 'bg-gradient-to-br from-brand-100 to-cyan-100',
+    iconColor: 'text-brand-600',
+    textColor: 'text-brand-700',
+    labelColor: 'text-surface-700',
+    metaColor: 'text-surface-500',
+    icon: Loader,
+    progressBg: 'bg-brand-200',
+    progressFill: 'bg-brand-500',
+  },
+};
+
+export default function ConnectionStatus({ type, status = 'neutral', message, meta, icon: CustomIcon, progress = 0 }) {
+  const config = STATUS_CONFIG[status] || STATUS_CONFIG.neutral;
+  const Icon = CustomIcon || config.icon;
+  const isLoading = status === 'loading';
+
+  return (
+    <div className={`${config.bg} rounded-xl border ${config.border} p-4`}>
+      <div className="flex items-start gap-3">
+        <div className={`p-2 ${config.iconBg} rounded-lg shrink-0`}>
+          {isLoading ? (
+            <Loader size={16} className={`${config.iconColor} animate-spin`} />
+          ) : (
+            <Icon size={16} className={config.iconColor} />
+          )}
+        </div>
+        <div className="flex-1 min-w-0">
+          <h4 className={`text-xs font-bold mb-1 ${config.labelColor}`}>{type}</h4>
+          <p className={`text-xs leading-relaxed ${config.textColor}`}>{message}</p>
+          
+          {/* Progress Bar for Loading State */}
+          {isLoading && (
+            <div className="mt-3 space-y-1">
+              <div className={`w-full h-2 rounded-full ${config.progressBg} overflow-hidden`}>
+                <div
+                  className={`h-full ${config.progressFill} transition-all duration-300 ease-out`}
+                  style={{ width: `${Math.min(progress, 100)}%` }}
+                />
+              </div>
+              <p className="text-[10px] text-surface-500 font-medium">{progress}% Complete</p>
+            </div>
+          )}
+          
+          {meta && !isLoading && <p className={`text-[11px] mt-1.5 font-medium ${config.metaColor}`}>{meta}</p>}
+        </div>
+      </div>
+    </div>
+  );
+}

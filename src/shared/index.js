@@ -13,6 +13,9 @@
 export { default as Button } from '@shared/components/Button';
 export { default as LoginForm } from '@shared/components/LoginForm';
 export { default as TestPage } from '@shared/components/TestPage';
+export { default as ConfigLayout } from '@shared/components/ConfigLayout';
+export { default as ConnectionStatus } from '@shared/components/ConnectionStatus';
+export { default as TestConnection } from '@shared/components/TestConnection';
 
 // --- Services ---
 // export { default as ApiClient } from '@shared/services/apiClient';
