@@ -34,7 +34,7 @@ coverage/
 .nyc_output/
 
 # Storybook
-storybook-static/
+#storybook-static/
 
 # Misc
 *.tgz
