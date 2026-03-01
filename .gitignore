@@ -29,12 +29,7 @@ logs/
 *.log
 npm-debug.log*
 
-# Testing
-coverage/
-.nyc_output/
 
-# Storybook
-#storybook-static/
 
 # Misc
 *.tgz

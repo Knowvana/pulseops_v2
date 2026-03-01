@@ -55,10 +55,22 @@ PulseOps V2 is an enterprise modular operations platform with a plug-and-play mo
 | # | Task | Status |
 |---|------|--------|
 | T1 | Repository scaffolding (frontend + backend + testing + rules) | DONE |
+| T2 | Update design tokens to teal theme (brand colors) | DONE |
+| T3 | Update Button component to match login button styling | DONE |
+
+## Recent Updates
+- Added semantic color tokens for brand, surface, success, warning, danger across design system.
+- Introduced LoginForm shared component mirroring PulseOps UI reference, with supporting login copy in `globalText.json` and Tailwind token updates.
+- Expanded TestPage to showcase all shared UI components, including the new LoginForm for visual verification.
 
 ---
 
 ## 4. Important Patterns
+
+### Design System Components
+- **Button.jsx**: Primary variant uses gradient `from-brand-500 to-cyan-500` with teal theme colors
+- Brand colors: teal (#14b8a6 for brand-500) instead of blue (#3b82f6)
+- Button styling matches login button: `transition-all`, `rounded-xl`, `font-bold`, shadow effects
 
 ### No Hardcoded Strings
 - UI labels → `uiText.json` (per module) or `globalText.json` (platform-wide)

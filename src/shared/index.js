@@ -11,6 +11,7 @@
 
 // --- Components (Design System) ---
 export { default as Button } from '@shared/components/Button';
+export { default as LoginForm } from '@shared/components/LoginForm';
 
 // --- Services ---
 // export { default as ApiClient } from '@shared/services/apiClient';

@@ -46,6 +46,25 @@
     "logoutButton": "Sign Out",
     "sessionExpired": "Your session has expired. Please sign in again."
   },
+  "login": {
+    "title": "PulseOps Command Console",
+    "subtitle": "Authenticate to orchestrate enterprise operations",
+    "emailLabel": "Work Email",
+    "emailPlaceholder": "you@company.com",
+    "passwordLabel": "Password",
+    "passwordPlaceholder": "Enter your secure password",
+    "submitButton": "Authenticate",
+    "loadingButton": "Verifying",
+    "dividerLabel": "or continue with",
+    "poweredBy": "Powered by PulseOps AI Platform",
+    "socialComingSoon": " login coming soon",
+    "validationError": "Both email and password are required",
+    "socialProviders": [
+      { "id": "google", "label": "Google" },
+      { "id": "microsoft", "label": "Microsoft" },
+      { "id": "github", "label": "GitHub" }
+    ]
+  },
   "errors": {
     "networkError": "Unable to connect to the server. Please check your connection.",
     "unauthorized": "You are not authorized to perform this action.",
