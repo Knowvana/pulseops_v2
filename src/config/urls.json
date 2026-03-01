@@ -1,0 +1,33 @@
+{
+  "api": {
+    "base": "/api",
+    "health": "/api/health",
+    "healthReadiness": "/api/health/readiness"
+  },
+  "auth": {
+    "login": "/api/auth/login",
+    "logout": "/api/auth/logout",
+    "refresh": "/api/auth/refresh",
+    "me": "/api/auth/me",
+    "config": "/api/auth/config"
+  },
+  "database": {
+    "testConnection": "/api/database/test-connection",
+    "schemaStatus": "/api/database/schema-status",
+    "createDatabase": "/api/database/create-database",
+    "deleteDatabase": "/api/database/delete-database",
+    "createSchema": "/api/database/create-schema",
+    "loadDefaultData": "/api/database/load-default-data",
+    "wipe": "/api/database/wipe",
+    "stats": "/api/database/stats"
+  },
+  "modules": {
+    "list": "/api/modules",
+    "available": "/api/modules/available",
+    "bundle": "/api/modules/bundle"
+  },
+  "config": {
+    "list": "/api/config",
+    "save": "/api/config"
+  }
+}

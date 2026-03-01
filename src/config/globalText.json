@@ -1,0 +1,55 @@
+{
+  "platform": {
+    "name": "PulseOps V2",
+    "tagline": "Enterprise Operations Platform",
+    "welcomeTitle": "Welcome to PulseOps V2",
+    "welcomeSubtitle": "Modular operations platform with hot-drop micro-frontends",
+    "noModuleSelected": "Select a module from the navigation to get started."
+  },
+  "common": {
+    "loading": "Loading...",
+    "saving": "Saving...",
+    "saved": "Saved!",
+    "refresh": "Refresh",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "delete": "Delete",
+    "edit": "Edit",
+    "create": "Create",
+    "save": "Save",
+    "close": "Close",
+    "back": "Back",
+    "next": "Next",
+    "search": "Search",
+    "filter": "Filter",
+    "noData": "No data available",
+    "yes": "Yes",
+    "no": "No",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "active": "Active",
+    "inactive": "Inactive",
+    "success": "Success",
+    "error": "Error",
+    "warning": "Warning",
+    "info": "Info"
+  },
+  "auth": {
+    "loginTitle": "Sign In",
+    "loginSubtitle": "Enter your credentials to access the platform",
+    "emailLabel": "Email",
+    "emailPlaceholder": "admin@test.com",
+    "passwordLabel": "Password",
+    "passwordPlaceholder": "Enter password",
+    "loginButton": "Sign In",
+    "loggingIn": "Signing in...",
+    "logoutButton": "Sign Out",
+    "sessionExpired": "Your session has expired. Please sign in again."
+  },
+  "errors": {
+    "networkError": "Unable to connect to the server. Please check your connection.",
+    "unauthorized": "You are not authorized to perform this action.",
+    "notFound": "The requested resource was not found.",
+    "serverError": "An unexpected error occurred. Please try again."
+  }
+}

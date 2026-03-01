@@ -1,0 +1,21 @@
+{
+  "moduleId": "_template",
+  "moduleName": "Template Module",
+  "moduleShortName": "Template",
+  "moduleVersion": "1.0.0",
+  "moduleDescription": "A reusable boilerplate template for creating new PulseOps V2 modules.",
+  "roles": ["super_admin", "admin", "user"],
+  "isCore": false,
+  "order": 100,
+  "defaultView": "dashboard",
+  "moduleDetails": {
+    "features": [
+      "Dashboard view with metrics and activity overview",
+      "Reports view with analytics and data export",
+      "Configuration view with tabbed settings (SettingsConfig)"
+    ],
+    "author": "PulseOps Team",
+    "license": "Proprietary",
+    "dependencies": []
+  }
+}

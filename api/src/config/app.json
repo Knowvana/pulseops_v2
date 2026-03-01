@@ -1,0 +1,21 @@
+{
+  "port": 4001,
+  "nodeEnv": "development",
+  "frontendOrigin": "http://localhost:5173",
+  "database": {
+    "host": "localhost",
+    "port": 5432,
+    "name": "pulseops_v2",
+    "user": "postgres",
+    "password": "Infosys@123",
+    "schema": "pulseops",
+    "poolSize": 10
+  },
+  "auth": {
+    "jwtSecret": "dev-secret-change-in-production",
+    "accessTokenExpiry": "24h",
+    "refreshTokenExpiry": "7d",
+    "bcryptRounds": 12
+  },
+  "cdnBaseUrl": "/api/modules/bundle"
+}

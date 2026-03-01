@@ -1,0 +1,14 @@
+{
+  "appName": "PulseOps V2",
+  "appVersion": "2.0.0",
+  "coreModuleIds": ["platform_admin", "auth"],
+  "defaultModule": "platform_admin",
+  "defaultView": "dashboard",
+  "coreAuth": {
+    "defaultAdmin": {
+      "email": "admin@test.com",
+      "password": "Infosys@123",
+      "role": "super_admin"
+    }
+  }
+}
