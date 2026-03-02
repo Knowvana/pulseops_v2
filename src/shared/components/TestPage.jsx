@@ -7,16 +7,29 @@
 // USAGE: Import in main.jsx for development testing.
 // ============================================================================
 import React, { useState } from 'react';
-import { LogIn, Database, Settings, Shield, Key, Sliders } from 'lucide-react';
+import { LogIn, Database, Settings, Shield, Key, Sliders, AlertCircle, Clock, CheckCircle2, Ticket } from 'lucide-react';
 import Button from '@shared/components/Button';
 import LoginForm from '@shared/components/LoginForm';
 import ConfigLayout from '@shared/components/ConfigLayout';
 import ConnectionStatus from '@shared/components/ConnectionStatus';
 import TestConnection from '@shared/components/TestConnection';
+import StatsCount from '@shared/components/StatsCount';
+import DatabaseManager from '@shared/components/DatabaseManager';
+import LoggingConfig from '@shared/components/LoggingConfig';
 
 export default function TestPage() {
   const [testResult, setTestResult] = useState(null);
   const [loadingProgress, setLoadingProgress] = useState(0);
+  const [isLoggedIn, setIsLoggedIn] = useState(true);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [ticketCounts, setTicketCounts] = useState([
+    { id: 'total-incidents', label: 'Total Incidents', value: 0, color: 'danger' },
+    { id: 'open-incidents', label: 'Open Incidents', value: 0, color: 'danger' },
+    { id: 'total-ritms', label: 'Total RITMs', value: 0, color: 'info' },
+    { id: 'open-ritms', label: 'Open RITMs', value: 0, color: 'info' },
+    { id: 'total-changes', label: 'Total Changes', value: 0, color: 'success' },
+    { id: 'pending-changes', label: 'Pending Changes', value: 0, color: 'success' },
+  ]);
 
   // Simulate progress animation for loading state
   React.useEffect(() => {
@@ -55,6 +68,103 @@ export default function TestPage() {
   const handleSaveConfig = async (config) => {
     await new Promise(resolve => setTimeout(resolve, 1000));
     console.log('Configuration saved:', config);
+  };
+
+  const handleSyncTickets = async () => {
+    setIsSyncing(true);
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    // Simulate updated counts from ServiceNow
+    setTicketCounts([
+      { id: 'total-incidents', label: 'Total Incidents', value: Math.floor(Math.random() * 50) + 40, color: 'danger' },
+      { id: 'open-incidents', label: 'Open Incidents', value: Math.floor(Math.random() * 30) + 15, color: 'danger' },
+      { id: 'total-ritms', label: 'Total RITMs', value: Math.floor(Math.random() * 40) + 20, color: 'info' },
+      { id: 'open-ritms', label: 'Open RITMs', value: Math.floor(Math.random() * 20) + 8, color: 'info' },
+      { id: 'total-changes', label: 'Total Changes', value: Math.floor(Math.random() * 25) + 10, color: 'success' },
+      { id: 'pending-changes', label: 'Pending Changes', value: Math.floor(Math.random() * 10) + 3, color: 'success' },
+    ]);
+    
+    setIsSyncing(false);
+    console.log('Tickets synced successfully');
+  };
+
+  const handleLoginServiceNow = () => {
+    setIsLoggedIn(true);
+    console.log('ServiceNow login opened');
+  };
+
+  // Database Manager state
+  const [dbStatus, setDbStatus] = useState({
+    connected: true,
+    exists: false,
+    schemaInitialized: false,
+    hasDefaultData: false,
+  });
+  const [isRefreshingDb, setIsRefreshingDb] = useState(false);
+
+  // Database Manager handlers
+  const handleCreateDatabase = async () => {
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    return { database: 'pulseops_v2', created: true };
+  };
+
+  const handleDeleteDatabase = async () => {
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    return { database: 'pulseops_v2', deleted: true };
+  };
+
+  const handleInitializeSchema = async () => {
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    return { tables: ['users', 'roles', 'modules', 'logs'], initialized: true };
+  };
+
+  const handleLoadDefaultData = async () => {
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    return { loaded: true };
+  };
+
+  const handleCleanDefaultData = async () => {
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    return { cleaned: true };
+  };
+
+  const handleWipeDatabase = async () => {
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    return { wiped: true };
+  };
+
+  const handleRefreshDbStatus = async () => {
+    setIsRefreshingDb(true);
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    setDbStatus(prev => ({
+      ...prev,
+      exists: true,
+      schemaInitialized: true,
+      hasDefaultData: true,
+    }));
+    setIsRefreshingDb(false);
+  };
+
+  // Logging Config state
+  const [loggingConfig, setLoggingConfig] = useState({
+    logLevel: 'debug',
+    captureOptions: { console: true, api: true, ui: true, moduleLogs: true },
+    logSyncLimit: 100,
+    autoCleanup: true,
+    maxInMemoryEntries: 600,
+    moduleLogging: [
+      { id: 'platform_admin', name: 'Platform Admin', enabled: true },
+      { id: 'shift_roster', name: 'Shift Roster Planner', enabled: true },
+    ],
+  });
+  const [isSavingLogging, setIsSavingLogging] = useState(false);
+
+  const handleSaveLoggingConfig = async (newConfig) => {
+    setIsSavingLogging(true);
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    setLoggingConfig(newConfig);
+    setIsSavingLogging(false);
+    console.log('Logging config saved:', newConfig);
   };
 
   // Sample tabs for ConfigLayout
@@ -213,6 +323,49 @@ export default function TestPage() {
             icon={Settings}
             tabs={configTabs}
             defaultTab="database"
+          />
+        </section>
+
+        {/* StatsCount Component Test */}
+        <section>
+          <h2 className="text-xl font-bold text-surface-800 mb-4">StatsCount Component</h2>
+          <p className="text-sm text-surface-600 mb-4">Reusable component for displaying count statistics in single-row layout matching ServiceNow dashboard</p>
+          <StatsCount
+            title="Ticket Counts"
+            icon={Ticket}
+            counts={ticketCounts}
+            lastLoad="3/2/2026, 10:46:36 AM"
+            autoSyncSchedule="Not Configured"
+            onSync={handleSyncTickets}
+            isSyncing={isSyncing}
+          />
+        </section>
+
+        {/* DatabaseManager Component Test */}
+        <section className="bg-white rounded-2xl p-6 shadow-sm border border-surface-200">
+          <h2 className="text-xl font-bold text-surface-800 mb-4">DatabaseManager Component</h2>
+          <p className="text-sm text-surface-600 mb-4">Reusable component for managing database schema, default data, and database operations</p>
+          <DatabaseManager
+            onCreateDatabase={handleCreateDatabase}
+            onDeleteDatabase={handleDeleteDatabase}
+            onInitializeSchema={handleInitializeSchema}
+            onLoadDefaultData={handleLoadDefaultData}
+            onCleanDefaultData={handleCleanDefaultData}
+            onWipeDatabase={handleWipeDatabase}
+            onRefreshStatus={handleRefreshDbStatus}
+            dbStatus={dbStatus}
+            isLoading={isRefreshingDb}
+          />
+        </section>
+
+        {/* LoggingConfig Component Test */}
+        <section className="bg-white rounded-2xl p-6 shadow-sm border border-surface-200">
+          <h2 className="text-xl font-bold text-surface-800 mb-4">LoggingConfig Component</h2>
+          <p className="text-sm text-surface-600 mb-4">Reusable component for configuring logging with module-wise controls and JSON/Database switching</p>
+          <LoggingConfig
+            config={loggingConfig}
+            onSave={handleSaveLoggingConfig}
+            isSaving={isSavingLogging}
           />
         </section>
 

@@ -16,6 +16,10 @@ export { default as TestPage } from '@shared/components/TestPage';
 export { default as ConfigLayout } from '@shared/components/ConfigLayout';
 export { default as ConnectionStatus } from '@shared/components/ConnectionStatus';
 export { default as TestConnection } from '@shared/components/TestConnection';
+export { default as StatsCount } from '@shared/components/StatsCount';
+export { default as ConfirmationModal } from '@shared/components/ConfirmationModal';
+export { default as DatabaseManager } from '@shared/components/DatabaseManager';
+export { default as LoggingConfig } from '@shared/components/LoggingConfig';
 
 // --- Services ---
 // export { default as ApiClient } from '@shared/services/apiClient';

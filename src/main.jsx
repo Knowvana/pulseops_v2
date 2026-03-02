@@ -9,13 +9,13 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
-import { TestPage } from '@shared';
+import App from '@core/App';
 import '@src/index.css';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <BrowserRouter>
-      <TestPage />
+      <App />
     </BrowserRouter>
   </React.StrictMode>
 );
