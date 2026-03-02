@@ -12,14 +12,14 @@
 // USED BY: AppShell.jsx
 //
 // DEPENDENCIES:
-//   - @config/globalText.json → UI labels
+//   - @config/uiElementsText.json → UI labels
 //   - lucide-react            → Icons
 // ============================================================================
 import React, { useState, useRef, useEffect } from 'react';
 import { LogOut, ChevronDown, MonitorDot, Settings } from 'lucide-react';
-import globalText from '@config/globalText.json';
+import uiText from '@config/uiElementsText.json';
 
-const txt = globalText.topNav;
+const txt = uiText.topNav;
 
 export default function TopMenu({
   appName = 'PulseOps',

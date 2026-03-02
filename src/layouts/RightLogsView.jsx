@@ -6,12 +6,12 @@
 // top nav bar monitor button.
 //
 // ARCHITECTURE: Stateful component managing tab selection and log display.
-// All text from globalText.json. Follows V1 RightPanel design with V2 theming.
+// All text from uiElementsText.json. Follows V1 RightPanel design with V2 theming.
 //
 // USED BY: AppShell.jsx
 //
 // DEPENDENCIES:
-//   - @config/globalText.json → UI labels
+//   - @config/uiElementsText.json → UI labels
 //   - lucide-react            → Icons
 // ============================================================================
 import React, { useState, useRef, useEffect } from 'react';
@@ -19,9 +19,9 @@ import {
   X, ScrollText, Globe, Trash2,
   Bug, Info, AlertTriangle, AlertCircle
 } from 'lucide-react';
-import globalText from '@config/globalText.json';
+import uiText from '@config/uiElementsText.json';
 
-const panelText = globalText.rightPanel;
+const panelText = uiText.rightPanel;
 const logText = panelText.logs;
 const apiText = panelText.apiCalls;
 

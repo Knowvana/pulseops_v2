@@ -8,12 +8,12 @@
 //
 // ROUTE: /settings
 //
-// ARCHITECTURE: Reads all text from globalText.json. Uses shared components
+// ARCHITECTURE: Reads all text from uiText.json. Uses shared components
 // (ConfigLayout, TestConnection, DatabaseManager, LoggingConfig, Button,
 // ConfirmationModal) exclusively. No inline hardcoded strings.
 //
 // DEPENDENCIES:
-//   - @config/globalText.json → All UI labels
+//   - @config/uiText.json → All UI labels
 //   - @config/urls.json       → API endpoints
 //   - @config/app.json        → App metadata
 //   - @shared → ConfigLayout, TestConnection, DatabaseManager, LoggingConfig,
@@ -25,10 +25,10 @@ import {
   Shield, Globe, AlertTriangle, RefreshCw, Check
 } from 'lucide-react';
 import { ConfigLayout, TestConnection, DatabaseManager, LoggingConfig, Button, ConfirmationModal, ConnectionStatus } from '@shared';
-import globalText from '@config/globalText.json';
+import uiText from '@config/uiElementsText.json';
 import urls from '@config/urls.json';
 
-const viewText = globalText.coreViews.settings;
+const viewText = uiText.coreViews.settings;
 const tabText = viewText.tabs;
 const logText = viewText.logSettings;
 const authText = viewText.authSettings;
@@ -36,14 +36,6 @@ const connectionText = viewText.connectionStatus;
 
 // ── Database Configuration Tab ──────────────────────────────────────────────
 function DatabaseConfigTab() {
-  const [connectionStatus, setConnectionStatus] = useState({
-    status: 'loading',
-    message: connectionText.testing,
-    progress: 0,
-    lastTested: null,
-    meta: null
-  });
-
   const dbFields = [
     { name: 'host', label: 'Host', placeholder: 'localhost', type: 'text', defaultValue: 'localhost' },
     { name: 'port', label: 'Port', placeholder: '5432', type: 'text', defaultValue: '5432' },
@@ -53,77 +45,14 @@ function DatabaseConfigTab() {
     { name: 'password', label: 'Password', placeholder: '••••••••', type: 'password' },
   ];
 
-  // Auto-test connection on component mount
-  useEffect(() => {
-    const autoTestConnection = async () => {
-      setConnectionStatus({
-        status: 'loading',
-        message: connectionText.testing,
-        progress: 0,
-        lastTested: null,
-        meta: null
-      });
-
-      try {
-        // Get current config from localStorage or use defaults
-        const savedConfig = localStorage.getItem('databaseConfig');
-        const config = savedConfig ? JSON.parse(savedConfig) : {
-          host: 'localhost',
-          port: '5432',
-          database: 'pulseops_v2',
-          schema: 'pulseops',
-          username: 'postgres',
-          password: ''
-        };
-
-        const response = await fetch(urls.database.testConnection, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(config),
-        });
-        const result = await response.json();
-        
-        if (result?.success) {
-          const latency = result.data?.latencyMs || 0;
-          const dbVersion = result.data?.dbVersion || '';
-          const versionShort = dbVersion ? dbVersion.split(',')[0].replace('PostgreSQL ', '') : '';
-          setConnectionStatus({
-            status: 'success',
-            message: result.data?.message || connectionText.connected,
-            meta: versionShort ? `${connectionText.responseTime} ${latency}ms ${connectionText.metaSeparator} ${connectionText.version} ${versionShort}` : `${connectionText.responseTime} ${latency}ms`,
-            lastTested: `${connectionText.lastTested} ${new Date().toLocaleString()}`,
-            progress: 100
-          });
-        } else {
-          setConnectionStatus({
-            status: 'error',
-            message: result?.error?.message || connectionText.failed,
-            lastTested: `${connectionText.lastTested} ${new Date().toLocaleString()}`,
-            progress: 0
-          });
-        }
-      } catch (err) {
-        setConnectionStatus({
-          status: 'error',
-          message: err.message || connectionText.failed,
-          lastTested: `${connectionText.lastTested} ${new Date().toLocaleString()}`,
-          progress: 0
-        });
-      }
-    };
-
-    autoTestConnection();
-  }, []);
+  const savedConfig = (() => {
+    try {
+      const raw = localStorage.getItem('databaseConfig');
+      return raw ? JSON.parse(raw) : {};
+    } catch { return {}; }
+  })();
 
   const handleTest = useCallback(async (config) => {
-    setConnectionStatus({
-      status: 'loading',
-      message: connectionText.testing,
-      progress: 0,
-      lastTested: null,
-      meta: null
-    });
-
     try {
       const response = await fetch(urls.database.testConnection, {
         method: 'POST',
@@ -131,40 +60,21 @@ function DatabaseConfigTab() {
         body: JSON.stringify(config),
       });
       const result = await response.json();
-      
+
       if (result?.success) {
         const latency = result.data?.latencyMs || 0;
         const dbVersion = result.data?.dbVersion || '';
         const versionShort = dbVersion ? dbVersion.split(',')[0].replace('PostgreSQL ', '') : '';
         const metaText = versionShort ? `${connectionText.responseTime} ${latency}ms ${connectionText.metaSeparator} ${connectionText.version} ${versionShort}` : `${connectionText.responseTime} ${latency}ms`;
-        setConnectionStatus({
-          status: 'success',
-          message: result.data?.message || connectionText.connected,
-          meta: metaText,
-          lastTested: `${connectionText.lastTested} ${new Date().toLocaleString()}`,
-          progress: 100
-        });
         return {
           success: true,
           message: result.data?.message || connectionText.connected,
           meta: metaText,
         };
       }
-      
-      setConnectionStatus({
-        status: 'error',
-        message: result?.error?.message || connectionText.failed,
-        lastTested: `${connectionText.lastTested} ${new Date().toLocaleString()}`,
-        progress: 0
-      });
+
       return { success: false, message: result?.error?.message || connectionText.failed };
     } catch (err) {
-      setConnectionStatus({
-        status: 'error',
-        message: err.message || connectionText.failed,
-        lastTested: `${connectionText.lastTested} ${new Date().toLocaleString()}`,
-        progress: 0
-      });
       return { success: false, message: err.message || connectionText.failed };
     }
   }, []);
@@ -176,8 +86,7 @@ function DatabaseConfigTab() {
       body: JSON.stringify(config),
     });
     const result = await response.json();
-    if (!result?.success) throw new Error(result?.error?.message || globalText.errors.serverError);
-    // Also save to localStorage for auto-test on reload
+    if (!result?.success) throw new Error(result?.error?.message || uiText.errors.serverError);
     localStorage.setItem('databaseConfig', JSON.stringify(config));
   }, []);
 
@@ -191,6 +100,8 @@ function DatabaseConfigTab() {
           fields={dbFields}
           onTest={handleTest}
           onSave={handleSave}
+          initialConfig={savedConfig}
+          autoTest={true}
         />
       </div>
     </div>
@@ -238,37 +149,37 @@ function DatabaseObjectsTab() {
         onCreateDatabase={async () => {
           const res = await fetch(urls.database.createDatabase, { method: 'POST' });
           const result = await res.json();
-          if (!result?.success) throw new Error(result?.error?.message || globalText.errors.serverError);
+          if (!result?.success) throw new Error(result?.error?.message || uiText.errors.serverError);
           return result.data;
         }}
         onDeleteDatabase={async () => {
           const res = await fetch(urls.database.deleteDatabase, { method: 'DELETE' });
           const result = await res.json();
-          if (!result?.success) throw new Error(result?.error?.message || globalText.errors.serverError);
+          if (!result?.success) throw new Error(result?.error?.message || uiText.errors.serverError);
           return result.data;
         }}
         onInitializeSchema={async () => {
           const res = await fetch(urls.database.createSchema, { method: 'POST' });
           const result = await res.json();
-          if (!result?.success) throw new Error(result?.error?.message || globalText.errors.serverError);
+          if (!result?.success) throw new Error(result?.error?.message || uiText.errors.serverError);
           return result.data;
         }}
         onLoadDefaultData={async () => {
           const res = await fetch(urls.database.loadDefaultData, { method: 'POST' });
           const result = await res.json();
-          if (!result?.success) throw new Error(result?.error?.message || globalText.errors.serverError);
+          if (!result?.success) throw new Error(result?.error?.message || uiText.errors.serverError);
           return result.data;
         }}
         onCleanDefaultData={async () => {
           const res = await fetch(urls.database.loadDefaultData, { method: 'DELETE' });
           const result = await res.json();
-          if (!result?.success) throw new Error(result?.error?.message || globalText.errors.serverError);
+          if (!result?.success) throw new Error(result?.error?.message || uiText.errors.serverError);
           return result.data;
         }}
         onWipeDatabase={async () => {
           const res = await fetch(urls.database.wipe, { method: 'POST' });
           const result = await res.json();
-          if (!result?.success) throw new Error(result?.error?.message || globalText.errors.serverError);
+          if (!result?.success) throw new Error(result?.error?.message || uiText.errors.serverError);
           return result.data;
         }}
         onRefreshStatus={checkStatus}
@@ -283,19 +194,47 @@ function DatabaseObjectsTab() {
 function LogSettingsTab() {
   const [logMode, setLogMode] = useState('file');
   const [dbReady, setDbReady] = useState(false);
+  const [logStatus, setLogStatus] = useState({ status: 'loading', message: connectionText.testing, meta: null, lastTested: null });
 
   useEffect(() => {
-    const checkDb = async () => {
+    const checkAll = async () => {
       try {
-        const response = await fetch(urls.database.schemaStatus);
-        const result = await response.json();
-        if (result?.success && result?.data?.initialized) {
-          setDbReady(true);
+        const [dbRes, logRes] = await Promise.allSettled([
+          fetch(urls.database.schemaStatus),
+          fetch(urls.logs.stats),
+        ]);
+
+        if (dbRes.status === 'fulfilled') {
+          const dbResult = await dbRes.value.json();
+          if (dbResult?.success && dbResult?.data?.initialized) setDbReady(true);
         }
-      } catch { /* db not ready */ }
+
+        if (logRes.status === 'fulfilled' && logRes.value.ok) {
+          const logResult = await logRes.value.json();
+          if (logResult?.success && logResult?.data) {
+            const d = logResult.data;
+            const meta = [
+              d.fileSize ? `Size: ${d.fileSize}` : null,
+              d.entries != null ? `Entries: ${d.entries}` : null,
+            ].filter(Boolean).join(` ${connectionText.metaSeparator} `);
+            setLogStatus({
+              status: 'success',
+              message: logMode === 'file' ? logText.fileActive : logText.dbActive,
+              meta: meta || null,
+              lastTested: new Date().toLocaleString(),
+            });
+          } else {
+            setLogStatus({ status: 'success', message: logMode === 'file' ? logText.fileActive : logText.dbActive, meta: null, lastTested: new Date().toLocaleString() });
+          }
+        } else {
+          setLogStatus({ status: 'success', message: logMode === 'file' ? logText.fileActive : logText.dbActive, meta: null, lastTested: new Date().toLocaleString() });
+        }
+      } catch {
+        setLogStatus({ status: 'error', message: connectionText.failed, meta: null, lastTested: new Date().toLocaleString() });
+      }
     };
-    checkDb();
-  }, []);
+    checkAll();
+  }, [logMode]);
 
   const handleToggle = useCallback(() => {
     if (logMode === 'file' && !dbReady) return;
@@ -309,24 +248,16 @@ function LogSettingsTab() {
         <p className="text-sm text-surface-400">{logText.subtitle}</p>
       </div>
 
-      {/* Current Mode Indicator */}
-      <div className={`rounded-xl border p-4 ${
-        logMode === 'file'
-          ? 'bg-gradient-to-r from-brand-50 to-teal-50 border-brand-200'
-          : 'bg-gradient-to-r from-emerald-50 to-teal-50 border-emerald-200'
-      }`}>
-        <div className="flex items-center gap-3">
-          <div className={`p-2 rounded-lg ${logMode === 'file' ? 'bg-brand-100' : 'bg-emerald-100'}`}>
-            {logMode === 'file' ? <FileText size={16} className="text-brand-600" /> : <Database size={16} className="text-emerald-600" />}
-          </div>
-          <div>
-            <p className="text-xs font-bold text-surface-800">{logText.currentMode}</p>
-            <p className="text-[10px] text-surface-500">
-              {logMode === 'file' ? logText.fileActive : logText.dbActive}
-            </p>
-          </div>
-        </div>
-      </div>
+      {/* Log Storage Connection Status */}
+      <ConnectionStatus
+        type={logMode === 'file' ? logText.fileMode : logText.dbMode}
+        status={logStatus.status}
+        message={logStatus.message}
+        meta={logStatus.meta}
+        lastTested={logStatus.lastTested}
+        icon={logMode === 'file' ? FileText : Database}
+        showBadge={true}
+      />
 
       {/* File Logging Option */}
       <button
@@ -456,7 +387,7 @@ function AuthSettingsTab() {
       body: JSON.stringify({ provider: selectedProvider }),
     });
     const result = await response.json();
-    if (!result?.success) throw new Error(result?.error?.message || globalText.errors.serverError);
+    if (!result?.success) throw new Error(result?.error?.message || uiText.errors.serverError);
     return { provider: selectedProvider, previous: currentProvider };
   }, [selectedProvider, currentProvider]);
 
@@ -554,7 +485,7 @@ function AuthSettingsTab() {
           </Button>
           {hasChange && (
             <Button variant="ghost" size="sm" onClick={() => setSelectedProvider(currentProvider)}>
-              {globalText.common.cancel}
+              {uiText.common.cancel}
             </Button>
           )}
         </div>

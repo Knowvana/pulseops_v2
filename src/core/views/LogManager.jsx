@@ -7,18 +7,18 @@
 //
 // ROUTE: /logs
 //
-// ARCHITECTURE: Reads all text from globalText.json. Uses shared components
+// ARCHITECTURE: Reads all text from uiElementsText.json. Uses shared components
 // exclusively. No inline hardcoded strings.
 //
 // DEPENDENCIES:
-//   - @config/globalText.json → All UI labels
+//   - @config/uiElementsText.json → All UI labels
 //   - @shared → Reusable design system components
 // ============================================================================
 import React from 'react';
 import { ScrollText } from 'lucide-react';
-import globalText from '@config/globalText.json';
+import uiText from '@config/uiElementsText.json';
 
-const viewText = globalText.coreViews.logs;
+const viewText = uiText.coreViews.logs;
 
 export default function LogManager() {
   return (

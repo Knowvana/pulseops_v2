@@ -27,7 +27,7 @@
 //   - @layouts                  → AppShell
 //   - @core/views/*             → Native core views
 //   - @modules/moduleRegistry   → Dynamic module loading
-//   - @config/globalText.json   → All UI text
+//   - @config/uiElementsText.json   → All UI text
 //   - @config/app.json          → App name, default credentials
 // ============================================================================
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -44,9 +44,9 @@ import LogManager from '@core/views/LogManager';
 import Settings from '@core/views/Settings';
 import TestPage from '@shared/components/TestPage';
 import appConfig from '@config/app.json';
-import globalText from '@config/globalText.json';
+import uiText from '@config/uiElementsText.json';
 
-const coreNav = globalText.coreNav;
+const coreNav = uiText.coreNav;
 
 // ── Core Admin definition (NOT a module — hardcoded first tab) ──────────────
 const CORE_ADMIN = {

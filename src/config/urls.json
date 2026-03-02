@@ -27,6 +27,9 @@
     "available": "/api/modules/available",
     "bundle": "/api/modules/bundle"
   },
+  "logs": {
+    "stats": "/api/logs/stats"
+  },
   "config": {
     "list": "/api/config",
     "save": "/api/config"

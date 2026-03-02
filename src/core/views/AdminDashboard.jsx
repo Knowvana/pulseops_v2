@@ -7,18 +7,18 @@
 //
 // ROUTE: / (default authenticated route)
 //
-// ARCHITECTURE: Reads all text from globalText.json. Uses shared components
+// ARCHITECTURE: Reads all text from uiText.json. Uses shared components
 // exclusively. No inline hardcoded strings.
 //
 // DEPENDENCIES:
-//   - @config/globalText.json → All UI labels
+//   - @config/uiText.json → All UI labels
 //   - @shared → Reusable design system components
 // ============================================================================
 import React from 'react';
 import { LayoutDashboard, Database, Activity, Package, Shield, Server } from 'lucide-react';
-import globalText from '@config/globalText.json';
+import uiText from '@config/uiElementsText.json';
 
-const viewText = globalText.coreViews.dashboard;
+const viewText = uiText.coreViews.dashboard;
 
 export default function AdminDashboard() {
   return (
@@ -42,11 +42,11 @@ export default function AdminDashboard() {
               <Activity size={16} className="text-emerald-600" />
             </div>
             <h3 className="text-xs font-bold uppercase tracking-wider text-surface-400">
-              {globalText.common.active}
+              {uiText.common.active}
             </h3>
           </div>
           <p className="text-2xl font-bold text-surface-800">—</p>
-          <p className="text-xs text-surface-400 mt-1">{globalText.common.loading}</p>
+          <p className="text-xs text-surface-400 mt-1">{uiText.common.loading}</p>
         </div>
 
         <div className="bg-white rounded-xl border border-surface-200 p-5 shadow-sm">
@@ -55,11 +55,11 @@ export default function AdminDashboard() {
               <Database size={16} className="text-brand-600" />
             </div>
             <h3 className="text-xs font-bold uppercase tracking-wider text-surface-400">
-              {globalText.common.info}
+              {uiText.common.info}
             </h3>
           </div>
           <p className="text-2xl font-bold text-surface-800">—</p>
-          <p className="text-xs text-surface-400 mt-1">{globalText.common.loading}</p>
+          <p className="text-xs text-surface-400 mt-1">{uiText.common.loading}</p>
         </div>
 
         <div className="bg-white rounded-xl border border-surface-200 p-5 shadow-sm">
@@ -68,11 +68,11 @@ export default function AdminDashboard() {
               <Package size={16} className="text-amber-600" />
             </div>
             <h3 className="text-xs font-bold uppercase tracking-wider text-surface-400">
-              {globalText.common.info}
+              {uiText.common.info}
             </h3>
           </div>
           <p className="text-2xl font-bold text-surface-800">—</p>
-          <p className="text-xs text-surface-400 mt-1">{globalText.common.loading}</p>
+          <p className="text-xs text-surface-400 mt-1">{uiText.common.loading}</p>
         </div>
       </div>
 

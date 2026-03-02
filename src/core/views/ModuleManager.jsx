@@ -7,18 +7,18 @@
 //
 // ROUTE: /modules
 //
-// ARCHITECTURE: Reads all text from globalText.json. Uses shared components
+// ARCHITECTURE: Reads all text from uiElementsText.json. Uses shared components
 // exclusively. No inline hardcoded strings.
 //
 // DEPENDENCIES:
-//   - @config/globalText.json → All UI labels
+//   - @config/uiElementsText.json → All UI labels
 //   - @shared → Reusable design system components
 // ============================================================================
 import React from 'react';
 import { Package } from 'lucide-react';
-import globalText from '@config/globalText.json';
+import uiText from '@config/uiElementsText.json';
 
-const viewText = globalText.coreViews.moduleManager;
+const viewText = uiText.coreViews.moduleManager;
 
 export default function ModuleManager() {
   return (

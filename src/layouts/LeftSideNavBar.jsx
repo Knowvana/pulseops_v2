@@ -12,14 +12,14 @@
 // USED BY: AppShell.jsx
 //
 // DEPENDENCIES:
-//   - @config/globalText.json → Collapse/expand labels
+//   - @config/uiElementsText.json → Collapse/expand labels
 //   - lucide-react            → Chevron icons
 // ============================================================================
 import React, { useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import globalText from '@config/globalText.json';
+import uiText from '@config/uiElementsText.json';
 
-const txt = globalText.sideNav;
+const txt = uiText.sideNav;
 
 export default function LeftSideNavBar({
   title,

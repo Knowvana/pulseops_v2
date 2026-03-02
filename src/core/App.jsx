@@ -17,16 +17,16 @@
 //   - @shared                → LoginForm
 //   - @core/PlatformDashboard → Single orchestrator for all authenticated UI
 //   - @config/urls.json      → API endpoint URLs
-//   - @config/globalText.json → UI error messages
+//   - @config/uiElementsText.json → UI error messages
 // ============================================================================
 import React, { useState, useCallback } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { LoginForm } from '@shared';
 import PlatformDashboard from '@core/PlatformDashboard';
 import urls from '@config/urls.json';
-import globalText from '@config/globalText.json';
+import uiText from '@config/uiElementsText.json';
 
-const loginText = globalText.auth?.login || {};
+const loginText = uiText.auth?.login || {};
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);

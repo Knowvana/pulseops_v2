@@ -40,7 +40,7 @@
 // ARCHITECTURE: Fully reusable, accepts any field configuration. Uses
 // ConnectionStatus component to display test results.
 // ============================================================================
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Database, RefreshCw, Save, Eye, EyeOff } from 'lucide-react';
 import { Button } from '@shared';
 import ConnectionStatus from '@shared/components/ConnectionStatus';
@@ -53,6 +53,7 @@ export default function TestConnection({
   onTest,
   onSave,
   initialConfig = {},
+  autoTest = false,
 }) {
   const [config, setConfig] = useState(() => {
     const initial = {};
@@ -64,7 +65,7 @@ export default function TestConnection({
 
   const [connectionStatus, setConnectionStatus] = useState({
     type: title,
-    status: 'loading',
+    status: 'neutral',
     message: 'Ready to test connection',
     meta: null,
     lastTested: null,
@@ -153,6 +154,57 @@ export default function TestConnection({
       setIsSaving(false);
     }
   };
+
+  // Auto-test on mount when autoTest prop is true
+  useEffect(() => {
+    if (autoTest && onTest) {
+      const runAutoTest = async () => {
+        setIsTesting(true);
+        setConnectionStatus({
+          type: title,
+          status: 'loading',
+          message: 'Testing connection...',
+          meta: null,
+          lastTested: null,
+        });
+        try {
+          const result = await onTest(config);
+          const timeString = new Date().toLocaleString();
+          setLastTestedTime(timeString);
+          if (result.success) {
+            setConnectionStatus({
+              type: title,
+              status: 'success',
+              message: result.message || 'Connection successful',
+              meta: result.meta || null,
+              lastTested: timeString,
+            });
+          } else {
+            setConnectionStatus({
+              type: title,
+              status: 'error',
+              message: result.message || 'Connection failed',
+              meta: result.meta || null,
+              lastTested: timeString,
+            });
+          }
+        } catch (error) {
+          const timeString = new Date().toLocaleString();
+          setLastTestedTime(timeString);
+          setConnectionStatus({
+            type: title,
+            status: 'error',
+            message: error.message || 'Connection test failed',
+            meta: null,
+            lastTested: timeString,
+          });
+        } finally {
+          setIsTesting(false);
+        }
+      };
+      runAutoTest();
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const togglePasswordVisibility = (fieldName) => {
     setShowPasswords(prev => ({ ...prev, [fieldName]: !prev[fieldName] }));
