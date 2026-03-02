@@ -33,7 +33,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
-  LayoutDashboard, Package, ScrollText, Settings as SettingsIcon, Shield
+  LayoutDashboard, Package, ScrollText, Settings as SettingsIcon, Shield, Eye
 } from 'lucide-react';
 import { AppShell } from '@layouts';
 import { getAllManifests, getManifestById, loadModuleManifests } from '@modules/moduleRegistry';
@@ -42,6 +42,7 @@ import AdminDashboard from '@core/views/AdminDashboard';
 import ModuleManager from '@core/views/ModuleManager';
 import LogManager from '@core/views/LogManager';
 import Settings from '@core/views/Settings';
+import TestPage from '@shared/components/TestPage';
 import appConfig from '@config/app.json';
 import globalText from '@config/globalText.json';
 
@@ -60,9 +61,11 @@ const CORE_ADMIN = {
     { id: 'moduleManager', label: coreNav.moduleManager, icon: Package },
     { id: 'logs', label: coreNav.logs, icon: ScrollText },
     { id: 'Settings', label: coreNav.settings, icon: SettingsIcon },
+    { id: 'testPage', label: 'Test Page', icon: Eye },
   ],
   views: {
     dashboard: AdminDashboard,
+    testPage: TestPage,
     moduleManager: ModuleManager,
     logs: LogManager,
     Settings: Settings,
