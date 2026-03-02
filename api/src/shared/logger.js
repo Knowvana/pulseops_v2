@@ -1,26 +1,43 @@
 // ============================================================================
 // Logger — PulseOps V2 API
 //
-// PURPOSE: Centralized logging with request ID support. Placeholder for
-// Winston integration.
+// PURPOSE: Structured logging using Winston. All log messages MUST come from
+// APIMessages.json or APIErrors.json — no inline strings.
 //
-// USAGE: import { logger } from '../shared/logger.js';
-//        logger.info('message', { context });
+// FEATURES:
+//   - JSON structured output for production (K8s log aggregation)
+//   - Colorized console output for development
+//   - Request ID and service metadata in every log entry
+//   - Error stack trace capture
+//
+// USAGE:
+//   import { logger } from '../shared/logger.js';
+//   logger.info(messages.success.dbConnected, { requestId: req.requestId });
+//   logger.error(errors.errors.dbConnectionFailed, { error: err.message });
 // ============================================================================
+import winston from 'winston';
 
-export const logger = {
-  info: (message, context = {}) => {
-    console.log(`[INFO] ${message}`, Object.keys(context).length ? context : '');
-  },
-  warn: (message, context = {}) => {
-    console.warn(`[WARN] ${message}`, Object.keys(context).length ? context : '');
-  },
-  error: (message, context = {}) => {
-    console.error(`[ERROR] ${message}`, Object.keys(context).length ? context : '');
-  },
-  debug: (message, context = {}) => {
-    if (process.env.NODE_ENV !== 'production') {
-      console.debug(`[DEBUG] ${message}`, Object.keys(context).length ? context : '');
-    }
-  },
-};
+const nodeEnv = process.env.NODE_ENV || 'development';
+
+const logger = winston.createLogger({
+  level: nodeEnv === 'production' ? 'info' : 'debug',
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.errors({ stack: true }),
+    winston.format.json()
+  ),
+  defaultMeta: { service: 'pulseops-v2-api' },
+  transports: [
+    new winston.transports.Console({
+      format: winston.format.combine(
+        winston.format.colorize(),
+        winston.format.printf(({ timestamp, level, message, ...meta }) => {
+          const metaStr = Object.keys(meta).length > 1 ? ` ${JSON.stringify(meta)}` : '';
+          return `${timestamp} [${level}]: ${message}${metaStr}`;
+        })
+      ),
+    }),
+  ],
+});
+
+export { logger };

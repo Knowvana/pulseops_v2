@@ -1,0 +1,42 @@
+{
+  "apiPrefix": "/api",
+  "swagger": {
+    "ui": "/swagger-ui",
+    "json": "/api-docs/swagger.json"
+  },
+  "health": {
+    "base": "/health",
+    "readiness": "/health/readiness"
+  },
+  "auth": {
+    "base": "/auth",
+    "login": "/auth/login",
+    "logout": "/auth/logout",
+    "refresh": "/auth/refresh",
+    "me": "/auth/me",
+    "config": "/auth/config"
+  },
+  "database": {
+    "base": "/database",
+    "testConnection": "/database/test-connection",
+    "saveConfig": "/database/save-config",
+    "schemaStatus": "/database/schema-status",
+    "createDatabase": "/database/create-database",
+    "deleteDatabase": "/database/delete-database",
+    "createSchema": "/database/create-schema",
+    "loadDefaultData": "/database/load-default-data",
+    "wipe": "/database/wipe",
+    "stats": "/database/stats"
+  },
+  "modules": {
+    "base": "/modules",
+    "list": "/modules",
+    "available": "/modules/available",
+    "bundle": "/modules/bundle"
+  },
+  "config": {
+    "base": "/config",
+    "list": "/config",
+    "byKey": "/config/:key"
+  }
+}

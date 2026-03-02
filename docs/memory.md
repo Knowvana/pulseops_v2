@@ -81,7 +81,87 @@ PulseOps V2 is an enterprise modular operations platform with a plug-and-play mo
 | T21 | App.jsx: thin auth wrapper, URL-driven PlatformDashboard orchestrator | DONE |
 | T22 | moduleRegistry.js: dynamic-only (no core modules), V1-style getAllManifests API | DONE |
 
-## Recent Updates (2026-03-02 — Session 2)
+## Recent Updates (2026-03-02 — Session 3: Full API + Security Implementation)
+
+### API Config Files Created
+- `api/src/config/DatabaseConfig.json` — PostgreSQL connection settings (host, port, database, schema, user, password, pool)
+- `api/src/config/DefaultAdminUser.json` — Default admin user for JSON file auth (admin@test.com / Infosys@123)
+- `api/src/config/auth-provider.json` — Active auth provider (json_file | database | social) with available providers
+- `api/src/config/APIMessages.json` — All API success messages (no inline strings)
+- `api/src/config/APIErrors.json` — All API error messages (no inline strings)
+- `api/src/config/swagger.json` — OpenAPI 3.0 specification for all endpoints
+
+### API Shared Utilities
+- `api/src/shared/loadJson.js` — Load/save JSON config files (loadJson, saveJson, pre-loaded messages/errors)
+- `api/src/shared/logger.js` — Upgraded from console placeholder to Winston structured logging
+
+### API Security Middleware (Enterprise-Grade)
+- `api/src/core/middleware/security.js` — Full rewrite:
+  - Helmet.js HTTP security headers
+  - Request ID (UUID) per request for distributed tracing
+  - General rate limiter (100 req/15min)
+  - Auth rate limiter (10 req/15min for login)
+  - Recursive XSS input sanitizer (body/query/params)
+
+### API Auth Middleware (Dual-Auth Protocol)
+- `api/src/core/middleware/auth.js` — Full rewrite:
+  - JWT access token generation/verification (jsonwebtoken)
+  - JWT refresh token generation/verification (separate secret)
+  - Password hashing with bcrypt (configurable rounds)
+  - `authenticate` middleware: Bearer header first, HttpOnly cookie fallback
+  - `requireRole` middleware: RBAC with logging
+  - Expired vs invalid token differentiation
+
+### API DatabaseService
+- `api/src/core/database/databaseService.js` — Complete implementation:
+  - Lazy singleton connection pool (pg)
+  - Create/drop database
+  - Test connection with latency + version info
+  - Schema status check (schema exists, tables present, default data loaded)
+  - Create schema: system_users, system_config, system_modules, system_logs
+  - Load/clean default data (admin user with bcrypt hash, core modules)
+  - Wipe database (drop schema cascade)
+  - Database stats (table sizes)
+  - Generic parameterized query
+  - Graceful pool shutdown for K8s
+
+### API Routes
+- `api/src/core/routes/healthRoutes.js` — Liveness + readiness probes
+- `api/src/core/routes/databaseRoutes.js` — 11 endpoints (test-connection, save-config, create-database, delete-database, schema-status, create-schema, load-default-data, clean-default-data, wipe, stats)
+- `api/src/core/routes/authRoutes.js` — Multi-provider auth (json_file, database), login, refresh, logout, me, get/set auth config
+- `api/src/core/routes/configRoutes.js` — CRUD for system_config table (JSONB key-value store)
+
+### API App.js Rewrite
+- Full 14-step middleware chain matching .windsurfrules Section 2.7
+- Swagger UI at `/swagger-ui` with persist authorization
+- Public routes: health, auth (with auth rate limiter), database
+- Protected routes: config (JWT required)
+- 404 handler, global error handler with structured logging
+
+### API Config Loader Update
+- `api/src/config/index.js` — Loads DatabaseConfig.json separately, adds CORS config, refresh secret, connection timeouts
+
+### API Server Update
+- `api/src/server.js` — Uses Winston logger, messages from JSON, graceful DB pool shutdown
+
+### Frontend Changes
+- `src/config/app.json` — Removed `coreAuth` section (credentials now in API's DefaultAdminUser.json)
+- `src/core/App.jsx` — Rewritten: authenticates via API `/auth/login` endpoint, stores JWT in localStorage, HttpOnly cookies set by API, proper logout with API call
+- `src/core/views/Settings.jsx` — Fixed all URL references to use nested urls.json structure (urls.database.testConnection, urls.database.saveConfig, etc.)
+- `src/config/urls.json` — Added `saveConfig` endpoint under database
+- `src/config/globalText.json` — Added auth.login messages (success, failed, networkError)
+- `src/config/UIErrors.json` — Created: auth, database, config, validation, general error messages
+- `src/config/UIMessages.json` — Created: auth, database, config, general success messages
+- `src/config/uiElementsText.json` — Created: hierarchical UI element text (admin.settings.databaseConfiguration, etc.)
+
+### API Dependencies Installed
+- jsonwebtoken, bcryptjs, pg, express-rate-limit, winston, swagger-ui-express
+
+### Build Verified
+- Frontend: `vite build` succeeds — 324.91 KB JS, 41.64 KB CSS
+- API: Starts successfully, all middleware loads, Swagger UI accessible
+
+## Previous (2026-03-02 — Session 2)
 - **Architecture Correction**: Admin is a CORE SYSTEM feature, NOT a module. Deleted `src/modules/admin/`
 - **TopMenu V1 Design**: White background, gradient accent line, module tabs with icons, V1-matching user menu
 - **Single Dashboard**: PlatformDashboard IS the dashboard — no separate AdminDashboard route
@@ -162,6 +242,12 @@ PulseOps V2 is an enterprise modular operations platform with a plug-and-play mo
 ### Backend (api/)
 - Express 4.21
 - cors 2.8, helmet 8.0, cookie-parser 1.4
+- jsonwebtoken 9.x (JWT sign/verify)
+- bcryptjs 3.x (password hashing)
+- pg 8.x (node-postgres connection pool)
+- express-rate-limit 7.x (rate limiting)
+- winston 3.x (structured logging)
+- swagger-ui-express 5.x (API explorer)
 - nodemon 3.1 (dev)
 
 ### Testing
@@ -214,14 +300,35 @@ PulseOps V2 is an enterprise modular operations platform with a plug-and-play mo
 - `shared/components/StatsCount.jsx` — Horizontal count statistics
 - `shared/services/apiClient.js` — HTTP client with auth support
 
+### Frontend Config (src/config/)
+- `app.json` — App metadata (coreAuth removed — credentials now in API)
+- `urls.json` — All API URLs (nested: api, auth, database, modules, config)
+- `globalText.json` — Platform-wide UI strings (auth.login messages added)
+- `UIErrors.json` — UI error messages (auth, database, config, validation, general)
+- `UIMessages.json` — UI success messages (auth, database, config, general)
+- `uiElementsText.json` — Hierarchical UI element text (admin.settings.databaseConfiguration, etc.)
+
 ### Backend (api/src/)
-- `server.js` — Entry point with graceful shutdown
-- `app.js` — Express factory with enterprise middleware chain
-- `config/index.js` — 12-factor config loader
-- `config/app.json` — Default config values
-- `core/middleware/auth.js` — Dual-auth middleware (Bearer + cookie)
-- `core/middleware/security.js` — Input sanitization
-- `core/routes/index.js` — Route registration with health endpoints
+- `server.js` — Entry point with graceful shutdown + DB pool close + Winston logging
+- `app.js` — Express factory with 14-step middleware chain (Helmet, RequestID, Cookie, CORS, RateLimit, JSON, Sanitizer, Logging, Swagger, Public Routes, Auth RateLimit, Protected Routes, 404, ErrorHandler)
+- `config/index.js` — 12-factor config loader (loads app.json + DatabaseConfig.json)
+- `config/app.json` — Server + auth config (database section removed, uses DatabaseConfig.json)
+- `config/DatabaseConfig.json` — PostgreSQL connection settings (CRUD-able from UI)
+- `config/DefaultAdminUser.json` — Default admin user for JSON file auth
+- `config/auth-provider.json` — Active auth provider config (json_file | database | social)
+- `config/APIMessages.json` — All API success messages (no inline strings)
+- `config/APIErrors.json` — All API error messages (no inline strings)
+- `config/swagger.json` — OpenAPI 3.0 specification for all endpoints
+- `shared/loadJson.js` — JSON config loader/saver utility
+- `shared/logger.js` — Winston structured logging
+- `core/middleware/auth.js` — JWT + bcrypt + dual-auth (Bearer + HttpOnly cookie) + RBAC
+- `core/middleware/security.js` — Helmet + rate limiting + request ID + XSS sanitization
+- `core/database/databaseService.js` — PostgreSQL service (pool, schema, CRUD, seeding, stats)
+- `core/routes/healthRoutes.js` — Liveness + readiness probes
+- `core/routes/databaseRoutes.js` — 11 database management endpoints
+- `core/routes/authRoutes.js` — Multi-provider auth (login, refresh, logout, me, config)
+- `core/routes/configRoutes.js` — CRUD for system_config (JSONB key-value)
+- `core/routes/index.js` — Legacy route registration (superseded by app.js direct mounting)
 
 ### Testing
 - Removed from V2 scaffold (no Storybook / Vitest artifacts tracked)

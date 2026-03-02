@@ -1,0 +1,110 @@
+{
+  "admin": {
+    "settings": {
+      "databaseConfiguration": {
+        "title": "Database Configuration",
+        "subtitle": "Configure and test PostgreSQL connection",
+        "fields": {
+          "host": { "label": "Host", "placeholder": "localhost" },
+          "port": { "label": "Port", "placeholder": "5432" },
+          "database": { "label": "Database", "placeholder": "pulseops_v2" },
+          "schema": { "label": "Schema", "placeholder": "pulseops" },
+          "username": { "label": "Username", "placeholder": "postgres" },
+          "password": { "label": "Password", "placeholder": "Enter password" }
+        },
+        "buttons": {
+          "testConnection": "Test Connection",
+          "saveConfig": "Save Configuration",
+          "testing": "Testing..."
+        }
+      },
+      "databaseObjects": {
+        "title": "Database Objects",
+        "subtitle": "Manage database, schema, and default data",
+        "sections": {
+          "database": {
+            "title": "Database",
+            "createButton": "Create Database",
+            "deleteButton": "Delete Database",
+            "createDesc": "Create the PostgreSQL database if it does not exist.",
+            "deleteDesc": "Drop the entire database. This is destructive and cannot be undone."
+          },
+          "schema": {
+            "title": "Schema & Tables",
+            "createButton": "Create Schema",
+            "wipeButton": "Wipe Schema",
+            "createDesc": "Create the core schema and tables (system_users, system_config, system_modules, system_logs).",
+            "wipeDesc": "Drop all tables in the schema. Data will be permanently lost."
+          },
+          "defaultData": {
+            "title": "Default Data",
+            "loadButton": "Load Default Data",
+            "cleanButton": "Clean Default Data",
+            "loadDesc": "Seed the default admin user and core module registrations.",
+            "cleanDesc": "Remove all seeded default data."
+          }
+        },
+        "status": {
+          "checking": "Checking database status...",
+          "connected": "Connected",
+          "disconnected": "Not Connected",
+          "initialized": "Schema Initialized",
+          "notInitialized": "Schema Not Initialized",
+          "hasData": "Default Data Loaded",
+          "noData": "No Default Data"
+        }
+      },
+      "logSettings": {
+        "title": "Log Settings",
+        "subtitle": "Configure log storage mode"
+      },
+      "logConfiguration": {
+        "title": "Log Configuration",
+        "subtitle": "View and manage system logs"
+      },
+      "authentication": {
+        "title": "Authentication Settings",
+        "subtitle": "Configure authentication provider",
+        "providers": {
+          "jsonFile": { "label": "JSON File", "badge": "Default" },
+          "database": { "label": "Database", "badge": "Production" },
+          "social": { "label": "Social / OAuth2", "badge": "Coming Soon" }
+        },
+        "switchModal": {
+          "title": "Switch Authentication Provider",
+          "confirmMessage": "This will change how all users authenticate. Continue?",
+          "confirmButton": "Switch Provider",
+          "cancelButton": "Cancel"
+        },
+        "successModal": {
+          "title": "Provider Updated",
+          "message": "Authentication provider has been updated successfully.",
+          "closeButton": "Close"
+        }
+      }
+    }
+  },
+  "shared": {
+    "connectionStatus": {
+      "connected": "Connected",
+      "disconnected": "Disconnected",
+      "testing": "Testing...",
+      "unknown": "Unknown"
+    },
+    "confirmationModal": {
+      "defaultTitle": "Confirm Action",
+      "defaultMessage": "Are you sure you want to proceed?",
+      "confirmButton": "Confirm",
+      "cancelButton": "Cancel",
+      "processing": "Processing...",
+      "success": "Success!"
+    },
+    "pagination": {
+      "previous": "Previous",
+      "next": "Next",
+      "showing": "Showing",
+      "of": "of",
+      "entries": "entries"
+    }
+  }
+}

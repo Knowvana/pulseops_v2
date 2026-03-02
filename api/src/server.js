@@ -6,28 +6,40 @@
 //
 // ARCHITECTURE: Imports the Express app factory, binds to the configured
 // port, and handles SIGTERM/SIGINT for zero-downtime deployments.
+// On shutdown, closes the HTTP server and database pool gracefully.
+//
+// ENDPOINTS AVAILABLE AFTER START:
+//   - Health:  http://localhost:{port}/api/health
+//   - Swagger: http://localhost:{port}/swagger-ui
+//   - API:     http://localhost:{port}/api/*
 // ============================================================================
-import { createApp } from './app.js';
-import { config } from './config/index.js';
+import { createApp } from '#root/app.js';
+import { config } from '#config';
+import { logger } from '#shared/logger.js';
+import { messages } from '#shared/loadJson.js';
+import DatabaseService from '#core/database/databaseService.js';
+import apiUrls from '#config/urls.json' with { type: 'json' };
 
 const app = createApp();
 const PORT = config.port;
 
 const server = app.listen(PORT, () => {
-  console.log(`PulseOps V2 API started on port ${PORT}`);
-  console.log(`Health: http://localhost:${PORT}/api/health`);
+  logger.info(messages.success.serverStarted.replace('{port}', PORT));
+  logger.info(`Health:  http://localhost:${PORT}${apiUrls.apiPrefix}${apiUrls.health.base}`);
+  logger.info(`Swagger: http://localhost:${PORT}${apiUrls.swagger.ui}`);
 });
 
 // --- Graceful Shutdown (K8s Ready) ---
-const shutdown = (signal) => {
-  console.log(`\n${signal} received. Shutting down gracefully...`);
-  server.close(() => {
-    console.log('HTTP server closed.');
+const shutdown = async (signal) => {
+  logger.info(`${signal} received. ${messages.success.serverShutdown}`);
+  server.close(async () => {
+    await DatabaseService.shutdown();
+    logger.info(messages.success.databasePoolClosed);
     process.exit(0);
   });
   // Force exit after 10s if connections aren't closing
   setTimeout(() => {
-    console.error('Forced shutdown after timeout.');
+    logger.error('Forced shutdown after timeout.');
     process.exit(1);
   }, 10000);
 };

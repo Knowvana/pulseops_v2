@@ -4,78 +4,139 @@
 // PURPOSE: Creates and configures the Express application with enterprise
 // middleware chain in the MANDATORY order defined in .windsurfrules.
 //
-// MIDDLEWARE ORDER (Section 2.7):
-//   1. Helmet.js → HTTP security headers
-//   2. Request ID → UUID per request
-//   3. CORS → credentials: true
-//   4. Cookie Parser → HttpOnly cookies
-//   5. JSON Body Parser → 10MB limit
-//   6. Request Logging
-//   7. Routes (public + protected)
-//   8. 404 Handler
-//   9. Global Error Handler
+// MIDDLEWARE CHAIN (Section 2.7):
+//   1. Helmet.js       → HTTP security headers (CSP, HSTS, XSS, clickjacking)
+//   2. Request ID      → UUID per request for distributed tracing
+//   3. Cookie Parser   → Parse HttpOnly cookies for Dual-Auth Protocol
+//   4. CORS            → Whitelist-based, credentials: true
+//   5. Rate Limiting   → 100 req/15min general
+//   6. JSON Body Parser → 10MB limit
+//   7. Input Sanitizer → Strip XSS patterns from body/query/params
+//   8. Request Logging → Structured logging with request ID and duration
+//   9. Swagger UI      → API Explorer (public, no auth)
+//  10. Public Routes   → health, auth/login, database setup, module bundles
+//  11. Auth Rate Limit → 10 req/15min on auth endpoints
+//  12. Protected Routes → database destructive, modules CRUD, config
+//  13. 404 Handler
+//  14. Global Error Handler
+//
+// SECURITY:
+//   - Helmet.js: CSP, HSTS, XSS, clickjacking protection
+//   - Rate limiting: 100 req/15min (general), 10 req/15min (auth)
+//   - JWT: Access token (24h) + Refresh token (7d)
+//   - bcrypt: Password hashing with configurable rounds
+//   - Input sanitization: XSS pattern stripping
+//   - Request ID: UUID traceability in all logs
+//   - HttpOnly cookies: Frontend session security
+//
+// ARCHITECTURE: Separated from server.js for testability. Returns the
+// configured Express app — server.js handles binding and shutdown.
 // ============================================================================
 import express from 'express';
 import cors from 'cors';
-import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
-import crypto from 'crypto';
-import { config } from './config/index.js';
-import { registerRoutes } from './core/routes/index.js';
+import swaggerUi from 'swagger-ui-express';
+import { config } from '#config';
+import { logger } from '#shared/logger.js';
+import { loadJson, errors } from '#shared/loadJson.js';
+import apiUrls from '#config/urls.json' with { type: 'json' };
+
+// Security middleware
+import {
+  helmetMiddleware,
+  generalRateLimiter,
+  authRateLimiter,
+  requestIdMiddleware,
+  inputSanitizer,
+} from '#core/middleware/security.js';
+
+// Auth middleware
+import { authenticate } from '#core/middleware/auth.js';
+
+// Routes
+import healthRoutes from '#core/routes/healthRoutes.js';
+import authRoutes from '#core/routes/authRoutes.js';
+import databaseRoutes from '#core/routes/databaseRoutes.js';
+import configRoutes from '#core/routes/configRoutes.js';
+
+// Swagger spec
+const swaggerSpec = loadJson('swagger.json');
 
 export function createApp() {
   const app = express();
+  const prefix = apiUrls.apiPrefix;
 
-  // --- 1. Helmet.js: HTTP Security Headers ---
-  app.use(helmet({
-    contentSecurityPolicy: false,
-    crossOriginEmbedderPolicy: false,
-  }));
+  // ── 1. Helmet.js: HTTP Security Headers ─────────────────────────────────
+  app.use(helmetMiddleware);
 
-  // --- 2. Request ID: UUID per request for distributed tracing ---
-  app.use((req, _res, next) => {
-    req.requestId = crypto.randomUUID();
-    next();
-  });
+  // ── 2. Request ID: UUID per request ─────────────────────────────────────
+  app.use(requestIdMiddleware);
 
-  // --- 3. CORS: Whitelist-based with credentials ---
-  app.use(cors({
-    origin: config.frontendOrigin,
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
-  }));
-
-  // --- 4. Cookie Parser ---
+  // ── 3. Cookie Parser ────────────────────────────────────────────────────
   app.use(cookieParser());
 
-  // --- 5. JSON Body Parser (10MB limit) ---
+  // ── 4. CORS: Whitelist-based with credentials ──────────────────────────
+  app.use(cors({
+    ...config.cors,
+    credentials: true,
+  }));
+
+  // ── 5. General Rate Limiter ─────────────────────────────────────────────
+  app.use(generalRateLimiter);
+
+  // ── 6. JSON Body Parser (10MB limit) ────────────────────────────────────
   app.use(express.json({ limit: '10mb' }));
 
-  // --- 6. Request Logging ---
-  app.use((req, _res, next) => {
-    console.log(`[${req.requestId}] ${req.method} ${req.url}`);
+  // ── 7. Input Sanitizer ──────────────────────────────────────────────────
+  app.use(inputSanitizer);
+
+  // ── 8. Request Logging ──────────────────────────────────────────────────
+  app.use((req, res, next) => {
+    const start = Date.now();
+    res.on('finish', () => {
+      const duration = Date.now() - start;
+      logger.info(`[${req.requestId}] ${req.method} ${req.originalUrl} ${res.statusCode} ${duration}ms`);
+    });
     next();
   });
 
-  // --- 7. Routes ---
-  registerRoutes(app);
+  // ── 9. Swagger API Explorer (public) ────────────────────────────────────
+  app.use(apiUrls.swagger.ui, swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+    customSiteTitle: 'PulseOps V2 API Explorer',
+    customCss: '.swagger-ui .topbar { display: none }',
+    swaggerOptions: {
+      persistAuthorization: true,
+    },
+  }));
+  app.get(apiUrls.swagger.json, (_req, res) => res.json(swaggerSpec));
 
-  // --- 8. 404 Handler ---
-  app.use((_req, res) => {
+  // ── 10. Public Routes (no auth required) ────────────────────────────────
+  app.use(`${prefix}${apiUrls.health.base}`, healthRoutes);
+  app.use(`${prefix}${apiUrls.auth.base}`, authRateLimiter, authRoutes);
+  app.use(`${prefix}${apiUrls.database.base}`, databaseRoutes);
+
+  // ── 11. Protected Routes (JWT required) ─────────────────────────────────
+  app.use(`${prefix}${apiUrls.config.base}`, authenticate, configRoutes);
+
+  // ── 12. 404 Handler ─────────────────────────────────────────────────────
+  app.use((req, res) => {
     res.status(404).json({
       success: false,
-      error: { message: 'Route not found', code: 'NOT_FOUND' },
+      error: { message: `${errors.errors.routeNotFound}: ${req.method} ${req.originalUrl}`, code: 'NOT_FOUND' },
     });
   });
 
-  // --- 9. Global Error Handler ---
+  // ── 13. Global Error Handler ────────────────────────────────────────────
   app.use((err, req, res, _next) => {
-    console.error(`[${req.requestId}] Unhandled error:`, err.message);
+    logger.error(errors.errors.internalServerError, {
+      error: err.message,
+      stack: err.stack,
+      requestId: req.requestId,
+    });
     res.status(500).json({
       success: false,
       error: {
-        message: 'Internal server error',
+        message: errors.errors.internalServerError,
         requestId: req.requestId,
       },
     });

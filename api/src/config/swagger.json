@@ -1,0 +1,688 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "PulseOps V2 API",
+    "version": "2.0.0",
+    "description": "Enterprise platform API for PulseOps V2. Supports database management, authentication (JWT + HttpOnly cookies), module hot-dropping, and system configuration. All URLs are defined in urls.json — this spec references relative paths under the /api prefix.",
+    "contact": {
+      "name": "PulseOps Team"
+    }
+  },
+  "servers": [
+    {
+      "url": "/api",
+      "description": "Relative to host — works on any environment"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "JWT access token obtained via POST /auth/login. Expiry: 24h."
+      },
+      "CookieAuth": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "accessToken",
+        "description": "HttpOnly cookie set automatically on login. Same JWT as BearerAuth."
+      }
+    },
+    "schemas": {
+      "SuccessResponse": {
+        "type": "object",
+        "description": "Standard success envelope returned by all endpoints on success.",
+        "properties": {
+          "success": { "type": "boolean", "example": true, "description": "Always true on success" },
+          "data": { "type": "object", "description": "Endpoint-specific response payload" }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "description": "Standard error envelope returned by all endpoints on failure.",
+        "properties": {
+          "success": { "type": "boolean", "example": false, "description": "Always false on error" },
+          "error": {
+            "type": "object",
+            "properties": {
+              "message": { "type": "string", "description": "Human-readable error message from APIErrors.json", "example": "Invalid credentials" },
+              "code": { "type": "string", "description": "Machine-readable error code", "example": "TOKEN_EXPIRED" }
+            }
+          }
+        }
+      },
+      "LoginRequest": {
+        "type": "object",
+        "description": "Credentials for user authentication.",
+        "required": ["email", "password"],
+        "properties": {
+          "email": { "type": "string", "format": "email", "description": "User email address", "example": "admin@test.com" },
+          "password": { "type": "string", "format": "password", "description": "User password (min 8 chars)", "example": "Infosys@123" }
+        }
+      },
+      "LoginResponse": {
+        "type": "object",
+        "description": "Returned on successful login. Access token also set as HttpOnly cookie.",
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "data": {
+            "type": "object",
+            "properties": {
+              "accessToken": { "type": "string", "description": "JWT access token (24h expiry)", "example": "eyJhbGciOiJIUzI1NiIs..." },
+              "refreshToken": { "type": "string", "description": "JWT refresh token (7d expiry)", "example": "eyJhbGciOiJIUzI1NiIs..." },
+              "expiresIn": { "type": "integer", "description": "Access token TTL in seconds", "example": 86400 },
+              "user": {
+                "type": "object",
+                "properties": {
+                  "email": { "type": "string", "example": "admin@test.com" },
+                  "name": { "type": "string", "example": "Default Admin" },
+                  "role": { "type": "string", "enum": ["super_admin", "admin", "user"], "example": "super_admin" }
+                }
+              }
+            }
+          }
+        }
+      },
+      "UserProfile": {
+        "type": "object",
+        "description": "Current authenticated user profile.",
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "data": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "integer", "description": "User ID (database provider only)", "example": 1 },
+              "email": { "type": "string", "example": "admin@test.com" },
+              "name": { "type": "string", "example": "Default Admin" },
+              "role": { "type": "string", "example": "super_admin" },
+              "status": { "type": "string", "enum": ["active", "inactive"], "example": "active" },
+              "last_login": { "type": "string", "format": "date-time", "nullable": true }
+            }
+          }
+        }
+      },
+      "DatabaseConfig": {
+        "type": "object",
+        "description": "PostgreSQL connection parameters. All fields optional — defaults from DatabaseConfig.json used if omitted.",
+        "properties": {
+          "host": { "type": "string", "description": "Database server hostname", "example": "db.example.com", "default": "localhost" },
+          "port": { "type": "integer", "description": "Database server port (1-65535)", "example": 5432, "default": 5432 },
+          "database": { "type": "string", "description": "Target database name", "example": "pulseops_v2", "default": "pulseops_v2" },
+          "schema": { "type": "string", "description": "Schema name for all PulseOps tables", "example": "pulseops", "default": "pulseops" },
+          "username": { "type": "string", "description": "Database user", "example": "postgres", "default": "postgres" },
+          "password": { "type": "string", "format": "password", "description": "Database password" }
+        }
+      },
+      "ConnectionTestResult": {
+        "type": "object",
+        "description": "Result of a database connection test.",
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "data": {
+            "type": "object",
+            "properties": {
+              "connected": { "type": "boolean", "description": "Whether connection succeeded", "example": true },
+              "message": { "type": "string", "example": "Database connection successful" },
+              "latencyMs": { "type": "integer", "description": "Connection latency in milliseconds", "example": 12 },
+              "dbVersion": { "type": "string", "description": "PostgreSQL server version string", "example": "PostgreSQL 16.1" }
+            }
+          }
+        }
+      },
+      "SchemaStatusResult": {
+        "type": "object",
+        "description": "Current state of the database schema.",
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "data": {
+            "type": "object",
+            "properties": {
+              "connected": { "type": "boolean", "description": "Database is reachable", "example": true },
+              "initialized": { "type": "boolean", "description": "Schema and tables exist", "example": true },
+              "hasDefaultData": { "type": "boolean", "description": "Default admin and modules seeded", "example": false },
+              "tables": {
+                "type": "array",
+                "description": "List of existing tables in schema",
+                "items": { "type": "string" },
+                "example": ["system_users", "system_config", "system_modules", "system_logs"]
+              }
+            }
+          }
+        }
+      },
+      "SchemaCreateResult": {
+        "type": "object",
+        "description": "Result of schema creation.",
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "data": {
+            "type": "object",
+            "properties": {
+              "message": { "type": "string", "example": "Database schema created successfully" },
+              "tables": {
+                "type": "array",
+                "items": { "type": "string" },
+                "example": ["system_users", "system_config", "system_modules", "system_logs"]
+              }
+            }
+          }
+        }
+      },
+      "DefaultDataResult": {
+        "type": "object",
+        "description": "Result of loading or cleaning default data.",
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "data": {
+            "type": "object",
+            "properties": {
+              "message": { "type": "string", "example": "Default data loaded successfully" },
+              "usersInserted": { "type": "integer", "description": "Number of users seeded", "example": 1 },
+              "modulesInserted": { "type": "integer", "description": "Number of modules registered", "example": 2 }
+            }
+          }
+        }
+      },
+      "DatabaseStatsResult": {
+        "type": "object",
+        "description": "Table sizes and row counts.",
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "data": {
+            "type": "object",
+            "properties": {
+              "tables": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": { "type": "string", "example": "system_users" },
+                    "rows": { "type": "integer", "example": 1 },
+                    "size": { "type": "string", "example": "8192 bytes" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "ConfigEntry": {
+        "type": "object",
+        "description": "A key-value configuration entry stored as JSONB.",
+        "required": ["key", "value"],
+        "properties": {
+          "key": { "type": "string", "description": "Unique config key", "example": "auth_provider" },
+          "value": { "type": "object", "description": "JSON value (any structure)", "example": { "provider": "json_file" } },
+          "description": { "type": "string", "description": "Human-readable description", "example": "Active authentication provider" }
+        }
+      },
+      "ConfigListResult": {
+        "type": "object",
+        "description": "List of all configuration entries.",
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "key": { "type": "string", "example": "auth_provider" },
+                "value": { "type": "object" },
+                "description": { "type": "string" },
+                "updated_at": { "type": "string", "format": "date-time" }
+              }
+            }
+          }
+        }
+      },
+      "AuthProviderRequest": {
+        "type": "object",
+        "description": "Request to change the active authentication provider.",
+        "required": ["provider"],
+        "properties": {
+          "provider": { "type": "string", "enum": ["json_file", "database", "social"], "description": "Target provider ID", "example": "database" }
+        }
+      },
+      "AuthProviderConfigResult": {
+        "type": "object",
+        "description": "Current authentication provider configuration.",
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "data": {
+            "type": "object",
+            "properties": {
+              "activeProvider": { "type": "string", "example": "json_file" },
+              "availableProviders": {
+                "type": "array",
+                "items": { "type": "string" },
+                "example": ["json_file", "database", "social"]
+              }
+            }
+          }
+        }
+      },
+      "RefreshTokenRequest": {
+        "type": "object",
+        "description": "Request body for token refresh. Send refreshToken from login response.",
+        "required": ["refreshToken"],
+        "properties": {
+          "refreshToken": { "type": "string", "description": "JWT refresh token from login", "example": "eyJhbGciOiJIUzI1NiIs..." }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": ["Health"],
+        "operationId": "getLiveness",
+        "summary": "Liveness probe",
+        "description": "Returns API health status with timestamp. Used by Kubernetes for liveness checks. Always returns 200 if the process is running.",
+        "responses": {
+          "200": {
+            "description": "API is healthy and running",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "status": { "type": "string", "example": "ok" },
+                        "timestamp": { "type": "string", "format": "date-time" },
+                        "message": { "type": "string", "example": "PulseOps V2 API is running" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health/readiness": {
+      "get": {
+        "tags": ["Health"],
+        "operationId": "getReadiness",
+        "summary": "Readiness probe",
+        "description": "Checks database connectivity by running a lightweight query. Used by Kubernetes to determine if the pod should receive traffic. Returns database status, latency, and version.",
+        "responses": {
+          "200": {
+            "description": "Readiness check result (may include db_error if database is unreachable)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "status": { "type": "string", "enum": ["ready", "degraded"], "example": "ready" },
+                        "database": { "type": "boolean", "description": "Database reachable", "example": true },
+                        "latencyMs": { "type": "integer", "example": 8 }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "tags": ["Authentication"],
+        "operationId": "login",
+        "summary": "Login with email and password",
+        "description": "Authenticates the user against the active provider (json_file reads from DefaultAdminUser.json, database reads from system_users table with bcrypt). On success, returns JWT access token (24h) and refresh token (7d), and sets HttpOnly cookies (accessToken, refreshToken) for browser-based auth.",
+        "requestBody": {
+          "required": true,
+          "description": "User credentials. Both fields are required.",
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/LoginRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Login successful. Tokens returned in body and set as HttpOnly cookies.",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LoginResponse" } } }
+          },
+          "400": {
+            "description": "Missing email or password in request body.",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } }
+          },
+          "401": {
+            "description": "Invalid email or password.",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } }
+          },
+          "403": {
+            "description": "Account exists but is inactive.",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } }
+          }
+        }
+      }
+    },
+    "/auth/config": {
+      "get": {
+        "tags": ["Authentication"],
+        "operationId": "getAuthConfig",
+        "summary": "Get auth provider config",
+        "description": "Returns the active authentication provider and list of all available providers. Public endpoint — no auth required.",
+        "responses": {
+          "200": {
+            "description": "Auth provider configuration.",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AuthProviderConfigResult" } } }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Authentication"],
+        "operationId": "setAuthConfig",
+        "summary": "Set auth provider",
+        "description": "Changes the active authentication provider. Requires super_admin role. If switching to 'database', validates that the database is initialized and has default data. Writes to auth-provider.json and system_config table.",
+        "security": [{ "BearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "description": "Target provider. Must be one of: json_file, database, social.",
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AuthProviderRequest" } } }
+        },
+        "responses": {
+          "200": { "description": "Provider updated successfully.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } } },
+          "400": { "description": "Invalid provider ID or database not initialized.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "401": { "description": "No valid JWT token provided.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "403": { "description": "Authenticated user lacks super_admin role.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/auth/me": {
+      "get": {
+        "tags": ["Authentication"],
+        "operationId": "getMe",
+        "summary": "Get current user profile",
+        "description": "Returns the profile of the currently authenticated user. For database provider, fetches fresh data from system_users. For json_file provider, returns the decoded JWT payload.",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "User profile.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UserProfile" } } } },
+          "401": { "description": "Not authenticated or token expired.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "404": { "description": "User not found in database.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/auth/refresh": {
+      "post": {
+        "tags": ["Authentication"],
+        "operationId": "refreshToken",
+        "summary": "Refresh access token",
+        "description": "Exchanges a valid refresh token for a new access token. Also sets updated HttpOnly cookies. Use this when the access token expires (24h) but the refresh token is still valid (7d).",
+        "requestBody": {
+          "required": true,
+          "description": "The refresh token received from the login response.",
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/RefreshTokenRequest" } } }
+        },
+        "responses": {
+          "200": {
+            "description": "New access token generated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "accessToken": { "type": "string" },
+                        "expiresIn": { "type": "integer", "example": 86400 }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "Refresh token is invalid or expired.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "tags": ["Authentication"],
+        "operationId": "logout",
+        "summary": "Logout",
+        "description": "Clears HttpOnly cookies (accessToken, refreshToken) from the browser. The JWT itself is not invalidated server-side (stateless). Client should also clear localStorage.",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Logged out. Cookies cleared.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "message": { "type": "string", "example": "Logged out successfully" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/database/test-connection": {
+      "get": {
+        "tags": ["Database"],
+        "operationId": "testConnectionServer",
+        "summary": "Test connection with server config",
+        "description": "Tests PostgreSQL connectivity using the server's DatabaseConfig.json settings. Returns connection status, latency in ms, and PostgreSQL version string.",
+        "responses": {
+          "200": { "description": "Connection test result.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ConnectionTestResult" } } } }
+        }
+      },
+      "post": {
+        "tags": ["Database"],
+        "operationId": "testConnectionCustom",
+        "summary": "Test connection with custom config",
+        "description": "Tests PostgreSQL connectivity using the provided configuration. Creates a temporary connection pool, runs SELECT version(), and returns latency. Pool is destroyed after test.",
+        "requestBody": {
+          "required": true,
+          "description": "Database connection parameters to test.",
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DatabaseConfig" } } }
+        },
+        "responses": {
+          "200": { "description": "Connection test result.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ConnectionTestResult" } } } }
+        }
+      }
+    },
+    "/database/save-config": {
+      "post": {
+        "tags": ["Database"],
+        "operationId": "saveDbConfig",
+        "summary": "Save database configuration",
+        "description": "Persists the provided database configuration to DatabaseConfig.json on the API server's filesystem. Takes effect on next connection pool creation.",
+        "requestBody": {
+          "required": true,
+          "description": "Database configuration to save.",
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DatabaseConfig" } } }
+        },
+        "responses": {
+          "200": { "description": "Config saved to DatabaseConfig.json.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } } },
+          "500": { "description": "File write failed.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/database/create-database": {
+      "post": {
+        "tags": ["Database"],
+        "operationId": "createDatabase",
+        "summary": "Create the database",
+        "description": "Connects to the 'postgres' system database and runs CREATE DATABASE for the target database name from config. Returns success if database already exists.",
+        "responses": {
+          "200": { "description": "Database created or already exists.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } } },
+          "500": { "description": "Database creation failed.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/database/delete-database": {
+      "delete": {
+        "tags": ["Database"],
+        "operationId": "deleteDatabase",
+        "summary": "Delete the database",
+        "description": "DESTRUCTIVE: Drops the entire PostgreSQL database including all schemas, tables, and data. Requires JWT authentication. Terminates all active connections before dropping.",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Database dropped.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } } },
+          "401": { "description": "Authentication required.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "500": { "description": "Drop failed.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/database/schema-status": {
+      "get": {
+        "tags": ["Database"],
+        "operationId": "getSchemaStatus",
+        "summary": "Get schema status",
+        "description": "Checks whether the database schema is initialized (tables exist) and whether default data has been seeded (admin user, core modules). Returns table list if schema exists.",
+        "responses": {
+          "200": { "description": "Schema status.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SchemaStatusResult" } } } }
+        }
+      }
+    },
+    "/database/create-schema": {
+      "post": {
+        "tags": ["Database"],
+        "operationId": "createSchema",
+        "summary": "Create database schema",
+        "description": "Creates the core schema and 4 tables inside a transaction: system_users (auth), system_config (JSONB key-value), system_modules (hot-drop registry), system_logs (structured logs). Rolls back on any failure.",
+        "responses": {
+          "200": { "description": "Schema and tables created.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SchemaCreateResult" } } } },
+          "500": { "description": "Schema creation failed (rolled back).", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/database/load-default-data": {
+      "post": {
+        "tags": ["Database"],
+        "operationId": "loadDefaultData",
+        "summary": "Load default data",
+        "description": "Seeds the default admin user (from DefaultAdminUser.json with bcrypt-hashed password) and registers core modules (platform_admin, auth). Skips if data already exists.",
+        "responses": {
+          "200": { "description": "Default data loaded.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DefaultDataResult" } } } },
+          "500": { "description": "Seeding failed.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      },
+      "delete": {
+        "tags": ["Database"],
+        "operationId": "cleanDefaultData",
+        "summary": "Clean default data",
+        "description": "Removes all seeded default data: deletes the default admin user and unregisters core modules from the database.",
+        "responses": {
+          "200": { "description": "Default data removed.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } } }
+        }
+      }
+    },
+    "/database/wipe": {
+      "post": {
+        "tags": ["Database"],
+        "operationId": "wipeDatabase",
+        "summary": "Wipe database schema",
+        "description": "DESTRUCTIVE: Drops the entire schema CASCADE, removing all tables and data. Requires JWT authentication. The database itself is not dropped — only the schema.",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Schema wiped.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } } },
+          "401": { "description": "Authentication required.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/database/stats": {
+      "get": {
+        "tags": ["Database"],
+        "operationId": "getDatabaseStats",
+        "summary": "Get database stats",
+        "description": "Returns table names, row counts, and disk sizes for all tables in the schema. Requires JWT authentication.",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Database statistics.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DatabaseStatsResult" } } } },
+          "401": { "description": "Authentication required.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/config": {
+      "get": {
+        "tags": ["Configuration"],
+        "operationId": "listConfig",
+        "summary": "List all config entries",
+        "description": "Returns all key-value configuration entries from the system_config table, ordered by key. Requires JWT authentication.",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "All configuration entries.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ConfigListResult" } } } },
+          "401": { "description": "Authentication required.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      },
+      "post": {
+        "tags": ["Configuration"],
+        "operationId": "upsertConfig",
+        "summary": "Create or update config entry",
+        "description": "Inserts a new config entry or updates an existing one (upsert on key). Value is stored as JSONB. Requires super_admin role.",
+        "security": [{ "BearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "description": "Config entry to create or update.",
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ConfigEntry" } } }
+        },
+        "responses": {
+          "200": { "description": "Config saved.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } } },
+          "400": { "description": "Missing key or value.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "401": { "description": "Authentication required.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "403": { "description": "Requires super_admin role.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/config/{key}": {
+      "get": {
+        "tags": ["Configuration"],
+        "operationId": "getConfig",
+        "summary": "Get config by key",
+        "description": "Returns a single configuration entry by its key. Requires JWT authentication.",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          { "name": "key", "in": "path", "required": true, "description": "Config key to retrieve", "schema": { "type": "string" }, "example": "auth_provider" }
+        ],
+        "responses": {
+          "200": { "description": "Config entry.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } } },
+          "401": { "description": "Authentication required.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "404": { "description": "Key not found.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      },
+      "delete": {
+        "tags": ["Configuration"],
+        "operationId": "deleteConfig",
+        "summary": "Delete config by key",
+        "description": "Permanently deletes a configuration entry. Requires super_admin role.",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          { "name": "key", "in": "path", "required": true, "description": "Config key to delete", "schema": { "type": "string" }, "example": "auth_provider" }
+        ],
+        "responses": {
+          "200": { "description": "Config deleted.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } } },
+          "401": { "description": "Authentication required.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "403": { "description": "Requires super_admin role.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "404": { "description": "Key not found.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    }
+  }
+}

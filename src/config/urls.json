@@ -13,6 +13,7 @@
   },
   "database": {
     "testConnection": "/api/database/test-connection",
+    "saveConfig": "/api/database/save-config",
     "schemaStatus": "/api/database/schema-status",
     "createDatabase": "/api/database/create-database",
     "deleteDatabase": "/api/database/delete-database",

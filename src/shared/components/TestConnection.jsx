@@ -62,7 +62,13 @@ export default function TestConnection({
     return initial;
   });
 
-  const [connectionStatus, setConnectionStatus] = useState(null);
+  const [connectionStatus, setConnectionStatus] = useState({
+    type: title,
+    status: 'loading',
+    message: 'Ready to test connection',
+    meta: null,
+    lastTested: null,
+  });
   const [lastTestedTime, setLastTestedTime] = useState(null);
   const [isTesting, setIsTesting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -76,7 +82,13 @@ export default function TestConnection({
     if (!onTest) return;
 
     setIsTesting(true);
-    setConnectionStatus(null);
+    setConnectionStatus({
+      type: title,
+      status: 'loading',
+      message: 'Testing connection...',
+      meta: null,
+      lastTested: null,
+    });
 
     try {
       const result = await onTest(config);
@@ -148,16 +160,15 @@ export default function TestConnection({
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-3 p-3 rounded-lg bg-gradient-to-r from-brand-50 to-teal-50 border border-brand-200/50">
-        <div className="p-2 rounded-lg bg-white shadow-sm">
-          <Icon size={18} className="text-brand-500" />
-        </div>
-        <div>
-          <p className="text-xs font-bold text-surface-800">{title}</p>
-          <p className="text-[10px] text-surface-500">{description}</p>
-        </div>
-      </div>
+      {/* Connection Status */}
+      <ConnectionStatus
+        type={connectionStatus.type}
+        status={connectionStatus.status}
+        message={connectionStatus.message}
+        meta={connectionStatus.meta}
+        lastTested={connectionStatus.lastTested}
+        showBadge={true}
+      />
 
       {/* Configuration Fields */}
       <div className="space-y-3">
@@ -193,18 +204,6 @@ export default function TestConnection({
           );
         })}
       </div>
-
-      {/* Connection Status */}
-      {connectionStatus && (
-        <ConnectionStatus
-          type={connectionStatus.type}
-          status={connectionStatus.status}
-          message={connectionStatus.message}
-          meta={connectionStatus.meta}
-          lastTested={connectionStatus.lastTested}
-          showBadge={true}
-        />
-      )}
 
       {/* Action Buttons */}
       <div className="flex items-center gap-2">

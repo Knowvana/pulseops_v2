@@ -9,35 +9,70 @@
 //   - BrowserRouter wraps PlatformDashboard for URL-driven navigation
 //   - PlatformDashboard handles ALL routing (core Admin + dynamic modules)
 //   - Login form renders outside the router when not authenticated
-//   - Auth uses JSON file-based credentials from app.json (default mode)
+//   - Auth uses API endpoint (Dual-Auth: HttpOnly cookies + Bearer token)
+//   - On login success, JWT tokens are stored and HttpOnly cookies set by API
 //
 // DEPENDENCIES:
 //   - react-router-dom       → BrowserRouter, Routes, Route
 //   - @shared                → LoginForm
 //   - @core/PlatformDashboard → Single orchestrator for all authenticated UI
-//   - @config/app.json       → Default admin credentials
+//   - @config/urls.json      → API endpoint URLs
+//   - @config/globalText.json → UI error messages
 // ============================================================================
 import React, { useState, useCallback } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { LoginForm } from '@shared';
 import PlatformDashboard from '@core/PlatformDashboard';
-import appConfig from '@config/app.json';
+import urls from '@config/urls.json';
+import globalText from '@config/globalText.json';
+
+const loginText = globalText.auth?.login || {};
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState({});
 
   const handleLogin = useCallback(async (email, password) => {
-    const defaultAdmin = appConfig.coreAuth?.defaultAdmin || {};
-    if (email === defaultAdmin.email && password === defaultAdmin.password) {
-      setUser({ email: defaultAdmin.email, role: defaultAdmin.role });
-      setIsAuthenticated(true);
-      return;
+    try {
+      const response = await fetch(urls.auth.login, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ email, password }),
+      });
+      const result = await response.json();
+
+      if (result?.success && result.data?.user) {
+        // Store token for Swagger/API tool usage
+        if (result.data.accessToken) {
+          localStorage.setItem('accessToken', result.data.accessToken);
+        }
+        setUser(result.data.user);
+        setIsAuthenticated(true);
+        return;
+      }
+
+      throw new Error(result?.error?.message || loginText.failed || 'Login failed');
+    } catch (err) {
+      throw new Error(err.message || loginText.failed || 'Login failed');
     }
-    throw new Error('Invalid credentials');
   }, []);
 
-  const handleLogout = useCallback(() => {
+  const handleLogout = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('accessToken');
+      await fetch(urls.auth.logout, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        credentials: 'include',
+      });
+    } catch {
+      // Logout even if API call fails
+    }
+    localStorage.removeItem('accessToken');
     setIsAuthenticated(false);
     setUser({});
   }, []);

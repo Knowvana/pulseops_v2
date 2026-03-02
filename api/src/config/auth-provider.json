@@ -1,0 +1,11 @@
+{
+  "provider": "json_file",
+  "availableProviders": [
+    "json_file",
+    "database",
+    "social"
+  ],
+  "social": {
+    "enabled": false
+  }
+}

@@ -44,7 +44,12 @@
     "loginButton": "Sign In",
     "loggingIn": "Signing in...",
     "logoutButton": "Sign Out",
-    "sessionExpired": "Your session has expired. Please sign in again."
+    "sessionExpired": "Your session has expired. Please sign in again.",
+    "login": {
+      "success": "Login successful",
+      "failed": "Login failed. Please check your credentials.",
+      "networkError": "Unable to connect to the server. Please check if the API is running."
+    }
   },
   "login": {
     "title": "Welcome Back",
@@ -108,6 +113,16 @@
         "currentMode": "Current Mode",
         "fileActive": "File Logging Active",
         "dbActive": "Database Logging Active"
+      },
+      "connectionStatus": {
+        "type": "Database Connection",
+        "testing": "Testing connection...",
+        "connected": "Connected to database successfully",
+        "failed": "Connection failed",
+        "lastTested": "Last tested:",
+        "responseTime": "Response:",
+        "version": "Version:",
+        "metaSeparator": "•"
       },
       "authSettings": {
         "title": "Authentication Settings",

@@ -18,10 +18,13 @@ import DatabaseManager from '@shared/components/DatabaseManager';
 import LoggingConfig from '@shared/components/LoggingConfig';
 
 export default function TestPage() {
+  // State for managing various component demos
   const [testResult, setTestResult] = useState(null);
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [isLoggedIn, setIsLoggedIn] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
+  
+  // State for StatsCount component - ticket counts simulation
   const [ticketCounts, setTicketCounts] = useState([
     { id: 'total-incidents', label: 'Total Incidents', value: 0, color: 'danger' },
     { id: 'open-incidents', label: 'Open Incidents', value: 0, color: 'danger' },
@@ -42,11 +45,13 @@ export default function TestPage() {
     return () => clearInterval(interval);
   }, []);
 
+  // Handler for LoginForm component demo
   const handleLogin = async (email, password) => {
     console.log('Login attempt:', { email, password });
     await new Promise(resolve => setTimeout(resolve, 1500));
   };
 
+  // Handler for TestConnection component demo - simulates database connection test
   const handleTestConnection = async (config) => {
     // Simulate connection test
     await new Promise(resolve => setTimeout(resolve, 2000));
@@ -65,11 +70,13 @@ export default function TestPage() {
     }
   };
 
+  // Handler for saving configuration in TestConnection component
   const handleSaveConfig = async (config) => {
     await new Promise(resolve => setTimeout(resolve, 1000));
     console.log('Configuration saved:', config);
   };
 
+  // Handler for StatsCount component - simulates syncing ticket data from ServiceNow
   const handleSyncTickets = async () => {
     setIsSyncing(true);
     await new Promise(resolve => setTimeout(resolve, 2000));
@@ -93,7 +100,7 @@ export default function TestPage() {
     console.log('ServiceNow login opened');
   };
 
-  // Database Manager state
+  // Database Manager state and handlers for DatabaseManager component demo
   const [dbStatus, setDbStatus] = useState({
     connected: true,
     exists: false,
@@ -145,7 +152,7 @@ export default function TestPage() {
     setIsRefreshingDb(false);
   };
 
-  // Logging Config state
+  // Logging Config state and handlers for LoggingConfig component demo
   const [loggingConfig, setLoggingConfig] = useState({
     logLevel: 'debug',
     captureOptions: { console: true, api: true, ui: true, moduleLogs: true },
@@ -159,6 +166,7 @@ export default function TestPage() {
   });
   const [isSavingLogging, setIsSavingLogging] = useState(false);
 
+  // Handler for saving logging configuration in LoggingConfig component
   const handleSaveLoggingConfig = async (newConfig) => {
     setIsSavingLogging(true);
     await new Promise(resolve => setTimeout(resolve, 2000));
@@ -167,7 +175,7 @@ export default function TestPage() {
     console.log('Logging config saved:', newConfig);
   };
 
-  // Sample tabs for ConfigLayout
+  // Sample tabs for ConfigLayout component demo
   const configTabs = [
     {
       id: 'database',
@@ -238,7 +246,7 @@ export default function TestPage() {
       <div className="p-8 space-y-8 max-w-7xl mx-auto">
         {/* Button Component Test */}
         <section className="bg-white rounded-2xl p-6 shadow-sm border border-surface-200">
-          <h2 className="text-xl font-bold text-surface-800 mb-4">Button Component</h2>
+          <h2 className="text-xl font-bold text-surface-800 mb-4">Button.jsx - Button Component</h2>
           <p className="text-sm text-surface-600 mb-4">Primary button with gradient matching LoginForm</p>
           <div className="flex gap-4">
             <Button variant="primary" icon={<LogIn />}>
@@ -249,7 +257,7 @@ export default function TestPage() {
 
         {/* ConnectionStatus Component Test */}
         <section className="bg-white rounded-2xl p-6 shadow-sm border border-surface-200">
-          <h2 className="text-xl font-bold text-surface-800 mb-4">ConnectionStatus Component</h2>
+          <h2 className="text-xl font-bold text-surface-800 mb-4">ConnectionStatus.jsx - ConnectionStatus Component</h2>
           <p className="text-sm text-surface-600 mb-4">Reusable component for displaying connection states with Last Tested timestamp and status badges</p>
           <div className="space-y-4">
             <ConnectionStatus
@@ -295,7 +303,7 @@ export default function TestPage() {
 
         {/* TestConnection Component Test */}
         <section className="bg-white rounded-2xl p-6 shadow-sm border border-surface-200">
-          <h2 className="text-xl font-bold text-surface-800 mb-4">TestConnection Component</h2>
+          <h2 className="text-xl font-bold text-surface-800 mb-4">TestConnection.jsx - TestConnection Component</h2>
           <p className="text-sm text-surface-600 mb-4">Reusable component for testing service connections</p>
           <TestConnection
             title="Database Connection"
@@ -315,7 +323,7 @@ export default function TestPage() {
 
         {/* ConfigLayout Component Test */}
         <section className="bg-white rounded-2xl p-6 shadow-sm border border-surface-200">
-          <h2 className="text-xl font-bold text-surface-800 mb-4">ConfigLayout Component</h2>
+          <h2 className="text-xl font-bold text-surface-800 mb-4">ConfigLayout.jsx - ConfigLayout Component</h2>
           <p className="text-sm text-surface-600 mb-6">Reusable tabbed configuration layout used by all modules</p>
           <ConfigLayout
             title="Module Configuration"
@@ -328,7 +336,7 @@ export default function TestPage() {
 
         {/* StatsCount Component Test */}
         <section>
-          <h2 className="text-xl font-bold text-surface-800 mb-4">StatsCount Component</h2>
+          <h2 className="text-xl font-bold text-surface-800 mb-4">StatsCount.jsx - StatsCount Component</h2>
           <p className="text-sm text-surface-600 mb-4">Reusable component for displaying count statistics in single-row layout matching ServiceNow dashboard</p>
           <StatsCount
             title="Ticket Counts"
@@ -343,7 +351,7 @@ export default function TestPage() {
 
         {/* DatabaseManager Component Test */}
         <section className="bg-white rounded-2xl p-6 shadow-sm border border-surface-200">
-          <h2 className="text-xl font-bold text-surface-800 mb-4">DatabaseManager Component</h2>
+          <h2 className="text-xl font-bold text-surface-800 mb-4">DatabaseManager.jsx - DatabaseManager Component</h2>
           <p className="text-sm text-surface-600 mb-4">Reusable component for managing database schema, default data, and database operations</p>
           <DatabaseManager
             onCreateDatabase={handleCreateDatabase}
@@ -360,7 +368,7 @@ export default function TestPage() {
 
         {/* LoggingConfig Component Test */}
         <section className="bg-white rounded-2xl p-6 shadow-sm border border-surface-200">
-          <h2 className="text-xl font-bold text-surface-800 mb-4">LoggingConfig Component</h2>
+          <h2 className="text-xl font-bold text-surface-800 mb-4">LoggingConfig.jsx - LoggingConfig Component</h2>
           <p className="text-sm text-surface-600 mb-4">Reusable component for configuring logging with module-wise controls and JSON/Database switching</p>
           <LoggingConfig
             config={loggingConfig}
@@ -371,7 +379,7 @@ export default function TestPage() {
 
         {/* LoginForm Component Test */}
         <section className="bg-white rounded-2xl p-6 shadow-sm border border-surface-200">
-          <h2 className="text-xl font-bold text-surface-800 mb-4">LoginForm Component</h2>
+          <h2 className="text-xl font-bold text-surface-800 mb-4">LoginForm.jsx - LoginForm Component</h2>
           <p className="text-sm text-surface-600 mb-6">Full login form with gradient background and button</p>
           <LoginForm onLogin={handleLogin} />
         </section>

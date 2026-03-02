@@ -1,0 +1,30 @@
+{
+  "auth": {
+    "loginSuccess": "Login successful. Welcome back!",
+    "logoutSuccess": "You have been logged out successfully.",
+    "providerSwitched": "Authentication provider has been updated successfully."
+  },
+  "database": {
+    "connectionSuccess": "Database connection successful.",
+    "configSaved": "Database configuration saved successfully.",
+    "schemaCreated": "Database schema created successfully.",
+    "defaultDataLoaded": "Default data loaded successfully.",
+    "defaultDataCleaned": "Default data cleaned successfully.",
+    "databaseCreated": "Database created successfully.",
+    "databaseDeleted": "Database deleted successfully.",
+    "databaseWiped": "All database tables dropped successfully."
+  },
+  "config": {
+    "saved": "Configuration saved successfully.",
+    "loaded": "Configuration loaded successfully."
+  },
+  "general": {
+    "operationSuccess": "Operation completed successfully.",
+    "changesSaved": "Changes saved.",
+    "confirmAction": "Are you sure you want to proceed?",
+    "confirmDelete": "This action cannot be undone. Are you sure?",
+    "confirmWipe": "This will permanently delete all data. Are you sure?",
+    "processing": "Processing...",
+    "pleaseWait": "Please wait..."
+  }
+}
