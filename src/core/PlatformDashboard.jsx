@@ -14,7 +14,6 @@
 import React from 'react';
 import { useParams } from 'react-router-dom';
 import globalText from '@config/globalText.json';
-import { ButtonShowcase } from '@shared';
 
 export default function PlatformDashboard() {
   const { moduleId, viewId } = useParams();
@@ -27,8 +26,18 @@ export default function PlatformDashboard() {
       </header>
 
       {/* Main content area */}
-      <main>
-        <ButtonShowcase />
+      <main className="p-6">
+        <div className="max-w-4xl mx-auto">
+          <div className="bg-white rounded-xl border border-surface-200 p-6 shadow-sm">
+            <h2 className="text-lg font-bold text-surface-800 mb-2">Welcome to PulseOps V2</h2>
+            <p className="text-sm text-surface-600 mb-4">
+              Module: {moduleId || 'None'} | View: {viewId || 'None'}
+            </p>
+            <p className="text-xs text-surface-400">
+              Platform dashboard is loading. Module system will be implemented here.
+            </p>
+          </div>
+        </div>
       </main>
     </div>
   );
