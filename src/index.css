@@ -97,7 +97,9 @@
 
   /* ── Spacing & Layout ───────────────────────────────────────────────── */
   --sidebar-width: 240px;
+  --sidebar-collapsed: 60px;
   --topnav-height: 56px;
+  --right-panel-width: 360px;
   --content-max-width: 1280px;
 
   /* ── Shadows ────────────────────────────────────────────────────────── */
@@ -130,4 +132,41 @@ body {
 
 #root {
   min-height: 100vh;
+}
+
+/* ── Animations ────────────────────────────────────────────────────────── */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.2s ease-out;
+}
+
+.animate-scale-in {
+  animation: scaleIn 0.2s ease-out;
+}
+
+.animate-slide-down {
+  animation: slideDown 0.2s ease-out;
+}
+
+/* ── Scrollbar Utility ─────────────────────────────────────────────────── */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
 }

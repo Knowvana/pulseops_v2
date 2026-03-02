@@ -65,10 +65,134 @@
       { "id": "github", "label": "GitHub" }
     ]
   },
+  "coreNav": {
+    "dashboard": "Dashboard",
+    "moduleManager": "Module Manager",
+    "logs": "System Logs",
+    "settings": "Settings"
+  },
+  "coreViews": {
+    "dashboard": {
+      "title": "Platform Dashboard",
+      "subtitle": "System health, module status, and quick actions"
+    },
+    "moduleManager": {
+      "title": "Module Manager",
+      "subtitle": "Install, enable, disable, and manage platform modules"
+    },
+    "logs": {
+      "title": "System Logs",
+      "subtitle": "Real-time platform logs, API calls, and diagnostics"
+    },
+    "settings": {
+      "title": "Platform Settings",
+      "subtitle": "Global configuration — Admin only",
+      "tabs": {
+        "dbConfig": "Database Configuration",
+        "dbObjects": "Database Objects",
+        "logSettings": "Log Settings",
+        "logConfig": "Log Configuration",
+        "authSettings": "Authentication"
+      },
+      "logSettings": {
+        "title": "Log Storage Settings",
+        "subtitle": "Configure where platform logs are stored",
+        "fileMode": "File-based Logging",
+        "fileModeDesc": "Logs are written to JSON files in the API project's Logs folder. Default mode.",
+        "dbMode": "Database Logging",
+        "dbModeDesc": "Logs are persisted to the PostgreSQL database for centralized querying.",
+        "switchToDb": "Switch to Database Logging",
+        "switchToFile": "Switch to File Logging",
+        "dbNotReady": "Setup Database First",
+        "dbNotReadyDesc": "Database must be configured and initialized before enabling database logging.",
+        "currentMode": "Current Mode",
+        "fileActive": "File Logging Active",
+        "dbActive": "Database Logging Active"
+      },
+      "authSettings": {
+        "title": "Authentication Settings",
+        "subtitle": "Configure authentication provider for the platform",
+        "providers": {
+          "json_file": {
+            "label": "JSON File",
+            "description": "Authenticate against a local JSON file. Default mode — works without a database.",
+            "detail": "Ideal for initial setup and development before database is configured."
+          },
+          "database": {
+            "label": "Database",
+            "description": "Authenticate against the PostgreSQL system_users table with bcrypt hashing.",
+            "detail": "Requires the database to be initialized with default data. Switch here after setup."
+          },
+          "social": {
+            "label": "Social / OAuth2 / SAML",
+            "description": "Authenticate via Google, Microsoft, or other OAuth2/SAML providers.",
+            "detail": "Requires OAuth2/SAML provider configuration. Available in a future release."
+          }
+        },
+        "activeBadge": "Active",
+        "comingSoonBadge": "Coming Soon",
+        "switchButton": "Switch Provider",
+        "dbNotReadyWarning": "Database must be initialized before switching to Database authentication.",
+        "dbRequiredNote": "Set up the database in Settings → Database Objects first.",
+        "crud": {
+          "switchProvider": {
+            "confirmMessage": "This will change the authentication provider for the entire platform. All users will authenticate using the new provider.",
+            "confirmLabel": "Switch Provider",
+            "summaryProvider": "Provider",
+            "summaryPrevious": "Previous",
+            "summaryStatus": "Status",
+            "summarySuccess": "Provider Updated Successfully"
+          }
+        }
+      }
+    }
+  },
+  "topNav": {
+    "brand": {
+      "appName": "PulseOps",
+      "subtitle": "Enterprise"
+    },
+    "buttons": {
+      "settings": "Settings",
+      "signOut": "Sign Out",
+      "monitor": "Monitor"
+    },
+    "userMenu": {
+      "roleLabel": "Role",
+      "signOutLabel": "Sign Out",
+      "profileLabel": "Profile"
+    }
+  },
+  "sideNav": {
+    "collapseLabel": "Collapse",
+    "expandTooltip": "Expand sidebar",
+    "collapseTooltip": "Collapse sidebar"
+  },
+  "rightPanel": {
+    "tabs": {
+      "systemLogs": "System Logs",
+      "apiCalls": "API Calls"
+    },
+    "logs": {
+      "filterAll": "all",
+      "filterDebug": "debug",
+      "filterInfo": "info",
+      "filterWarn": "warn",
+      "filterError": "error",
+      "clearTooltip": "Clear logs",
+      "emptyMessage": "No logs captured yet.",
+      "emptyHint": "Logs will appear here as you interact with the platform."
+    },
+    "apiCalls": {
+      "emptyMessage": "No API calls recorded.",
+      "emptyHint": "API requests and responses will appear here."
+    }
+  },
   "errors": {
     "networkError": "Unable to connect to the server. Please check your connection.",
     "unauthorized": "You are not authorized to perform this action.",
     "notFound": "The requested resource was not found.",
-    "serverError": "An unexpected error occurred. Please try again."
+    "serverError": "An unexpected error occurred. Please try again.",
+    "moduleLoadFailed": "Failed to load module. Please try again or contact support."
   }
 }

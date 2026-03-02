@@ -19,10 +19,11 @@ export default defineConfig({
       '@core': path.resolve(__dirname, 'src/core'),
       '@modules': path.resolve(__dirname, 'src/modules'),
       '@shared': path.resolve(__dirname, 'src/shared'),
+      '@layouts': path.resolve(__dirname, 'src/layouts'),
     },
   },
   server: {
-    port: 5173,
+    port: 1001,
     proxy: {
       '/api': {
         target: 'http://localhost:4001',

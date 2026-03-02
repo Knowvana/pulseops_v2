@@ -315,7 +315,19 @@ pulseops_v2/
 │   │   └── app.json
 │   ├── core/
 │   │   ├── App.jsx
-│   │   └── PlatformDashboard.jsx
+│   │   ├── PlatformDashboard.jsx
+│   │   └── views/               # Native core platform views
+│   │       ├── AdminDashboard.jsx
+│   │       ├── ModuleManager.jsx
+│   │       ├── LogManager.jsx
+│   │       └── Settings.jsx
+│   ├── layouts/                  # Global layout components (elevated to top-level)
+│   │   ├── AppShell.jsx
+│   │   ├── TopMenu.jsx
+│   │   ├── LeftSideNavBar.jsx
+│   │   ├── RightLogsView.jsx
+│   │   ├── MainContent.jsx
+│   │   └── index.js
 │   ├── modules/
 │   │   ├── moduleRegistry.js
 │   │   └── _template/
@@ -346,7 +358,7 @@ pulseops_v2/
 ```
 
 **PROHIBITED:**
-- Hardcoding paths (use aliases: `@shared`, `@modules`, `@core`, `@config`).
+- Hardcoding paths (use aliases: `@shared`, `@modules`, `@core`, `@config`, `@layouts`).
 - Mixing backend and frontend code.
 - Placing module-specific code in `shared/`.
 - Importing from relative paths (always use aliases).

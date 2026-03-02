@@ -6,7 +6,9 @@
       "@core/*": ["src/core/*"],
       "@modules/*": ["src/modules/*"],
       "@shared/*": ["src/shared/*"],
-      "@shared": ["src/shared/index.js"]
+      "@shared": ["src/shared/index.js"],
+      "@layouts/*": ["src/layouts/*"],
+      "@layouts": ["src/layouts/index.js"]
     }
   },
   "include": ["src/**/*"],

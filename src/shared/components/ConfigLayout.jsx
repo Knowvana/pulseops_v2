@@ -38,15 +38,17 @@ export default function ConfigLayout({ title, subtitle, icon: HeaderIcon, tabs =
     <div className="space-y-6 animate-fade-in">
       {/* Header */}
       {title && (
-        <div className="flex items-center gap-3 mb-2">
-          {HeaderIcon && (
-            <div className="w-10 h-10 rounded-xl bg-brand-50 flex items-center justify-center">
-              <HeaderIcon size={20} className="text-brand-600" />
+        <div className="flex items-center justify-between px-6 py-4 border-b border-surface-100 bg-surface-50/50 flex-shrink-0">
+          <div className="flex items-center gap-3">
+            {HeaderIcon && (
+              <div className="p-2 rounded-lg bg-gradient-to-br from-brand-50 to-teal-50">
+                <HeaderIcon size={20} className="text-brand-600" />
+              </div>
+            )}
+            <div>
+              <h2 className="text-base font-bold text-surface-800">{title}</h2>
+              {subtitle && <p className="text-xs text-surface-400 mt-0.5">{subtitle}</p>}
             </div>
-          )}
-          <div>
-            <h1 className="text-xl font-bold text-surface-800">{title}</h1>
-            {subtitle && <p className="text-sm text-surface-500 mt-0.5">{subtitle}</p>}
           </div>
         </div>
       )}
@@ -63,11 +65,10 @@ export default function ConfigLayout({ title, subtitle, icon: HeaderIcon, tabs =
                 {tab.separator && <div className="border-t border-surface-200 my-2" />}
                 <button
                   onClick={() => setActiveTab(tab.id)}
-                  className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
-                    isActive
+                  className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${isActive
                       ? 'bg-brand-50 text-brand-700 shadow-sm shadow-brand-100/50'
                       : 'text-surface-500 hover:text-surface-700 hover:bg-surface-50'
-                  }`}
+                    }`}
                 >
                   {TabIcon && <TabIcon size={16} className={isActive ? 'text-brand-600' : 'text-surface-400'} />}
                   {tab.label}
