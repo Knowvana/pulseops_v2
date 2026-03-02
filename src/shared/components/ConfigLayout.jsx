@@ -35,7 +35,7 @@ export default function ConfigLayout({ title, subtitle, icon: HeaderIcon, tabs =
   const activeTabObj = tabs.find(t => t.id === activeTab);
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="bg-white rounded-2xl border border-surface-200 shadow-sm overflow-hidden animate-fade-in">
       {/* Header */}
       {title && (
         <div className="flex items-center justify-between px-6 py-4 border-b border-surface-100 bg-surface-50/50 flex-shrink-0">
@@ -54,9 +54,9 @@ export default function ConfigLayout({ title, subtitle, icon: HeaderIcon, tabs =
       )}
 
       {/* Tab layout: vertical tabs left + content right */}
-      <div className="flex gap-6">
+      <div className="flex gap-0">
         {/* Tab list */}
-        <div className="w-56 shrink-0 space-y-1">
+        <div className="w-56 shrink-0 space-y-1 p-4 border-r border-surface-100 bg-surface-50/30">
           {tabs.map((tab) => {
             const TabIcon = tab.icon;
             const isActive = tab.id === activeTab;
@@ -65,13 +65,30 @@ export default function ConfigLayout({ title, subtitle, icon: HeaderIcon, tabs =
                 {tab.separator && <div className="border-t border-surface-200 my-2" />}
                 <button
                   onClick={() => setActiveTab(tab.id)}
-                  className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${isActive
-                      ? 'bg-brand-50 text-brand-700 shadow-sm shadow-brand-100/50'
-                      : 'text-surface-500 hover:text-surface-700 hover:bg-surface-50'
-                    }`}
+                  className={`
+  flex items-center gap-2.5 w-full px-3 py-2.5 rounded-lg text-left
+  transition-all duration-150
+  ${isActive
+                      ? 'bg-gradient-to-r from-brand-50 to-white text-brand-700 shadow-sm ring-1 ring-surface-200/60 font-semibold'
+                      : 'text-surface-500 hover:text-surface-700 hover:bg-white/60'
+                    }
+`}
                 >
-                  {TabIcon && <TabIcon size={16} className={isActive ? 'text-brand-600' : 'text-surface-400'} />}
-                  {tab.label}
+                  {TabIcon && (
+                    <tabIcon
+                      size={16}
+                      className={isActive ? 'text-brand-500' : 'text-surface-400'}
+                    />
+                  )}
+                  <span className="text-sm truncate">{tab.label}</span>
+                  {tab.badge && (
+                    <span className={`
+                        ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full
+                        ${isActive ? 'bg-brand-100 text-brand-600' : 'bg-surface-100 text-surface-400'}
+                      `}>
+                      {tab.badge}
+                    </span>
+                  )}
                 </button>
               </React.Fragment>
             );
@@ -79,10 +96,10 @@ export default function ConfigLayout({ title, subtitle, icon: HeaderIcon, tabs =
         </div>
 
         {/* Active tab content */}
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0 p-6">
           {activeTabObj?.content}
         </div>
       </div>
-    </div>
+    </div >
   );
 }
