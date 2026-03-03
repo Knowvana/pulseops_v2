@@ -59,17 +59,13 @@ export default function AppShell({
   const [uiLogs, setUiLogs] = useState([]);
   const [apiCalls, setApiCalls] = useState([]);
 
-  // Initialize UILogService and subscribe for updates
+  // Subscribe to UILogService for updates (service already initialized in main.jsx)
   useEffect(() => {
-    UILogService.init();
     const unsub = UILogService.subscribe(({ logs, apiCalls: calls }) => {
       setUiLogs(logs);
       setApiCalls(calls);
     });
-    return () => {
-      unsub();
-      UILogService.destroy();
-    };
+    return unsub;
   }, []);
 
   const handleClearLogs = useCallback(() => UILogService.clearLogs(), []);

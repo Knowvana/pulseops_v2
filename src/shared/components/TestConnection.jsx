@@ -160,9 +160,11 @@ export default function TestConnection({
     }
   };
 
-  // Auto-test on mount when autoTest prop is true
+  // Auto-test on mount when autoTest prop is true (ref guard prevents StrictMode double-fire)
+  const autoTestRan = React.useRef(false);
   useEffect(() => {
-    if (autoTest && onTest) {
+    if (autoTest && onTest && !autoTestRan.current) {
+      autoTestRan.current = true;
       const runAutoTest = async () => {
         setIsTesting(true);
         setConnectionStatus({

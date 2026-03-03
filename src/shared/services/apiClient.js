@@ -14,8 +14,42 @@
 const API_BASE = '';
 
 class ApiClientClass {
+  constructor() {
+    this._explorerSessionId = null;
+  }
+
+  /**
+   * Start an API Explorer session with a dedicated transaction ID.
+   * All requests made through ApiClient will carry this ID until the session ends.
+   */
+  startExplorerSession() {
+    this._explorerSessionId = `exp-${Date.now().toString(36)}-${Math.random().toString(36).substr(2, 8)}`;
+    return this._explorerSessionId;
+  }
+
+  /**
+   * End the API Explorer session and revert to the global session transaction ID.
+   */
+  endExplorerSession() {
+    const id = this._explorerSessionId;
+    this._explorerSessionId = null;
+    return id;
+  }
+
+  /**
+   * Get current explorer session ID (null if no active explorer session)
+   */
+  getExplorerSessionId() {
+    return this._explorerSessionId;
+  }
+
   _buildHeaders() {
-    return { 'Content-Type': 'application/json' };
+    const headers = { 'Content-Type': 'application/json' };
+    // Attach transaction ID: explorer session takes priority, else global session
+    if (this._explorerSessionId) {
+      headers['X-Transaction-Id'] = this._explorerSessionId;
+    }
+    return headers;
   }
 
   async _request(method, url, body = null) {

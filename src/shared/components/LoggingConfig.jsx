@@ -102,10 +102,10 @@ export default function LoggingConfig({
       </div>
 
       {/* Log Level and Capture Options in one Card */}
-      <div className="bg-white rounded-xl border border-surface-200 p-4 shadow-sm">
-        <div className="flex gap-6">
+      <div className="bg-white rounded-xl border border-surface-200 p-4 shadow-sm overflow-hidden">
+        <div className="flex flex-wrap gap-6">
           {/* Log Level Section */}
-          <div className="flex-[4]">
+          <div className="flex-1 min-w-[280px]">
             <h5 className="text-xs font-bold uppercase tracking-wider text-surface-400 mb-3 text-center">Log Level</h5>
             <p className="text-xs text-surface-500 mb-3 text-center">Only logs at or above this level will be captured.</p>
             <div className="flex items-center gap-1">
@@ -130,13 +130,13 @@ export default function LoggingConfig({
             </div>
           </div>
 
-          {/* Vertical Separator */}
-          <div className="w-1 bg-gradient-to-b from-transparent via-purple-400 to-transparent shadow-lg" />
+          {/* Vertical Separator — hidden on small screens */}
+          <div className="hidden lg:block w-1 bg-gradient-to-b from-transparent via-purple-400 to-transparent shadow-lg" />
 
           {/* Log Capture Options Section */}
-          <div className="flex-[6] text-center">
+          <div className="flex-1 min-w-[320px] text-center">
             <h5 className="text-xs font-bold uppercase tracking-wider text-surface-400 mb-3">Log Capture Options</h5>
-            <div className="flex justify-center gap-2">
+            <div className="flex flex-wrap justify-center gap-3">
               <ToggleRow 
                 icon={Monitor} 
                 label="Console Output" 
@@ -144,7 +144,7 @@ export default function LoggingConfig({
                 enabled={localConfig.captureOptions.console} 
                 onToggle={() => handleCaptureOptionToggle('console')} 
               />
-              <div className="w-1 h-16 bg-gradient-to-b from-transparent via-brand-400 to-transparent shadow-lg" />
+              <div className="hidden sm:block w-px h-16 bg-gradient-to-b from-transparent via-brand-400 to-transparent shadow-lg" />
               <ToggleRow 
                 icon={Server} 
                 label="API Logs" 
@@ -152,7 +152,7 @@ export default function LoggingConfig({
                 enabled={localConfig.captureOptions.api} 
                 onToggle={() => handleCaptureOptionToggle('api')} 
               />
-              <div className="w-1 h-16 bg-gradient-to-b from-transparent via-brand-400 to-transparent shadow-lg" />
+              <div className="hidden sm:block w-px h-16 bg-gradient-to-b from-transparent via-brand-400 to-transparent shadow-lg" />
               <ToggleRow 
                 icon={Eye} 
                 label="UI Logs" 
@@ -160,7 +160,7 @@ export default function LoggingConfig({
                 enabled={localConfig.captureOptions.ui} 
                 onToggle={() => handleCaptureOptionToggle('ui')} 
               />
-              <div className="w-1 h-16 bg-gradient-to-b from-transparent via-brand-400 to-transparent shadow-lg" />
+              <div className="hidden sm:block w-px h-16 bg-gradient-to-b from-transparent via-brand-400 to-transparent shadow-lg" />
               <ToggleRow 
                 icon={Package} 
                 label="Module Logs" 
@@ -174,12 +174,12 @@ export default function LoggingConfig({
       </div>
 
       {/* Log Management Card */}
-      <div className="bg-white rounded-xl border border-surface-200 p-4 shadow-sm">
+      <div className="bg-white rounded-xl border border-surface-200 p-4 shadow-sm overflow-hidden">
         <h4 className="text-xs font-bold uppercase tracking-wider text-surface-400 mb-3 text-center">Log Management</h4>
         <div className="h-px bg-gradient-to-r from-transparent via-purple-400 to-transparent mb-6"></div>
-        <div className="flex gap-6">
+        <div className="flex flex-wrap gap-6">
           {/* Log Sync to Database */}
-          <div className="flex-1">
+          <div className="flex-1 min-w-[200px]">
             <h5 className="text-xs font-bold uppercase tracking-wider text-surface-400 mb-3">Log Sync to Database</h5>
             <div className="space-y-4">
               <div>
@@ -198,11 +198,11 @@ export default function LoggingConfig({
             </div>
           </div>
 
-          {/* Vertical Separator */}
-          <div className="w-1 bg-gradient-to-b from-transparent via-purple-400 to-transparent shadow-lg" />
+          {/* Vertical Separator — hidden on small screens */}
+          <div className="hidden md:block w-1 bg-gradient-to-b from-transparent via-purple-400 to-transparent shadow-lg" />
 
           {/* Log Retention */}
-          <div className="flex-1">
+          <div className="flex-1 min-w-[200px]">
             <h5 className="text-xs font-bold uppercase tracking-wider text-surface-400 mb-3">Log Retention</h5>
             <div className="space-y-4">
               <div>
@@ -233,11 +233,11 @@ export default function LoggingConfig({
             </div>
           </div>
 
-          {/* Vertical Separator */}
-          <div className="w-1 bg-gradient-to-b from-transparent via-purple-400 to-transparent shadow-lg" />
+          {/* Vertical Separator — hidden on small screens */}
+          <div className="hidden md:block w-1 bg-gradient-to-b from-transparent via-purple-400 to-transparent shadow-lg" />
 
           {/* Module-wise Logging */}
-          <div className="flex-1">
+          <div className="flex-1 min-w-[200px]">
             <h5 className="text-xs font-bold uppercase tracking-wider text-surface-400 mb-3">Module-wise Logging</h5>
             <p className="text-xs text-surface-500 mb-3">Enable or disable logging per module:</p>
             <div className="space-y-2">

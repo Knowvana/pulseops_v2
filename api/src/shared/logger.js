@@ -19,10 +19,28 @@ import winston from 'winston';
 
 const nodeEnv = process.env.NODE_ENV || 'development';
 
+/**
+ * Format a Date to IST (Asia/Kolkata) string.
+ * @param {Date} date
+ * @returns {string} IST formatted timestamp
+ */
+function toIST(date) {
+  return (date || new Date()).toLocaleString('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    day: '2-digit', month: 'short', year: 'numeric',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+  });
+}
+
+const istTimestamp = winston.format((info) => {
+  info.timestamp = toIST(new Date());
+  return info;
+});
+
 const logger = winston.createLogger({
   level: nodeEnv === 'production' ? 'info' : 'debug',
   format: winston.format.combine(
-    winston.format.timestamp(),
+    istTimestamp(),
     winston.format.errors({ stack: true }),
     winston.format.json()
   ),

@@ -55,5 +55,9 @@
   "config": {
     "list": "/api/config",
     "save": "/api/config"
+  },
+  "generalSettings": {
+    "get": "/api/general-settings",
+    "save": "/api/general-settings"
   }
 }

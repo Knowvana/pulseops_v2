@@ -27,6 +27,21 @@ const MAX_LOG_ENTRIES = 500;
 const MAX_API_ENTRIES = 200;
 const PUSH_INTERVAL_MS = 30000;
 
+function formatISTTime() {
+  return new Date().toLocaleString('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    day: '2-digit', month: 'short', year: 'numeric',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true,
+  });
+}
+
+function toISTISO() {
+  // Return ISO string but in IST offset (+05:30)
+  const now = new Date();
+  const ist = new Date(now.getTime() + (5.5 * 60 * 60 * 1000));
+  return ist.toISOString().replace('Z', '+05:30');
+}
+
 class UILogServiceClass {
   constructor() {
     this._logs = [];
@@ -39,17 +54,37 @@ class UILogServiceClass {
     this._pendingPush = [];
     this._notifyTimer = null;
     this._notifyPending = false;
-    this._currentTxId = null;
+    this._sessionTxId = null;
   }
 
-  _generateTxId() {
-    return `txn-${Date.now().toString(36)}-${Math.random().toString(36).substr(2, 6)}`;
+  _generateSessionTxId() {
+    return `ses-${Date.now().toString(36)}-${Math.random().toString(36).substr(2, 8)}`;
+  }
+
+  /**
+   * Get the current session transaction ID
+   */
+  getSessionTxId() {
+    return this._sessionTxId;
+  }
+
+  /**
+   * Override session transaction ID (e.g. for API Explorer sessions)
+   */
+  setSessionTxId(txId) {
+    this._sessionTxId = txId;
   }
 
   // ── Init: Intercept console + fetch ──────────────────────────────────────
   init() {
-    if (this._initialized) return;
+    if (this._initialized) {
+      // Already initialized - do not regenerate session ID or re-intercept
+      return;
+    }
     this._initialized = true;
+
+    // Generate session-scoped transaction ID (one per browser session)
+    this._sessionTxId = this._generateSessionTxId();
 
     // Save originals
     this._originalConsole = {
@@ -78,17 +113,13 @@ class UILogServiceClass {
       const method = init?.method?.toUpperCase() || 'GET';
       const start = performance.now();
 
-      // Generate a transaction ID per request and share it with the backend
-      // This links UI logs and API logs for the same user action
+      // Send session transaction ID with every API request (except log push calls)
       const isLogPush = requestUrl.includes('/api/logs/') && method === 'POST';
-      if (!isLogPush) {
-        this._currentTxId = this._generateTxId();
-      }
       const augmentedInit = {
         ...(init || {}),
         headers: {
           ...(init?.headers || {}),
-          ...(!isLogPush && this._currentTxId ? { 'X-Transaction-Id': this._currentTxId } : {}),
+          ...(!isLogPush && this._sessionTxId ? { 'X-Transaction-Id': this._sessionTxId } : {}),
         },
       };
 
@@ -101,7 +132,8 @@ class UILogServiceClass {
           fullUrl: requestUrl,
           status: response.status,
           duration,
-          timestamp: new Date().toLocaleTimeString(),
+          transactionId: this._sessionTxId,
+          timestamp: formatISTTime(),
         });
         return response;
       } catch (err) {
@@ -113,8 +145,8 @@ class UILogServiceClass {
           status: 0,
           duration,
           error: err.message,
-          transactionId: this._currentTxId,
-          timestamp: new Date().toLocaleTimeString(),
+          transactionId: this._sessionTxId,
+          timestamp: formatISTTime(),
         });
         throw err;
       }
@@ -180,8 +212,9 @@ class UILogServiceClass {
       module: 'Core',
       message: typeof message === 'string' ? message : JSON.stringify(message),
       data: data || null,
-      timestamp: new Date().toLocaleTimeString(),
-      isoTimestamp: new Date().toISOString(),
+      transactionId: this._sessionTxId || null,
+      timestamp: formatISTTime(),
+      isoTimestamp: toISTISO(),
     };
     this._logs = [...this._logs.slice(-(MAX_LOG_ENTRIES - 1)), entry];
     this._pendingPush.push(entry);
@@ -240,14 +273,17 @@ class UILogServiceClass {
 
     const source = this._extractSource(message);
 
+    // Format in fixed log format: strip emojis, use structured format
+    const cleanMessage = message.replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{27BF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{2702}-\u{27B0}]/gu, '').trim();
+
     const entry = {
       level,
       source,
       module: 'Core',
-      message,
-      transactionId: this._currentTxId || null,
-      timestamp: new Date().toLocaleTimeString(),
-      isoTimestamp: new Date().toISOString(),
+      message: cleanMessage,
+      transactionId: this._sessionTxId || null,
+      timestamp: formatISTTime(),
+      isoTimestamp: toISTISO(),
     };
 
     this._logs = [...this._logs.slice(-(MAX_LOG_ENTRIES - 1)), entry];
@@ -260,7 +296,7 @@ class UILogServiceClass {
     // Skip log push calls to avoid recursion
     if (entry.fullUrl?.includes('/api/logs/ui') && entry.method === 'POST') return;
 
-    this._apiCalls = [...this._apiCalls.slice(-(MAX_API_ENTRIES - 1)), { ...entry, transactionId: this._currentTxId }];
+    this._apiCalls = [...this._apiCalls.slice(-(MAX_API_ENTRIES - 1)), { ...entry, transactionId: this._sessionTxId }];
     this._notify();
   }
 

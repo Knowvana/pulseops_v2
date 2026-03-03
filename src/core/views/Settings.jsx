@@ -22,7 +22,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import {
   Settings as SettingsIcon, Database, Layers, FileText, ScrollText,
-  Shield, Globe, AlertTriangle, RefreshCw, Check
+  Shield, Globe, AlertTriangle, RefreshCw, Check, Save, Globe2
 } from 'lucide-react';
 import { ConfigLayout, TestConnection, DatabaseManager, LoggingConfig, Button, ConfirmationModal, ConnectionStatus } from '@shared';
 import uiText from '@config/uiElementsText.json';
@@ -110,6 +110,7 @@ function DatabaseObjectsTab() {
     connected: false, exists: false, schemaInitialized: false, hasDefaultData: false,
   });
   const [isLoading, setIsLoading] = useState(true);
+  const initRan = React.useRef(false);
 
   const checkStatus = useCallback(async () => {
     setIsLoading(true);
@@ -133,7 +134,7 @@ function DatabaseObjectsTab() {
     }
   }, []);
 
-  useEffect(() => { checkStatus(); }, [checkStatus]);
+  useEffect(() => { if (!initRan.current) { initRan.current = true; checkStatus(); } }, [checkStatus]);
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -193,6 +194,7 @@ function LogSettingsTab() {
   const [isSwitching, setIsSwitching] = useState(false);
   const [allStats, setAllStats] = useState({ ui: { count: 0 }, api: { count: 0 } });
   const [logStatus, setLogStatus] = useState({ status: 'loading', message: connectionText.testing, meta: null, lastTested: null });
+  const initRan = React.useRef(false);
   // urls.database.* and urls.logs.* already include /api prefix
   // Vite proxy forwards /api/* to backend - use empty base to avoid double /api/api
   const apiBase = '';
@@ -240,7 +242,7 @@ function LogSettingsTab() {
     }
   }, []);
 
-  useEffect(() => { fetchStatus(); }, [fetchStatus]);
+  useEffect(() => { if (!initRan.current) { initRan.current = true; fetchStatus(); } }, [fetchStatus]);
 
   const handleSwitch = useCallback(async (newMode) => {
     if (newMode === logMode) return;
@@ -384,11 +386,14 @@ function AuthSettingsTab() {
   const [selectedProvider, setSelectedProvider] = useState('json_file');
   const [dbReady, setDbReady] = useState(false);
   const [showModal, setShowModal] = useState(false);
+  const initRan = React.useRef(false);
 
   const PROVIDER_ICONS = { json_file: Shield, database: Database, social: Globe };
   const providerIds = ['json_file', 'database', 'social'];
 
   useEffect(() => {
+    if (initRan.current) return;
+    initRan.current = true;
     const checkDb = async () => {
       try {
         const response = await fetch(urls.database.schemaStatus, { credentials: 'include' });
@@ -517,7 +522,12 @@ function AuthSettingsTab() {
         isOpen={showModal}
         onClose={() => setShowModal(false)}
         title={authText.crud.switchProvider.confirmLabel}
-        confirmMessage={authText.crud.switchProvider.confirmMessage}
+        actionDescription={`switch authentication provider to ${(authText.providers?.[selectedProvider]?.label) || selectedProvider}`}
+        actionTarget="Platform Authentication"
+        actionDetails={[
+          { label: 'Current Provider', value: (authText.providers?.[currentProvider]?.label) || currentProvider },
+          { label: 'New Provider', value: (authText.providers?.[selectedProvider]?.label) || selectedProvider },
+        ]}
         confirmLabel={authText.crud.switchProvider.confirmLabel}
         action={handleSwitchProvider}
         onSuccess={handleSwitchSuccess}
@@ -532,14 +542,117 @@ function AuthSettingsTab() {
   );
 }
 
+// ── General Settings Tab ─────────────────────────────────────────────────────
+const TIMEZONE_OPTIONS = [
+  { value: 'Asia/Kolkata', label: 'IST — India Standard Time (UTC+05:30)' },
+  { value: 'UTC', label: 'UTC — Coordinated Universal Time' },
+  { value: 'America/New_York', label: 'EST/EDT — Eastern Time (US)' },
+  { value: 'America/Chicago', label: 'CST/CDT — Central Time (US)' },
+  { value: 'America/Los_Angeles', label: 'PST/PDT — Pacific Time (US)' },
+  { value: 'Europe/London', label: 'GMT/BST — London' },
+  { value: 'Europe/Berlin', label: 'CET/CEST — Central Europe' },
+  { value: 'Asia/Dubai', label: 'GST — Gulf Standard Time (UTC+04:00)' },
+  { value: 'Asia/Singapore', label: 'SGT — Singapore Time (UTC+08:00)' },
+  { value: 'Asia/Tokyo', label: 'JST — Japan Standard Time (UTC+09:00)' },
+  { value: 'Australia/Sydney', label: 'AEST/AEDT — Sydney' },
+];
+
+function GeneralSettingsTab() {
+  const [settings, setSettings] = useState({ timezone: 'Asia/Kolkata', dateFormat: 'dd MMM yyyy', timeFormat: 'HH:mm:ss' });
+  const [isSaving, setIsSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const initRan = React.useRef(false);
+
+  useEffect(() => {
+    if (initRan.current) return;
+    initRan.current = true;
+    const load = async () => {
+      try {
+        const res = await fetch(urls.generalSettings.get, { credentials: 'include' });
+        const json = await res.json();
+        if (json.success) setSettings(json.data);
+      } catch { /* keep defaults */ }
+      setIsLoading(false);
+    };
+    load();
+  }, []);
+
+  const handleSave = useCallback(async () => {
+    setIsSaving(true);
+    try {
+      const res = await fetch(urls.generalSettings.save, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(settings),
+      });
+      const json = await res.json();
+      if (json.success) {
+        setSaved(true);
+        setTimeout(() => setSaved(false), 2000);
+      }
+    } catch { /* silent */ }
+    setIsSaving(false);
+  }, [settings]);
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="w-6 h-6 border-2 border-brand-400 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6 animate-fade-in">
+      <div>
+        <h3 className="text-base font-bold text-surface-800 mb-1">{tabText.generalSettings}</h3>
+        <p className="text-sm text-surface-400">Platform-wide general settings. Changes apply globally.</p>
+      </div>
+
+      <div className="bg-white rounded-xl border border-surface-200 p-5 shadow-sm space-y-5">
+        {/* Timezone */}
+        <div>
+          <label className="block text-xs font-bold uppercase tracking-wider text-surface-500 mb-2">Timezone</label>
+          <p className="text-xs text-surface-400 mb-2">All dates and timestamps across the platform will use this timezone.</p>
+          <select
+            value={settings.timezone}
+            onChange={(e) => setSettings(prev => ({ ...prev, timezone: e.target.value }))}
+            className="w-full max-w-md px-3 py-2 text-sm border border-surface-200 rounded-lg bg-white text-surface-700 focus:outline-none focus:ring-2 focus:ring-brand-200"
+          >
+            {TIMEZONE_OPTIONS.map(tz => (
+              <option key={tz.value} value={tz.value}>{tz.label}</option>
+            ))}
+          </select>
+          <p className="text-[10px] text-surface-400 mt-1">Current selection: <span className="font-semibold text-surface-600">{settings.timezone}</span></p>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-3">
+        <Button
+          variant="primary"
+          size="md"
+          icon={saved ? <Check size={16} /> : <Save size={16} />}
+          onClick={handleSave}
+          disabled={isSaving}
+        >
+          {saved ? 'Saved!' : isSaving ? 'Saving...' : 'Save Settings'}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 // ── Main Settings Component ─────────────────────────────────────────────────
 export default function Settings() {
   const tabs = [
-    { id: 'dbConfig', label: tabText.dbConfig, icon: Database, content: <DatabaseConfigTab /> },
-    { id: 'dbObjects', label: tabText.dbObjects, icon: Layers, content: <DatabaseObjectsTab /> },
-    { id: 'logSettings', label: tabText.logSettings, icon: FileText, content: <LogSettingsTab />, separator: true },
-    { id: 'logConfig', label: tabText.logConfig, icon: ScrollText, content: <LogConfigTab /> },
-    { id: 'authSettings', label: tabText.authSettings, icon: Shield, content: <AuthSettingsTab />, separator: true },
+    { id: 'generalSettings', label: tabText.generalSettings, icon: Globe2, content: () => <GeneralSettingsTab /> },
+    { id: 'dbConfig', label: tabText.dbConfig, icon: Database, content: () => <DatabaseConfigTab />, separator: true },
+    { id: 'dbObjects', label: tabText.dbObjects, icon: Layers, content: () => <DatabaseObjectsTab /> },
+    { id: 'logSettings', label: tabText.logSettings, icon: FileText, content: () => <LogSettingsTab />, separator: true },
+    { id: 'logConfig', label: tabText.logConfig, icon: ScrollText, content: () => <LogConfigTab /> },
+    { id: 'authSettings', label: tabText.authSettings, icon: Shield, content: () => <AuthSettingsTab />, separator: true },
   ];
 
   return (

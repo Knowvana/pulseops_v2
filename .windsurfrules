@@ -598,6 +598,33 @@ All functions, hooks, and services MUST include JSDoc.
 
 ---
 
+## 11. Universal CRUD Pattern: Confirm → Summary (MANDATORY)
+
+All destructive and state-changing CRUD operations MUST follow this two-phase pattern:
+
+1. **Confirmation Phase:** Show the user what will happen, the target system/resource, and affected details (e.g., datasource type, entry count, resource name). Ask for explicit confirmation before proceeding.
+2. **Summary Phase:** After the operation completes, show a summary modal with:
+   - Operation result (success/failure)
+   - Affected resource details (fetched dynamically from the API, NEVER hardcoded)
+   - Close button
+
+This pattern applies universally to: Delete, Create, Update, Switch, Wipe, and any other CRUD action.
+Use `<ConfirmationModal />` from `@shared` which supports both phases via `buildSummary` prop.
+
+---
+
+## 12. Timezone: IST by Default (MANDATORY)
+
+- **All timestamps** displayed in the UI and logged on the backend MUST use IST (Asia/Kolkata) by default.
+- The backend Winston logger uses a custom IST format via `winston.format`.
+- The frontend `UILogService` and `LogViewer` use `toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })`.
+- The user can change the timezone via Settings → General Settings → Timezone selector.
+- The selected timezone is persisted in `api/src/config/GeneralSettings.json`.
+- **PROHIBITED:** Using `new Date().toISOString()` for display timestamps (UTC). Always convert to IST or the configured timezone.
+- **PROHIBITED:** Using `new Date().toLocaleTimeString()` without specifying `timeZone: 'Asia/Kolkata'`.
+
+---
+
 **Last Updated:** March 3, 2026
-**Version:** 2.1.0
+**Version:** 2.2.0
 **Scope:** PulseOps V2 (All code in this repository)

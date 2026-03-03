@@ -232,6 +232,7 @@ export default function LogViewer({
   const [currentPage, setCurrentPage] = useState(1);
   const [columnWidths, setColumnWidths] = useState({});
   const [txFilter, setTxFilter] = useState('');
+  const [detailWidth, setDetailWidth] = useState(320);
   const gridRef = useRef(null);
   const resizingRef = useRef(null);
 
@@ -477,9 +478,31 @@ export default function LogViewer({
         </div>
       </div>
 
-      {/* Detail Panel (slide-out right) */}
+      {/* Detail Panel (resizable slide-out right) */}
       {showDetail && (
-        <div className="w-80 flex-shrink-0 border-l border-surface-200 bg-white overflow-hidden">
+        <div
+          className="flex-shrink-0 border-l border-surface-200 bg-white overflow-hidden relative"
+          style={{ width: detailWidth, minWidth: 240, maxWidth: 600 }}
+        >
+          {/* Resize drag handle */}
+          <div
+            className="absolute left-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-brand-300 active:bg-brand-400 transition-colors z-10"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              const startX = e.clientX;
+              const startWidth = detailWidth;
+              const onMove = (ev) => {
+                const diff = startX - ev.clientX;
+                setDetailWidth(Math.max(240, Math.min(600, startWidth + diff)));
+              };
+              const onUp = () => {
+                document.removeEventListener('mousemove', onMove);
+                document.removeEventListener('mouseup', onUp);
+              };
+              document.addEventListener('mousemove', onMove);
+              document.addEventListener('mouseup', onUp);
+            }}
+          />
           <LogDetailPanel
             log={selectedLog}
             logType={logType}

@@ -52,6 +52,7 @@ export default function LogManager() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [logConfig, setLogConfig] = useState(null);
 
   // ── Search debounce ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -97,11 +98,21 @@ export default function LogManager() {
     }
   }, [logType]);
 
+  // ── Fetch log config (datasource details) ─────────────────────────────────
+  const fetchLogConfig = useCallback(async () => {
+    try {
+      const res = await fetch(`${apiBase}${urls.logs.config}`, { credentials: 'include' });
+      const json = await res.json();
+      if (json.success) setLogConfig(json.data);
+    } catch { /* keep null */ }
+  }, []);
+
   // ── Auto-fetch on mount and when filters change ──────────────────────────
   useEffect(() => {
     fetchLogs();
     fetchStats();
-  }, [fetchLogs, fetchStats]);
+    fetchLogConfig();
+  }, [fetchLogs, fetchStats, fetchLogConfig]);
 
   // ── Refresh handler ──────────────────────────────────────────────────────
   const handleRefresh = useCallback(() => {
@@ -217,21 +228,42 @@ export default function LogManager() {
       />
 
       {/* Delete Confirmation Modal */}
-      <ConfirmationModal
-        isOpen={showDeleteConfirm}
-        onClose={() => setShowDeleteConfirm(false)}
-        title={viewText.stats.deleteConfirmTitle}
-        actionDescription={`delete all ${logType === 'ui' ? logTypeText.ui : logTypeText.api}`}
-        actionTarget={stats.storage === 'file' ? 'JSON Log File' : 'Database'}
-        confirmLabel={viewText.stats.deleteButton}
-        action={handleDelete}
-        onSuccess={() => { fetchLogs(); fetchStats(); }}
-        variant="danger"
-        buildSummary={() => [
-          { label: 'Log Type', value: logType === 'ui' ? logTypeText.ui : logTypeText.api },
-          { label: 'Status', value: 'All logs deleted' },
-        ]}
-      />
+      {(() => {
+        const isFile = stats.storage === 'file';
+        const dsType = isFile ? 'JSON File' : 'Database';
+        const dsName = isFile
+          ? (logType === 'ui'
+            ? (logConfig?.file?.uiLogsPath || 'logs/ui-logs.json')
+            : (logConfig?.file?.apiLogsPath || 'logs/api-logs.json'))
+          : (logType === 'ui'
+            ? (logConfig?.database?.uiLogsTable || 'system_ui_logs')
+            : (logConfig?.database?.apiLogsTable || 'system_api_logs'));
+        const entryCount = stats.count || 0;
+
+        return (
+          <ConfirmationModal
+            isOpen={showDeleteConfirm}
+            onClose={() => setShowDeleteConfirm(false)}
+            title={viewText.stats.deleteConfirmTitle}
+            actionDescription={`delete all ${logType === 'ui' ? logTypeText.ui : logTypeText.api} permanently`}
+            actionTarget="Log Datasource"
+            actionDetails={[
+              { label: 'DataSource', value: `${dsType} (${dsName})` },
+              { label: 'Entries to be Deleted', value: String(entryCount) },
+            ]}
+            confirmLabel={viewText.stats.deleteButton}
+            action={handleDelete}
+            onSuccess={() => { fetchLogs(); fetchStats(); }}
+            variant="danger"
+            buildSummary={(result) => [
+              { label: 'Log Type', value: logType === 'ui' ? logTypeText.ui : logTypeText.api },
+              { label: 'DataSource', value: `${dsType} (${dsName})` },
+              { label: 'Entries Deleted', value: String(result?.deleted ?? entryCount) },
+              { label: 'Status', value: 'All logs deleted successfully' },
+            ]}
+          />
+        );
+      })()}
     </div>
   );
 }

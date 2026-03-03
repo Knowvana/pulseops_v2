@@ -60,6 +60,7 @@ import authRoutes from '#core/routes/authRoutes.js';
 import databaseRoutes from '#core/routes/databaseRoutes.js';
 import configRoutes from '#core/routes/configRoutes.js';
 import logRoutes from '#core/routes/logRoutes.js';
+import generalSettingsRoutes from '#core/routes/generalSettingsRoutes.js';
 
 // Swagger spec
 const swaggerSpec = loadJson('swagger.json');
@@ -110,6 +111,7 @@ export function createApp() {
   app.use(`${prefix}${apiUrls.auth.base}`, authRateLimiter, authRoutes);
   app.use(`${prefix}${apiUrls.database.base}`, databaseRoutes);
   app.use(`${prefix}${apiUrls.logs.base}`, logRoutes);
+  app.use(`${prefix}/general-settings`, generalSettingsRoutes);
 
   // ── 11. Protected Routes (JWT required) ─────────────────────────────────
   app.use(`${prefix}${apiUrls.config.base}`, authenticate, configRoutes);

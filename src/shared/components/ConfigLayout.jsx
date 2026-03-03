@@ -34,6 +34,11 @@ export default function ConfigLayout({ title, subtitle, icon: HeaderIcon, tabs =
   const [activeTab, setActiveTab] = useState(defaultTab || tabs[0]?.id);
   const activeTabObj = tabs.find(t => t.id === activeTab);
 
+  // Support both JSX elements and render functions for lazy rendering
+  const activeContent = activeTabObj?.content
+    ? (typeof activeTabObj.content === 'function' ? activeTabObj.content() : activeTabObj.content)
+    : null;
+
   return (
     <div className="bg-white rounded-2xl border border-surface-200 shadow-sm overflow-hidden animate-fade-in">
       {/* Header */}
@@ -92,9 +97,9 @@ export default function ConfigLayout({ title, subtitle, icon: HeaderIcon, tabs =
           </nav>
         </div>
 
-        {/* Active tab content */}
-        <div className="flex-1 overflow-y-auto px-6 py-5">
-          {activeTabObj?.content}
+        {/* Active tab content — only the selected tab is mounted */}
+        <div className="flex-1 overflow-y-auto px-6 py-5" key={activeTab}>
+          {activeContent}
         </div>
       </div>
     </div>

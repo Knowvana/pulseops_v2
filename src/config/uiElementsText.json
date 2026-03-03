@@ -167,7 +167,8 @@
         "dbObjects": "Database Objects",
         "logSettings": "Log Settings",
         "logConfig": "Log Configuration",
-        "authSettings": "Authentication"
+        "authSettings": "Authentication",
+        "generalSettings": "General Settings"
       },
       "logSettings": {
         "title": "Log Storage Settings",
