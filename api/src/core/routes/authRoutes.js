@@ -249,7 +249,10 @@ router.post('/config', authenticate, requireRole('super_admin'), async (req, res
 router.post('/login', async (req, res) => {
   const { email, password } = req.body;
 
+  logger.info(`[${req.requestId}] 🔐 Login attempt`, { email, requestId: req.requestId });
+
   if (!email || !password) {
+    logger.warn(`[${req.requestId}] ❌ Login failed - missing credentials`);
     return res.status(400).json({
       success: false,
       error: { message: errors.errors.authCredentialsRequired, code: 'CREDENTIALS_REQUIRED' },
@@ -258,13 +261,17 @@ router.post('/login', async (req, res) => {
 
   try {
     const provider = await getAuthProvider();
+    logger.info(`[${req.requestId}] 🔑 Auth provider: ${provider}`);
     let result;
 
     if (provider === 'json_file') {
+      logger.info(`[${req.requestId}] 📄 Authenticating with JSON file`);
       result = loginWithJsonFile(email, password);
     } else if (provider === 'database') {
+      logger.info(`[${req.requestId}] 🗄️  Authenticating with database`);
       result = await loginWithDatabase(email, password);
     } else {
+      logger.error(`[${req.requestId}] ❌ Unsupported auth provider: ${provider}`);
       return res.status(400).json({
         success: false,
         error: { message: errors.errors.authProviderInvalid, code: 'UNSUPPORTED_PROVIDER' },
@@ -272,6 +279,7 @@ router.post('/login', async (req, res) => {
     }
 
     if (result.error === 'INVALID_CREDENTIALS') {
+      logger.warn(`[${req.requestId}] ❌ Login failed - invalid credentials for ${email}`);
       return res.status(401).json({
         success: false,
         error: { message: errors.errors.authInvalidCredentials, code: 'INVALID_CREDENTIALS' },
@@ -279,14 +287,19 @@ router.post('/login', async (req, res) => {
     }
 
     if (result.error === 'ACCOUNT_INACTIVE') {
+      logger.warn(`[${req.requestId}] ❌ Login failed - account inactive for ${email}`);
       return res.status(403).json({
         success: false,
         error: { message: errors.errors.authAccountInactive, code: 'ACCOUNT_INACTIVE' },
       });
     }
 
+    logger.info(`[${req.requestId}] ✅ Authentication successful for ${email}`);
+    
     const accessToken = generateAccessToken(result.user);
     const refreshToken = generateRefreshToken(result.user);
+
+    logger.info(`[${req.requestId}] 🎫 Generated JWT tokens (access + refresh)`);
 
     // Set HttpOnly cookies for frontend security
     const cookieOptions = {
@@ -301,6 +314,8 @@ router.post('/login', async (req, res) => {
       ...cookieOptions,
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     });
+
+    logger.info(`[${req.requestId}] 🍪 Set HttpOnly cookies (accessToken + refreshToken)`);
 
     logger.info(messages.success.authLoginSuccess, {
       userId: result.user.id, email: result.user.email,
@@ -317,8 +332,10 @@ router.post('/login', async (req, res) => {
       },
     });
   } catch (err) {
-    logger.error(errors.errors.authLoginFailed, {
-      error: err.message, requestId: req.requestId,
+    logger.error(`[${req.requestId}] ❌ Login error: ${err.message}`, {
+      error: err.message, 
+      stack: err.stack,
+      requestId: req.requestId,
     });
     res.status(500).json({
       success: false,

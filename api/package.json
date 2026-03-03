@@ -8,7 +8,8 @@
     "#config": "./src/config/index.js",
     "#shared/*": "./src/shared/*",
     "#core/*": "./src/core/*",
-    "#root/*": "./src/*"
+    "#root/*": "./src/*",
+    "#apiRoot/*": "./*"
   },
   "scripts": {
     "start": "node src/server.js",

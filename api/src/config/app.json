@@ -1,7 +1,5 @@
 {
-  "port": 4001,
   "nodeEnv": "development",
-  "frontendOrigin": "http://localhost:5173",
   "auth": {
     "jwtSecret": "dev-secret-change-in-production",
     "accessTokenExpiry": "24h",

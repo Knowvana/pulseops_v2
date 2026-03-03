@@ -14,10 +14,14 @@ PulseOps V2 is an enterprise modular operations platform with a plug-and-play mo
 - **Hot-Drop Modules**: Built independently → dropped into `dist-modules/` → discovered at runtime
 
 ### Key URLs
-- UI Dev Server: `http://localhost:5173`
+> **Centralized Configuration**: All URLs and ports defined in `src/config/urls.json` and `api/src/config/urls.json`
+
+- UI Dev Server: `http://localhost:1001`
 - API Server: `http://localhost:4001`
 - Swagger: `http://localhost:4001/api-docs`
-- All URLs defined in: `src/config/urls.json`
+- Configuration files: `src/config/urls.json`, `api/src/config/urls.json`
+- Vite config references: `vite.config.js` imports from `urls.json`
+- API config references: `api/src/config/index.js` imports from `urls.json`
 
 ### Default Credentials
 - Email: `admin@test.com`
@@ -428,8 +432,10 @@ PulseOps V2 is an enterprise modular operations platform with a plug-and-play mo
 - V2 uses `uiElementsText.json` (merged from globalText.json) instead of V1's `src/shared/config/uiText.json`
 - `globalText.json` is DEPRECATED and should be deleted
 - API uses `#config`, `#shared`, `#core`, `#root` subpath imports (zero relative paths)
-- Vite dev server on port 5173
-- API on port 4001
+- **Centralized URL/Port Configuration**: All URLs and ports defined in `src/config/urls.json` and `api/src/config/urls.json`
+  - Vite dev server on port 1001 (configured in `vite.config.js` via `urls.json`)
+  - API on port 4001 (configured in `api/src/config/index.js` via `urls.json`)
+  - Frontend origin for CORS: `http://localhost:1001` (from `urls.json`)
 - Node.js 20.18 shows engine warnings for Vite 7 (needs 20.19+) but builds work
 - Storybook 10 requires Node 20.19+; using Storybook 8 with `--legacy-peer-deps`
 - Frontend build verified: `vite build` succeeds (311KB JS, 41KB CSS)

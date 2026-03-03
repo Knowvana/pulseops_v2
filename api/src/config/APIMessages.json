@@ -20,7 +20,7 @@
     "authTokenRefreshed": "Access token refreshed successfully.",
     "authProviderSaved": "Authentication provider saved successfully.",
     "authProviderLoaded": "Authentication provider configuration loaded.",
-    "serverStarted": "PulseOps V2 API started on port {port}.",
+    "serverStarted": "PulseOps V2 API started",
     "serverShutdown": "Server shutting down gracefully.",
     "databasePoolClosed": "Database pool closed."
   }

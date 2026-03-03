@@ -19,12 +19,14 @@ import { logger } from '#shared/logger.js';
 import { messages } from '#shared/loadJson.js';
 import DatabaseService from '#core/database/databaseService.js';
 import apiUrls from '#config/urls.json' with { type: 'json' };
-
+import packageJson from '#apiRoot/package.json' with { type: 'json' };
 const app = createApp();
 const PORT = config.port;
 
 const server = app.listen(PORT, () => {
-  logger.info(messages.success.serverStarted.replace('{port}', PORT));
+  logger.info(messages.success.serverStarted);
+  logger.info(`Version: ${packageJson.version}`);
+  logger.info(`Environment: ${config.nodeEnv}`);
   logger.info(`Health:  http://localhost:${PORT}${apiUrls.apiPrefix}${apiUrls.health.base}`);
   logger.info(`Swagger: http://localhost:${PORT}${apiUrls.swagger.ui}`);
 });

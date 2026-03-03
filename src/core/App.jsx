@@ -35,7 +35,10 @@ export default function App() {
   const [user, setUser] = useState({});
 
   const handleLogin = useCallback(async (email, password) => {
+    console.log('🔐 [Frontend] Login attempt started', { email, url: urls.auth.login });
+    
     try {
+      console.log('📡 [Frontend] Sending POST request to', urls.auth.login);
       const response = await fetch(urls.auth.login, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -43,15 +46,36 @@ export default function App() {
         body: JSON.stringify({ email, password }),
       });
 
+      console.log(`📥 [Frontend] Response received - Status: ${response.status} ${response.statusText}`);
+
       if (!response.ok) {
+        // 503 Service Unavailable - Backend server is not running
+        if (response.status === 503) {
+          console.error('❌ [Frontend] API server unavailable (503)');
+          let result;
+          try {
+            result = await response.json();
+            console.error('❌ [Frontend] Error details:', result?.error);
+            throw new Error(result?.error?.message || authMessages.serverUnavailable);
+          } catch (jsonError) {
+            console.error('❌ [Frontend] Could not parse error response');
+            throw new Error(authMessages.serverUnavailable);
+          }
+        }
+        
+        // 500+ Server errors
         if (response.status >= 500) {
+          console.error(`❌ [Frontend] Server error (${response.status})`);
           throw new Error(authMessages.serverUnavailable);
         }
         
+        // Try to parse error response for 4xx errors
         let result;
         try {
           result = await response.json();
+          console.warn(`⚠️ [Frontend] Login failed (${response.status}):`, result?.error?.message);
         } catch {
+          console.error('❌ [Frontend] Network error - could not parse response');
           throw new Error(authMessages.networkError);
         }
         
@@ -61,21 +85,32 @@ export default function App() {
       let result;
       try {
         result = await response.json();
+        console.log('✅ [Frontend] Response parsed successfully:', { 
+          success: result.success, 
+          hasUser: !!result.data?.user,
+          user: result.data?.user ? { email: result.data.user.email, role: result.data.user.role } : null
+        });
       } catch {
+        console.error('❌ [Frontend] Failed to parse JSON response');
         throw new Error(authMessages.networkError);
       }
 
       if (result?.success && result.data?.user) {
+        console.log('✅ [Frontend] Login successful! Setting user state:', result.data.user);
         setUser(result.data.user);
         setIsAuthenticated(true);
+        console.log('✅ [Frontend] User authenticated, redirecting to dashboard...');
         return;
       }
 
+      console.error('❌ [Frontend] Login failed - invalid response structure');
       throw new Error(result?.error?.message || authMessages.loginFailed);
     } catch (err) {
       if (err.name === 'TypeError' && err.message.includes('fetch')) {
+        console.error('❌ [Frontend] Network error - fetch failed:', err.message);
         throw new Error(authMessages.serverUnavailable);
       }
+      console.error('❌ [Frontend] Login error:', err.message);
       throw err;
     }
   }, []);

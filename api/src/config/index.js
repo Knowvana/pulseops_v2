@@ -24,15 +24,17 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Load JSON defaults
 const appJsonPath = path.join(__dirname, 'app.json');
 const dbJsonPath = path.join(__dirname, 'DatabaseConfig.json');
+const urlsJsonPath = path.join(__dirname, 'urls.json');
 const defaults = JSON.parse(fs.readFileSync(appJsonPath, 'utf-8'));
 const dbDefaults = JSON.parse(fs.readFileSync(dbJsonPath, 'utf-8'));
+const urlsDefaults = JSON.parse(fs.readFileSync(urlsJsonPath, 'utf-8'));
 
 export const config = {
-  // Server
-  port: parseInt(process.env.PORT || defaults.port, 10),
+  // Server (centralized in urls.json)
+  port: parseInt(process.env.PORT || urlsDefaults.server.api.port, 10),
   nodeEnv: process.env.NODE_ENV || defaults.nodeEnv,
-  frontendOrigin: process.env.FRONTEND_ORIGIN || defaults.frontendOrigin,
-  apiPrefix: process.env.API_PREFIX || '/api',
+  frontendOrigin: process.env.FRONTEND_ORIGIN || urlsDefaults.server.ui.url,
+  apiPrefix: process.env.API_PREFIX || urlsDefaults.apiPrefix,
 
   // Database (from DatabaseConfig.json, overridable by env vars)
   db: {

@@ -1,4 +1,18 @@
 {
+  "server": {
+    "ui": {
+      "protocol": "http",
+      "host": "localhost",
+      "port": 1001,
+      "url": "http://localhost:1001"
+    },
+    "api": {
+      "protocol": "http",
+      "host": "localhost",
+      "port": 4001,
+      "url": "http://localhost:4001"
+    }
+  },
   "api": {
     "base": "/api",
     "health": "/api/health",

@@ -48,6 +48,7 @@ import {
   authRateLimiter,
   requestIdMiddleware,
   inputSanitizer,
+  requestLogger,
 } from '#core/middleware/security.js';
 
 // Auth middleware
@@ -91,14 +92,7 @@ export function createApp() {
   app.use(inputSanitizer);
 
   // ── 8. Request Logging ──────────────────────────────────────────────────
-  app.use((req, res, next) => {
-    const start = Date.now();
-    res.on('finish', () => {
-      const duration = Date.now() - start;
-      logger.info(`[${req.requestId}] ${req.method} ${req.originalUrl} ${res.statusCode} ${duration}ms`);
-    });
-    next();
-  });
+  app.use(requestLogger);
 
   // ── 9. Swagger API Explorer (public) ────────────────────────────────────
   app.use(apiUrls.swagger.ui, swaggerUi.serve, swaggerUi.setup(swaggerSpec, {

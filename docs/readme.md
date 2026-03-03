@@ -4,9 +4,11 @@
 
 ### Service URLs (Development)
 
+> **Note**: All URLs and ports are centralized in `src/config/urls.json` and `api/src/config/urls.json`
+
 | Service | URL | Notes |
 |---------|-----|-------|
-| **Frontend (Vite Dev)** | `http://localhost:5173` | React SPA — auto-reloads on save |
+| **Frontend (Vite Dev)** | `http://localhost:1001` | React SPA — auto-reloads on save |
 | **Backend API** | `http://localhost:4001/api` | Express REST API |
 | **Swagger UI** | `http://localhost:4001/api-docs` | Interactive API documentation |
 | **Health Check** | `http://localhost:4001/api/health` | Liveness probe |
@@ -103,7 +105,7 @@ npm run dev          # Starts on port 4001
 
 # Terminal 2 — Frontend
 npm install
-npm run dev          # Starts on port 5173 (Vite)
+npm run dev          # Starts on port 1001 (Vite)
 ```
 
 ## Production Build
@@ -133,7 +135,7 @@ docker-compose up -d
 
 | Layer | Technology | Port |
 |-------|-----------|------|
-| **Frontend** | React 19 + Vite 7 + TailwindCSS 4 | 5173 |
+| **Frontend** | React 19 + Vite 7 + TailwindCSS 4 | 1001 |
 | **Backend** | Node.js + Express | 4001 |
 | **Database** | PostgreSQL 16 | 5432 |
 | **Auth** | JWT via HttpOnly cookies | — |

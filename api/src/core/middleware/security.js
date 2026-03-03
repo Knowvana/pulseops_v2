@@ -26,6 +26,7 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import crypto from 'crypto';
 import { errors } from '#shared/loadJson.js';
+import { logger } from '#shared/logger.js';
 
 // ── 1. Helmet.js: HTTP Security Headers ─────────────────────────────────────
 export const helmetMiddleware = helmet({
@@ -36,6 +37,40 @@ export const helmetMiddleware = helmet({
 // ── 2. Request ID: UUID per request ─────────────────────────────────────────
 export function requestIdMiddleware(req, _res, next) {
   req.requestId = crypto.randomUUID();
+  next();
+}
+
+// ── 6. Request/Response Logger: Detailed API call tracking ─────────────────
+export function requestLogger(req, res, next) {
+  const startTime = Date.now();
+  
+  // Log incoming request
+  logger.info(`[${req.requestId}] → ${req.method} ${req.path}`, {
+    requestId: req.requestId,
+    method: req.method,
+    path: req.path,
+    query: Object.keys(req.query).length > 0 ? req.query : undefined,
+    body: req.method !== 'GET' && req.body ? { ...req.body, password: req.body.password ? '***' : undefined } : undefined,
+    ip: req.ip,
+    userAgent: req.get('user-agent')
+  });
+
+  // Capture original res.json to log responses
+  const originalJson = res.json.bind(res);
+  res.json = function(data) {
+    const duration = Date.now() - startTime;
+    
+    logger.info(`[${req.requestId}] ← ${res.statusCode} ${req.method} ${req.path} (${duration}ms)`, {
+      requestId: req.requestId,
+      statusCode: res.statusCode,
+      duration,
+      success: data?.success,
+      error: data?.error?.message
+    });
+    
+    return originalJson(data);
+  };
+
   next();
 }
 

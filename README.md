@@ -10,9 +10,11 @@ Enterprise modular operations platform with plug-and-play module architecture an
 
 ## Local Development URLs
 
+> **Note**: All URLs and ports are centralized in `src/config/urls.json` and `api/src/config/urls.json`
+
 | Service | URL |
 |---------|-----|
-| **Frontend** | http://localhost:5173 |
+| **Frontend** | http://localhost:1001 |
 | **API** | http://localhost:4001 |
 | **Swagger** | http://localhost:4001/api-docs |
 
@@ -36,7 +38,7 @@ cd api && npm install && cd ..
 npm run dev
 
 # Or start separately
-npm run dev:ui    # Frontend on :5173
+npm run dev:ui    # Frontend on :1001
 npm run dev:api   # API on :4001
 ```
 
