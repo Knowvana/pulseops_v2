@@ -43,6 +43,6 @@
     "routeNotFound": "Route not found.",
     "internalServerError": "Internal server error.",
     "validationFailed": "Validation failed. Check your input.",
-    "invalidRequestBody": "Invalid request body."
+    "invalidRequestBody": "Invalid request body...."
   }
 }
