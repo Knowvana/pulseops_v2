@@ -11,28 +11,35 @@
 //   <ConfirmationModal
 //     isOpen={showModal}
 //     onClose={() => setShowModal(false)}
-//     title="Delete Database"
-//     confirmMessage="Are you sure you want to delete the database? This action cannot be undone."
-//     confirmLabel="Delete"
-//     action={async () => await deleteDatabase()}
+//     title="Create Database"
+//     actionDescription="create the Database"
+//     actionTarget="Backend PostgreSQL"
+//     actionDetails={[
+//       { label: 'Schema', value: 'pulseops' },
+//       { label: 'Database', value: 'pulseops_v2' }
+//     ]}
+//     confirmLabel="Create"
+//     action={async () => await createDatabase()}
 //     onSuccess={(result) => refreshStatus()}
-//     variant="danger"
+//     variant="info"
 //     buildSummary={(data) => [
 //       { label: 'Database', value: data.database },
-//       { label: 'Status', value: 'Deleted successfully' }
+//       { label: 'Status', value: 'Created successfully' }
 //     ]}
 //   />
 //
 // PROPS:
-//   isOpen          — boolean, controls visibility (required)
-//   onClose         — function, called on close (required)
-//   title           — string, modal header title (required)
-//   confirmMessage  — string, message shown in confirm phase (required)
-//   action          — async function, the CRUD operation to execute (required)
-//   onSuccess       — function(result), called after successful action (optional)
-//   variant         — 'danger' | 'warning' | 'info' (default: 'info')
-//   buildSummary    — function(result) => Array<{ label, value }> (optional)
-//   confirmLabel    — string, custom confirm button text (optional)
+//   isOpen              — boolean, controls visibility (required)
+//   onClose             — function, called on close (required)
+//   title               — string, modal header title (required)
+//   actionDescription   — string, what action will be performed (e.g., 'create the Database') (required)
+//   actionTarget        — string, where action will be performed (e.g., 'Backend PostgreSQL') (required)
+//   actionDetails       — Array<{ label, value }>, details of what will be affected (required)
+//   action              — async function, the CRUD operation to execute (required)
+//   onSuccess           — function(result), called after successful action (optional)
+//   variant             — 'danger' | 'warning' | 'info' (default: 'info')
+//   buildSummary        — function(result) => Array<{ label, value }> (optional)
+//   confirmLabel        — string, custom confirm button text (optional)
 //
 // ARCHITECTURE: Fully reusable across all modules for any CRUD operation.
 // Manages phase state internally (confirm → progress → summary).
@@ -71,7 +78,9 @@ export default function ConfirmationModal({
   isOpen,
   onClose,
   title,
-  confirmMessage,
+  actionDescription,
+  actionTarget,
+  actionDetails = [],
   action,
   onSuccess,
   variant = 'info',
@@ -140,13 +149,18 @@ export default function ConfirmationModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
       <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full animate-scale-in">
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-surface-200">
-          <h3 className="text-lg font-bold text-surface-800">{title}</h3>
+        {/* Header with Icon on Left */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-surface-200 gap-3">
+          <div className="flex items-center gap-3 flex-1">
+            <div className={`w-10 h-10 rounded-lg ${config.iconBg} flex items-center justify-center shrink-0`}>
+              <IconComponent size={20} className={config.iconColor} />
+            </div>
+            <h3 className="text-lg font-bold text-surface-800">{title}</h3>
+          </div>
           {phase !== PHASE.PROGRESS && (
             <button
               onClick={handleClose}
-              className="p-1 rounded-lg hover:bg-surface-100 transition-colors"
+              className="p-1 rounded-lg hover:bg-surface-100 transition-colors shrink-0"
             >
               <X size={18} className="text-surface-400" />
             </button>
@@ -157,12 +171,34 @@ export default function ConfirmationModal({
         <div className="px-6 py-6">
           {/* Phase 1: Confirm */}
           {phase === PHASE.CONFIRM && (
-            <div className="flex flex-col items-center text-center">
-              <div className={`w-12 h-12 rounded-full ${config.iconBg} flex items-center justify-center mb-4`}>
-                <IconComponent size={24} className={config.iconColor} />
+            <div className="flex flex-col gap-4">
+              {/* Action Description with Details */}
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-surface-700">
+                  This will <span className="font-bold text-surface-800">{actionDescription}</span>
+                  {actionTarget && <span className="text-surface-600"> in <span className="font-semibold">{actionTarget}</span></span>}
+                </p>
+                
+                {/* Action Details Box */}
+                {actionDetails.length > 0 && (
+                  <div className="bg-surface-50 rounded-lg p-3 space-y-2 border border-surface-200 ml-2">
+                    {actionDetails.map((detail, idx) => (
+                      <div key={idx} className="flex items-center justify-between text-xs">
+                        <span className="text-surface-500 font-medium">{detail.label}:</span>
+                        <span className="text-surface-800 font-semibold">{detail.value}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
-              <p className="text-sm text-surface-600 mb-6 max-w-sm">{confirmMessage}</p>
-              <div className="flex items-center gap-3 w-full">
+              
+              {/* Confirmation Prompt */}
+              <p className="text-sm text-surface-600 pt-2 border-t border-surface-200">
+                Please confirm this action.
+              </p>
+              
+              {/* Action Buttons */}
+              <div className="flex items-center gap-3 w-full pt-2">
                 <Button variant="secondary" className="flex-1" onClick={handleClose}>
                   Cancel
                 </Button>

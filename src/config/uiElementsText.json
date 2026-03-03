@@ -250,9 +250,7 @@
           "defaultData": {
             "title": "Default Data",
             "loadButton": "Load Default Data",
-            "cleanButton": "Clean Default Data",
-            "loadDesc": "Seed the default admin user and core module registrations.",
-            "cleanDesc": "Remove all seeded default data."
+            "cleanButton": "Clean Default Data"
           }
         },
         "status": {
@@ -277,19 +275,17 @@
         "title": "Authentication Settings",
         "subtitle": "Configure authentication provider",
         "providers": {
-          "jsonFile": { "label": "JSON File", "badge": "Default" },
-          "database": { "label": "Database", "badge": "Production" },
-          "social": { "label": "Social / OAuth2", "badge": "Coming Soon" }
+          "jsonFile": { "label": "JSON File" },
+          "database": { "label": "Database" },
+          "social": { "label": "Social / OAuth2" }
         },
         "switchModal": {
           "title": "Switch Authentication Provider",
-          "confirmMessage": "This will change how all users authenticate. Continue?",
           "confirmButton": "Switch Provider",
           "cancelButton": "Cancel"
         },
         "successModal": {
           "title": "Provider Updated",
-          "message": "Authentication provider has been updated successfully.",
           "closeButton": "Close"
         }
       }
@@ -304,11 +300,8 @@
     },
     "confirmationModal": {
       "defaultTitle": "Confirm Action",
-      "defaultMessage": "Are you sure you want to proceed?",
       "confirmButton": "Confirm",
-      "cancelButton": "Cancel",
-      "processing": "Processing...",
-      "success": "Success!"
+      "cancelButton": "Cancel"
     },
     "pagination": {
       "previous": "Previous",

@@ -1,7 +1,7 @@
 # PulseOps V2 — Development Memory
 
 > **Auto-updated by Cascade after each work session.**
-> Last updated: 2026-03-02
+> Last updated: 2026-03-03 (Session 5)
 
 ---
 
@@ -34,7 +34,7 @@ PulseOps V2 is an enterprise modular operations platform with a plug-and-play mo
 | **Add-on Module** | Custom hot-drop modules | `src/modules/<id>/` or `dist-modules/<id>/` | Dynamic `import()` from URL at runtime | Yes |
 
 ### Folder Structure (V2 Key Difference from V1)
-- `src/config/` — Global frontend config (urls.json, globalText.json, app.json). **NOT inside shared/**.
+- `src/config/` — Global frontend config (urls.json, uiElementsText.json, app.json). **NOT inside shared/**.
 - `src/core/` — App bootstrap (App.jsx), PlatformDashboard (single orchestrator for core + modules).
 - `src/core/views/` — Native core Admin views (AdminDashboard, ModuleManager, LogManager, Settings). **Admin is NOT a module — it is core system.**
 - `src/layouts/` — Global layout components (AppShell, TopMenu, LeftSideNavBar, RightLogsView, MainContent). **Elevated to top-level, NOT in shared/**.
@@ -43,7 +43,8 @@ PulseOps V2 is an enterprise modular operations platform with a plug-and-play mo
 - `api/` — Stateless Express backend.
 - `dist-modules/` — Compiled hot-drop module bundles.
 
-### Import Aliases (jsconfig.json)
+### Import Aliases
+**Frontend (jsconfig.json + vite.config.js):**
 - `@config/*` → `src/config/*`
 - `@core/*` → `src/core/*`
 - `@modules/*` → `src/modules/*`
@@ -51,6 +52,12 @@ PulseOps V2 is an enterprise modular operations platform with a plug-and-play mo
 - `@shared` → `src/shared/index.js` (barrel export)
 - `@layouts/*` → `src/layouts/*`
 - `@layouts` → `src/layouts/index.js` (barrel export)
+
+**Backend (api/package.json `imports`):**
+- `#config/*` → `./src/config/*`
+- `#shared/*` → `./src/shared/*`
+- `#core/*` → `./src/core/*`
+- `#root/*` → `./src/*`
 
 ---
 
@@ -81,7 +88,85 @@ PulseOps V2 is an enterprise modular operations platform with a plug-and-play mo
 | T21 | App.jsx: thin auth wrapper, URL-driven PlatformDashboard orchestrator | DONE |
 | T22 | moduleRegistry.js: dynamic-only (no core modules), V1-style getAllManifests API | DONE |
 
-## Recent Updates (2026-03-02 — Session 3: Full API + Security Implementation)
+## Recent Updates (2026-03-03 — Session 5: ConfirmationModal Restructuring & .windsurfrules Compliance)
+
+### ConfirmationModal Reusable Pattern (Finding 9)
+- **Restructured** `ConfirmationModal` to show action details FIRST, then ask for confirmation
+- **New props**:
+  - `actionDescription` — What action will be performed (e.g., "create the Database")
+  - `actionTarget` — Where action will be performed (e.g., "Backend PostgreSQL")
+  - `actionDetails` — Array of `{ label, value }` pairs showing what will be affected
+- **Message format**: "This will [actionDescription] in [actionTarget]" followed by details box, then "Please confirm this action."
+- **Icon moved to header left** — Displays variant-specific icon next to title in header
+- **Reusable across all CRUD operations** — Every confirmation modal now follows the same structured format
+
+### DatabaseManager .windsurfrules Compliance (Finding 10)
+- **CRITICAL FIX**: Removed ALL hardcoded strings per `.windsurfrules` Section 1.4
+- **Database config fetched from API**: `useEffect` fetches config from `urls.database.saveConfig` endpoint
+  - Database name, schema, tables, defaultAdmin email all come from API
+  - No database config stored in UI project
+- **UI element labels**: `uiElementsText.json` → `uiText.admin.settings.databaseObjects.confirmations`
+- **Messages**: `UIMessages.json` → `messages.database.confirmations`
+- **All 6 CRUD modals now config-driven**:
+  - Create Database, Delete Database, Initialize Schema, Load Default Data, Clean Default Data, Wipe Database
+  - All titles, labels, descriptions, and values read from JSON files or API
+  - Zero hardcoded strings remain
+
+### Build Verified
+- Frontend: `vite build` succeeds — 328.47 KB JS, 42.30 KB CSS
+- Zero hardcoded strings in DatabaseManager.jsx
+- Database config dynamically fetched from API on component mount
+
+---
+
+## Previous (2026-03-02 — Session 4: Integration Refinement)
+
+### API Import Path Aliases (Finding 1)
+- `api/package.json` — Added `imports` field with `#config`, `#shared`, `#core`, `#root` subpath aliases
+- All API source files updated: zero relative imports (`./` or `../`) remain
+- Files updated: server.js, app.js, auth.js, security.js, databaseService.js, healthRoutes.js, authRoutes.js, databaseRoutes.js, configRoutes.js
+
+### Centralized API URLs (Finding 2)
+- Created `api/src/config/urls.json` — All API endpoint paths in nested structure
+- `api/src/app.js` — Route mounting and Swagger paths now read from urls.json
+- `api/src/server.js` — Startup log URLs replaced with dynamic refs from urls.json
+
+### Swagger Documentation (Finding 3)
+- `api/src/config/swagger.json` — Complete rewrite with:
+  - Relative `/api` server URL (no hardcoded localhost)
+  - Full detailed documentation for every endpoint
+  - Request/response schemas with datatypes, examples, formats
+  - Security schemes for JWT Bearer + HttpOnly cookies
+
+### Merged globalText.json → uiElementsText.json (Finding 5)
+- All content from `globalText.json` merged into `uiElementsText.json`
+- **globalText.json is now DEPRECATED — to be deleted**
+- 9 files updated to import `uiText from '@config/uiElementsText.json'` instead of `globalText`
+- Files: App.jsx, PlatformDashboard.jsx, Settings.jsx, AdminDashboard.jsx, LogManager.jsx, ModuleManager.jsx, TopMenu.jsx, LeftSideNavBar.jsx, RightLogsView.jsx
+- Zero `globalText` references remain in the codebase
+
+### Database ConnectionStatus Fix (Finding 6)
+- `TestConnection.jsx` — Added `autoTest` prop for real-time connection check on mount
+- Changed initial status from `loading` to `neutral` (no false "Connecting..." on idle)
+- `Settings.jsx` `DatabaseConfigTab` — Simplified to use TestConnection's `autoTest={true}` with `initialConfig` from localStorage, removed duplicate auto-test logic
+
+### CrudSummary Component (Finding 7)
+- Created `src/shared/components/CrudSummary.jsx` — Standalone inline CRUD result display
+- 4 statuses: idle, loading, success, error
+- Props: title, message, details (label/value pairs), progress, onDismiss, variant (card/inline)
+- Exported from `@shared` barrel
+
+### Log Settings ConnectionStatus (Finding 8)
+- `Settings.jsx` `LogSettingsTab` — Replaced "Current Mode" indicator with `ConnectionStatus` component
+- Shows real-time log stats (file size, entries) fetched from `/api/logs/stats`
+- Added `logs.stats` URL to both `src/config/urls.json` and `api/src/config/urls.json`
+
+### Build Verified
+- Frontend: `vite build` succeeds — 324.71 KB JS, 42.25 KB CSS
+
+---
+
+## Previous (2026-03-02 — Session 3: Full API + Security Implementation)
 
 ### API Config Files Created
 - `api/src/config/DatabaseConfig.json` — PostgreSQL connection settings (host, port, database, schema, user, password, pool)
@@ -213,13 +298,13 @@ PulseOps V2 is an enterprise modular operations platform with a plug-and-play mo
 - Authentication uses JSON file-based auth (app.json defaultAdmin) as default
 
 ### No Hardcoded Strings
-- UI labels → `uiText.json` (per module) or `globalText.json` (platform-wide)
-- API URLs → `urls.json`
+- UI labels → `uiText.json` (per module) or `uiElementsText.json` (platform-wide)
+- API URLs → `urls.json` (frontend: `src/config/urls.json`, API: `api/src/config/urls.json`)
 - Module metadata → `constants.json`
 
-### CrudActionModal Pattern
-- All destructive CRUD uses `CrudActionModal` from `@shared`
-- 3 phases: Confirm → Progress → Summary
+### CRUD Patterns
+- **ConfirmationModal**: 3-phase modal (Confirm → Progress → Summary) for destructive operations
+- **CrudSummary**: Standalone inline component for operation results with progress + details
 - UI text under `crud` key in `uiText.json`
 
 ### Module Manifest Contract
@@ -272,7 +357,7 @@ PulseOps V2 is an enterprise modular operations platform with a plug-and-play mo
 - `main.jsx` — App bootstrap
 - `index.css` — Design tokens (CSS variables) + Tailwind import + animations
 - `config/urls.json` — All API URLs
-- `config/globalText.json` — Platform-wide UI strings (coreNav, coreViews, topNav, sideNav, rightPanel, settings)
+- `config/uiElementsText.json` — Unified platform-wide UI strings (merged from globalText.json + original uiElementsText.json)
 - `config/app.json` — App metadata + default credentials
 - `core/App.jsx` — Thin auth wrapper + BrowserRouter → PlatformDashboard as single orchestrator
 - `core/PlatformDashboard.jsx` — Single orchestrator for core Admin views + dynamic module views inside AppShell
@@ -297,16 +382,17 @@ PulseOps V2 is an enterprise modular operations platform with a plug-and-play mo
 - `shared/components/DatabaseManager.jsx` — DB schema/data management
 - `shared/components/LoggingConfig.jsx` — Logging configuration panel
 - `shared/components/ConfirmationModal.jsx` — 3-phase CRUD modal
+- `shared/components/CrudSummary.jsx` — Standalone inline CRUD result display
 - `shared/components/StatsCount.jsx` — Horizontal count statistics
 - `shared/services/apiClient.js` — HTTP client with auth support
 
 ### Frontend Config (src/config/)
 - `app.json` — App metadata (coreAuth removed — credentials now in API)
-- `urls.json` — All API URLs (nested: api, auth, database, modules, config)
-- `globalText.json` — Platform-wide UI strings (auth.login messages added)
+- `urls.json` — All API URLs (nested: api, auth, database, modules, logs, config)
+- `uiElementsText.json` — Unified UI text: platform, common, auth, login, coreNav, coreViews, topNav, sideNav, rightPanel, errors, admin, shared
 - `UIErrors.json` — UI error messages (auth, database, config, validation, general)
 - `UIMessages.json` — UI success messages (auth, database, config, general)
-- `uiElementsText.json` — Hierarchical UI element text (admin.settings.databaseConfiguration, etc.)
+- `globalText.json` — **DEPRECATED: merged into uiElementsText.json, to be deleted**
 
 ### Backend (api/src/)
 - `server.js` — Entry point with graceful shutdown + DB pool close + Winston logging
@@ -318,7 +404,8 @@ PulseOps V2 is an enterprise modular operations platform with a plug-and-play mo
 - `config/auth-provider.json` — Active auth provider config (json_file | database | social)
 - `config/APIMessages.json` — All API success messages (no inline strings)
 - `config/APIErrors.json` — All API error messages (no inline strings)
-- `config/swagger.json` — OpenAPI 3.0 specification for all endpoints
+- `config/swagger.json` — OpenAPI 3.0.3 specification with detailed endpoint docs, schemas, examples
+- `config/urls.json` — Centralized API route paths (used by app.js for route mounting)
 - `shared/loadJson.js` — JSON config loader/saver utility
 - `shared/logger.js` — Winston structured logging
 - `core/middleware/auth.js` — JWT + bcrypt + dual-auth (Bearer + HttpOnly cookie) + RBAC
@@ -338,7 +425,9 @@ PulseOps V2 is an enterprise modular operations platform with a plug-and-play mo
 ## 7. Known Issues / Notes
 
 - V2 uses `src/config/` for global config (V1 used `src/shared/config/`)
-- V2 uses `globalText.json` instead of V1's `src/shared/config/uiText.json`
+- V2 uses `uiElementsText.json` (merged from globalText.json) instead of V1's `src/shared/config/uiText.json`
+- `globalText.json` is DEPRECATED and should be deleted
+- API uses `#config`, `#shared`, `#core`, `#root` subpath imports (zero relative paths)
 - Vite dev server on port 5173
 - API on port 4001
 - Node.js 20.18 shows engine warnings for Vite 7 (needs 20.19+) but builds work

@@ -32,9 +32,12 @@
 // ARCHITECTURE: Fully reusable and config-based. Uses ConfirmationModal for
 // all destructive operations. All text and actions passed as props.
 // ============================================================================
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Database, RefreshCw, AlertTriangle, CheckCircle2, Download, Trash2 } from 'lucide-react';
 import { Button, ConfirmationModal } from '@shared';
+import uiText from '@config/uiElementsText.json';
+import messages from '@config/UIMessages.json';
+import urls from '@config/urls.json';
 
 export default function DatabaseManager({
   onCreateDatabase,
@@ -48,6 +51,32 @@ export default function DatabaseManager({
   isLoading = false,
 }) {
   const [modalState, setModalState] = useState({ type: null, open: false });
+  const [dbConfig, setDbConfig] = useState({ database: '', schema: '', tables: [], defaultAdmin: { email: '' } });
+
+  useEffect(() => {
+    const fetchDbConfig = async () => {
+      try {
+        const response = await fetch(urls.database.saveConfig);
+        if (response.ok) {
+          const result = await response.json();
+          if (result?.data) {
+            setDbConfig({
+              database: result.data.database || 'pulseops_v2',
+              schema: result.data.schema || 'pulseops',
+              tables: result.data.tables || ['system_users', 'system_config', 'system_modules', 'system_logs'],
+              defaultAdmin: result.data.defaultAdmin || { email: 'admin@test.com' }
+            });
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch database config:', error);
+      }
+    };
+    fetchDbConfig();
+  }, []);
+
+  const confirmText = uiText.admin.settings.databaseObjects.confirmations;
+  const dbMessages = messages.database.confirmations;
 
   const openModal = (type) => setModalState({ type, open: true });
   const closeModal = () => setModalState({ type: null, open: false });
@@ -221,87 +250,117 @@ export default function DatabaseManager({
       <ConfirmationModal
         isOpen={modalState.open && modalState.type === 'createDb'}
         onClose={closeModal}
-        title="Create Database"
-        confirmMessage="Are you sure you want to create the database instance?"
-        confirmLabel="Create"
+        title={confirmText.createDatabase.title}
+        actionDescription={dbMessages.createDatabase.actionDescription}
+        actionTarget={dbMessages.createDatabase.actionTarget}
+        actionDetails={[
+          { label: uiText.admin.settings.databaseConfiguration.fields.database.label, value: dbConfig.database },
+          { label: uiText.admin.settings.databaseConfiguration.fields.schema.label, value: dbConfig.schema }
+        ]}
+        confirmLabel={confirmText.createDatabase.confirmLabel}
         action={onCreateDatabase}
         onSuccess={handleSuccess}
         variant="info"
         buildSummary={(data) => [
-          { label: 'Database', value: data?.database || 'pulseops_v2' },
-          { label: 'Status', value: 'Created successfully' },
+          { label: uiText.admin.settings.databaseConfiguration.fields.database.label, value: data?.database || dbConfig.database },
+          { label: 'Status', value: messages.database.databaseCreated },
         ]}
       />
 
       <ConfirmationModal
         isOpen={modalState.open && modalState.type === 'deleteDb'}
         onClose={closeModal}
-        title="Delete Database"
-        confirmMessage="Are you sure you want to delete the database? This will permanently remove all data and cannot be undone."
-        confirmLabel="Delete"
+        title={confirmText.deleteDatabase.title}
+        actionDescription={dbMessages.deleteDatabase.actionDescription}
+        actionTarget={dbMessages.deleteDatabase.actionTarget}
+        actionDetails={[
+          { label: uiText.admin.settings.databaseConfiguration.fields.database.label, value: dbConfig.database },
+          { label: confirmText.deleteDatabase.warningLabel, value: dbMessages.deleteDatabase.warningMessage }
+        ]}
+        confirmLabel={confirmText.deleteDatabase.confirmLabel}
         action={onDeleteDatabase}
         onSuccess={handleSuccess}
         variant="danger"
         buildSummary={(data) => [
-          { label: 'Database', value: data?.database || 'pulseops_v2' },
-          { label: 'Status', value: 'Deleted successfully' },
+          { label: uiText.admin.settings.databaseConfiguration.fields.database.label, value: data?.database || dbConfig.database },
+          { label: 'Status', value: messages.database.databaseDeleted },
         ]}
       />
 
       <ConfirmationModal
         isOpen={modalState.open && modalState.type === 'initSchema'}
         onClose={closeModal}
-        title="Initialize Schema"
-        confirmMessage="Are you sure you want to initialize the database schema? This will create all required tables and structures."
-        confirmLabel="Initialize"
+        title={confirmText.initializeSchema.title}
+        actionDescription={dbMessages.initializeSchema.actionDescription}
+        actionTarget={dbMessages.initializeSchema.actionTarget}
+        actionDetails={[
+          { label: uiText.admin.settings.databaseConfiguration.fields.schema.label, value: dbConfig.schema },
+          { label: confirmText.initializeSchema.tablesLabel, value: dbConfig.tables.join(', ') }
+        ]}
+        confirmLabel={confirmText.initializeSchema.confirmLabel}
         action={onInitializeSchema}
         onSuccess={handleSuccess}
         variant="info"
         buildSummary={(data) => [
-          { label: 'Tables Created', value: data?.tables?.join(', ') || 'All tables' },
-          { label: 'Status', value: 'Schema initialized' },
+          { label: confirmText.initializeSchema.summaryTablesLabel, value: data?.tables?.join(', ') || dbConfig.tables.join(', ') },
+          { label: 'Status', value: messages.database.schemaCreated },
         ]}
       />
 
       <ConfirmationModal
         isOpen={modalState.open && modalState.type === 'loadData'}
         onClose={closeModal}
-        title="Load Default Data"
-        confirmMessage="Are you sure you want to load default data? This will add admin users, roles, and initial configuration."
-        confirmLabel="Load Data"
+        title={confirmText.loadDefaultData.title}
+        actionDescription={dbMessages.loadDefaultData.actionDescription}
+        actionTarget={dbMessages.loadDefaultData.actionTarget}
+        actionDetails={[
+          { label: confirmText.loadDefaultData.adminUserLabel, value: dbConfig.defaultAdmin.email },
+          { label: confirmText.loadDefaultData.includesLabel, value: dbMessages.loadDefaultData.includesMessage }
+        ]}
+        confirmLabel={confirmText.loadDefaultData.confirmLabel}
         action={onLoadDefaultData}
         onSuccess={handleSuccess}
         variant="info"
         buildSummary={() => [
-          { label: 'Status', value: 'Default data loaded successfully' },
+          { label: 'Status', value: messages.database.defaultDataLoaded },
         ]}
       />
 
       <ConfirmationModal
         isOpen={modalState.open && modalState.type === 'cleanData'}
         onClose={closeModal}
-        title="Clean Default Data"
-        confirmMessage="Are you sure you want to clean default data? This will remove all default entries."
-        confirmLabel="Clean"
+        title={confirmText.cleanDefaultData.title}
+        actionDescription={dbMessages.cleanDefaultData.actionDescription}
+        actionTarget={dbMessages.cleanDefaultData.actionTarget}
+        actionDetails={[
+          { label: confirmText.cleanDefaultData.scopeLabel, value: dbMessages.cleanDefaultData.scopeMessage },
+          { label: confirmText.cleanDefaultData.impactLabel, value: dbMessages.cleanDefaultData.impactMessage }
+        ]}
+        confirmLabel={confirmText.cleanDefaultData.confirmLabel}
         action={onCleanDefaultData}
         onSuccess={handleSuccess}
         variant="warning"
         buildSummary={() => [
-          { label: 'Status', value: 'Default data cleaned successfully' },
+          { label: 'Status', value: messages.database.defaultDataCleaned },
         ]}
       />
 
       <ConfirmationModal
         isOpen={modalState.open && modalState.type === 'wipeDb'}
         onClose={closeModal}
-        title="Wipe Database"
-        confirmMessage="Are you sure you want to wipe the database? This will delete all data and drop all tables. This action cannot be undone."
-        confirmLabel="Wipe"
+        title={confirmText.wipeDatabase.title}
+        actionDescription={dbMessages.wipeDatabase.actionDescription}
+        actionTarget={dbMessages.wipeDatabase.actionTarget}
+        actionDetails={[
+          { label: uiText.admin.settings.databaseConfiguration.fields.schema.label, value: dbConfig.schema },
+          { label: confirmText.wipeDatabase.impactLabel, value: dbMessages.wipeDatabase.impactMessage }
+        ]}
+        confirmLabel={confirmText.wipeDatabase.confirmLabel}
         action={onWipeDatabase}
         onSuccess={handleSuccess}
         variant="danger"
         buildSummary={() => [
-          { label: 'Status', value: 'Database wiped successfully' },
+          { label: 'Status', value: messages.database.databaseWiped },
         ]}
       />
     </div>

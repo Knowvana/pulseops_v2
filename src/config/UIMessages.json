@@ -12,7 +12,38 @@
     "defaultDataCleaned": "Default data cleaned successfully.",
     "databaseCreated": "Database created successfully.",
     "databaseDeleted": "Database deleted successfully.",
-    "databaseWiped": "All database tables dropped successfully."
+    "databaseWiped": "All database tables dropped successfully.",
+    "confirmations": {
+      "createDatabase": {
+        "actionDescription": "create the Database instance",
+        "actionTarget": "Backend PostgreSQL"
+      },
+      "deleteDatabase": {
+        "actionDescription": "delete the Database instance",
+        "actionTarget": "Backend PostgreSQL",
+        "warningMessage": "All data will be permanently removed"
+      },
+      "initializeSchema": {
+        "actionDescription": "initialize the Database schema",
+        "actionTarget": "Backend PostgreSQL"
+      },
+      "loadDefaultData": {
+        "actionDescription": "load default data",
+        "actionTarget": "Backend PostgreSQL",
+        "includesMessage": "Users, Roles, Configuration"
+      },
+      "cleanDefaultData": {
+        "actionDescription": "remove all default data entries",
+        "actionTarget": "Backend PostgreSQL",
+        "scopeMessage": "Default Users, Roles, Configuration",
+        "impactMessage": "Default entries will be deleted"
+      },
+      "wipeDatabase": {
+        "actionDescription": "wipe the entire Database",
+        "actionTarget": "Backend PostgreSQL",
+        "impactMessage": "All tables and data will be permanently deleted"
+      }
+    }
   },
   "config": {
     "saved": "Configuration saved successfully.",
