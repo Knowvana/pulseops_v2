@@ -25,8 +25,10 @@ import { LoginForm } from '@shared';
 import PlatformDashboard from '@core/PlatformDashboard';
 import urls from '@config/urls.json';
 import uiText from '@config/uiElementsText.json';
+import messages from '@config/UIMessages.json';
 
 const loginText = uiText.auth?.login || {};
+const authMessages = messages.auth;
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -40,7 +42,28 @@ export default function App() {
         credentials: 'include',
         body: JSON.stringify({ email, password }),
       });
-      const result = await response.json();
+
+      if (!response.ok) {
+        if (response.status >= 500) {
+          throw new Error(authMessages.serverUnavailable);
+        }
+        
+        let result;
+        try {
+          result = await response.json();
+        } catch {
+          throw new Error(authMessages.networkError);
+        }
+        
+        throw new Error(result?.error?.message || authMessages.loginFailed);
+      }
+
+      let result;
+      try {
+        result = await response.json();
+      } catch {
+        throw new Error(authMessages.networkError);
+      }
 
       if (result?.success && result.data?.user) {
         setUser(result.data.user);
@@ -48,9 +71,12 @@ export default function App() {
         return;
       }
 
-      throw new Error(result?.error?.message || loginText.failed || 'Login failed');
+      throw new Error(result?.error?.message || authMessages.loginFailed);
     } catch (err) {
-      throw new Error(err.message || loginText.failed || 'Login failed');
+      if (err.name === 'TypeError' && err.message.includes('fetch')) {
+        throw new Error(authMessages.serverUnavailable);
+      }
+      throw err;
     }
   }, []);
 

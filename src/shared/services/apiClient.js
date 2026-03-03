@@ -29,9 +29,32 @@ class ApiClientClass {
     }
     try {
       const response = await fetch(`${API_BASE}${url}`, options);
-      const data = await response.json();
-      return data;
+      
+      // Check if response is ok before attempting to parse JSON
+      if (!response.ok) {
+        // Try to parse error response, but handle cases where server returns non-JSON
+        let errorMessage = `Server error: ${response.status} ${response.statusText}`;
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData?.error?.message || errorMessage;
+        } catch {
+          // If JSON parsing fails, use the default error message
+        }
+        return { success: false, error: { message: errorMessage } };
+      }
+      
+      // Parse successful response
+      try {
+        const data = await response.json();
+        return data;
+      } catch {
+        return { success: false, error: { message: 'Invalid response from server' } };
+      }
     } catch (err) {
+      // Network error (server unreachable)
+      if (err.name === 'TypeError' && err.message.includes('fetch')) {
+        return { success: false, error: { message: 'Unable to connect to the server. Please ensure the API server is running.' } };
+      }
       return { success: false, error: { message: err.message } };
     }
   }
