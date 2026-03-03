@@ -2,7 +2,9 @@
 // ApiClient — PulseOps V2
 //
 // PURPOSE: Centralized HTTP client for all frontend API calls. Handles
-// base URL, JSON serialization, auth tokens, and error formatting.
+// base URL, JSON serialization, and error formatting.
+// SECURITY: Auth is handled via HttpOnly cookies (credentials: 'include').
+// No JWT tokens are stored in JavaScript memory to prevent XSS attacks.
 //
 // USAGE:
 //   import { ApiClient } from '@shared';
@@ -12,31 +14,15 @@
 const API_BASE = '';
 
 class ApiClientClass {
-  constructor() {
-    this._token = null;
-  }
-
-  setToken(token) {
-    this._token = token;
-  }
-
-  clearToken() {
-    this._token = null;
-  }
-
   _buildHeaders() {
-    const headers = { 'Content-Type': 'application/json' };
-    if (this._token) {
-      headers['Authorization'] = `Bearer ${this._token}`;
-    }
-    return headers;
+    return { 'Content-Type': 'application/json' };
   }
 
   async _request(method, url, body = null) {
     const options = {
       method,
       headers: this._buildHeaders(),
-      credentials: 'include',
+      credentials: 'include', // HttpOnly cookie sent automatically by browser
     };
     if (body) {
       options.body = JSON.stringify(body);

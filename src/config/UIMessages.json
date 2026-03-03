@@ -1,6 +1,7 @@
 {
   "auth": {
     "loginSuccess": "Login successful. Welcome back!",
+    "loginFailed": "Login failed. Please try again.",
     "logoutSuccess": "You have been logged out successfully.",
     "providerSwitched": "Authentication provider has been updated successfully."
   },
@@ -48,6 +49,15 @@
   "config": {
     "saved": "Configuration saved successfully.",
     "loaded": "Configuration loaded successfully."
+  },
+  "connection": {
+    "readyToTest": "Ready to test connection",
+    "testing": "Testing connection...",
+    "success": "Connection successful",
+    "failed": "Connection failed",
+    "testFailed": "Connection test failed",
+    "configSaved": "Configuration saved successfully",
+    "configSaveFailed": "Failed to save configuration"
   },
   "general": {
     "operationSuccess": "Operation completed successfully.",

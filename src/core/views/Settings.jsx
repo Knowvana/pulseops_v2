@@ -45,18 +45,14 @@ function DatabaseConfigTab() {
     { name: 'password', label: 'Password', placeholder: '••••••••', type: 'password' },
   ];
 
-  const savedConfig = (() => {
-    try {
-      const raw = localStorage.getItem('databaseConfig');
-      return raw ? JSON.parse(raw) : {};
-    } catch { return {}; }
-  })();
+  const savedConfig = {};
 
   const handleTest = useCallback(async (config) => {
     try {
       const response = await fetch(urls.database.testConnection, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify(config),
       });
       const result = await response.json();
@@ -83,11 +79,11 @@ function DatabaseConfigTab() {
     const response = await fetch(urls.database.saveConfig, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify(config),
     });
     const result = await response.json();
     if (!result?.success) throw new Error(result?.error?.message || uiText.errors.serverError);
-    localStorage.setItem('databaseConfig', JSON.stringify(config));
   }, []);
 
   return (
@@ -118,7 +114,7 @@ function DatabaseObjectsTab() {
   const checkStatus = useCallback(async () => {
     setIsLoading(true);
     try {
-      const response = await fetch(urls.database.schemaStatus);
+      const response = await fetch(urls.database.schemaStatus, { credentials: 'include' });
       const result = await response.json();
       if (result?.success && result?.data) {
         setDbStatus({
@@ -147,37 +143,37 @@ function DatabaseObjectsTab() {
       </div>
       <DatabaseManager
         onCreateDatabase={async () => {
-          const res = await fetch(urls.database.createDatabase, { method: 'POST' });
+          const res = await fetch(urls.database.createDatabase, { method: 'POST', credentials: 'include' });
           const result = await res.json();
           if (!result?.success) throw new Error(result?.error?.message || uiText.errors.serverError);
           return result.data;
         }}
         onDeleteDatabase={async () => {
-          const res = await fetch(urls.database.deleteDatabase, { method: 'DELETE' });
+          const res = await fetch(urls.database.deleteDatabase, { method: 'DELETE', credentials: 'include' });
           const result = await res.json();
           if (!result?.success) throw new Error(result?.error?.message || uiText.errors.serverError);
           return result.data;
         }}
         onInitializeSchema={async () => {
-          const res = await fetch(urls.database.createSchema, { method: 'POST' });
+          const res = await fetch(urls.database.createSchema, { method: 'POST', credentials: 'include' });
           const result = await res.json();
           if (!result?.success) throw new Error(result?.error?.message || uiText.errors.serverError);
           return result.data;
         }}
         onLoadDefaultData={async () => {
-          const res = await fetch(urls.database.loadDefaultData, { method: 'POST' });
+          const res = await fetch(urls.database.loadDefaultData, { method: 'POST', credentials: 'include' });
           const result = await res.json();
           if (!result?.success) throw new Error(result?.error?.message || uiText.errors.serverError);
           return result.data;
         }}
         onCleanDefaultData={async () => {
-          const res = await fetch(urls.database.loadDefaultData, { method: 'DELETE' });
+          const res = await fetch(urls.database.loadDefaultData, { method: 'DELETE', credentials: 'include' });
           const result = await res.json();
           if (!result?.success) throw new Error(result?.error?.message || uiText.errors.serverError);
           return result.data;
         }}
         onWipeDatabase={async () => {
-          const res = await fetch(urls.database.wipe, { method: 'POST' });
+          const res = await fetch(urls.database.wipe, { method: 'POST', credentials: 'include' });
           const result = await res.json();
           if (!result?.success) throw new Error(result?.error?.message || uiText.errors.serverError);
           return result.data;
@@ -329,6 +325,7 @@ function LogConfigTab() {
       await fetch(urls.config.save, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ key: 'logging', value: newConfig }),
       });
     } finally {
@@ -365,7 +362,7 @@ function AuthSettingsTab() {
   useEffect(() => {
     const checkDb = async () => {
       try {
-        const response = await fetch(urls.database.schemaStatus);
+        const response = await fetch(urls.database.schemaStatus, { credentials: 'include' });
         const result = await response.json();
         if (result?.success && result?.data?.initialized && result?.data?.hasDefaultData) {
           setDbReady(true);
@@ -376,13 +373,9 @@ function AuthSettingsTab() {
   }, []);
 
   const handleSwitchProvider = useCallback(async () => {
-    const token = localStorage.getItem('accessToken');
     const response = await fetch(urls.auth.config, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
+      headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
       body: JSON.stringify({ provider: selectedProvider }),
     });

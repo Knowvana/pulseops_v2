@@ -253,6 +253,40 @@
             "cleanButton": "Clean Default Data"
           }
         },
+        "confirmations": {
+          "createDatabase": {
+            "title": "Create Database",
+            "confirmLabel": "Create"
+          },
+          "deleteDatabase": {
+            "title": "Delete Database",
+            "confirmLabel": "Delete",
+            "warningLabel": "Warning"
+          },
+          "initializeSchema": {
+            "title": "Initialize Schema",
+            "confirmLabel": "Initialize",
+            "tablesLabel": "Tables",
+            "summaryTablesLabel": "Tables Created"
+          },
+          "loadDefaultData": {
+            "title": "Load Default Data",
+            "confirmLabel": "Load Data",
+            "adminUserLabel": "Admin User",
+            "includesLabel": "Includes"
+          },
+          "cleanDefaultData": {
+            "title": "Clean Default Data",
+            "confirmLabel": "Clean",
+            "scopeLabel": "Scope",
+            "impactLabel": "Impact"
+          },
+          "wipeDatabase": {
+            "title": "Wipe Database",
+            "confirmLabel": "Wipe",
+            "impactLabel": "Impact"
+          }
+        },
         "status": {
           "checking": "Checking database status...",
           "connected": "Connected",
@@ -297,6 +331,10 @@
       "disconnected": "Disconnected",
       "testing": "Testing...",
       "unknown": "Unknown"
+    },
+    "testConnection": {
+      "testButton": "Test Connection",
+      "saveButton": "Save Configuration"
     },
     "confirmationModal": {
       "defaultTitle": "Confirm Action",

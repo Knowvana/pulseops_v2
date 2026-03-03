@@ -56,7 +56,7 @@ export default function DatabaseManager({
   useEffect(() => {
     const fetchDbConfig = async () => {
       try {
-        const response = await fetch(urls.database.saveConfig);
+        const response = await fetch(urls.database.saveConfig, { credentials: 'include' });
         if (response.ok) {
           const result = await response.json();
           if (result?.data) {

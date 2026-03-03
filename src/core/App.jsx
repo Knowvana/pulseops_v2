@@ -9,8 +9,8 @@
 //   - BrowserRouter wraps PlatformDashboard for URL-driven navigation
 //   - PlatformDashboard handles ALL routing (core Admin + dynamic modules)
 //   - Login form renders outside the router when not authenticated
-//   - Auth uses API endpoint (Dual-Auth: HttpOnly cookies + Bearer token)
-//   - On login success, JWT tokens are stored and HttpOnly cookies set by API
+//   - Auth uses API endpoint (HttpOnly cookies — browser handles automatically)
+//   - On login success, HttpOnly cookie is set by the API response
 //
 // DEPENDENCIES:
 //   - react-router-dom       → BrowserRouter, Routes, Route
@@ -43,10 +43,6 @@ export default function App() {
       const result = await response.json();
 
       if (result?.success && result.data?.user) {
-        // Store token for Swagger/API tool usage
-        if (result.data.accessToken) {
-          localStorage.setItem('accessToken', result.data.accessToken);
-        }
         setUser(result.data.user);
         setIsAuthenticated(true);
         return;
@@ -60,19 +56,14 @@ export default function App() {
 
   const handleLogout = useCallback(async () => {
     try {
-      const token = localStorage.getItem('accessToken');
       await fetch(urls.auth.logout, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
+        headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
       });
     } catch {
-      // Logout even if API call fails
+      // Logout even if API call fails — clear UI state regardless
     }
-    localStorage.removeItem('accessToken');
     setIsAuthenticated(false);
     setUser({});
   }, []);

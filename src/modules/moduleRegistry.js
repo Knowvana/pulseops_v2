@@ -36,13 +36,16 @@ let _dynamicManifests = [];
 const MODULE_IMPORT_MAP = {};
 
 /**
- * Build the hot-drop import URL for a module.
+ * Build the hot-drop import URL for a module with cache-busting.
+ * Appends version or timestamp query param to prevent browser caching stale bundles.
  * @param {string} moduleId
- * @returns {string} Full URL like /api/modules/bundle/demo/manifest.js
+ * @param {string} [version] - Module version for cache key (falls back to timestamp)
+ * @returns {string} Full URL like /api/modules/bundle/demo/manifest.js?v=1.0.0
  */
-function getHotDropUrl(moduleId) {
+function getHotDropUrl(moduleId, version) {
   const base = urls.apiBaseUrl || '/api';
-  return `${base}${urls.modulesBundle || '/modules/bundle'}/${moduleId}/manifest.js`;
+  const cacheBuster = version || Date.now();
+  return `${base}${urls.modulesBundle || '/modules/bundle'}/${moduleId}/manifest.js?v=${cacheBuster}`;
 }
 
 /**
@@ -98,7 +101,8 @@ export async function loadModuleManifest(moduleId) {
     const mod = await import(/* @vite-ignore */ hotDropUrl);
     const manifest = mod.default || mod;
     if (manifest?.id) {
-      MODULE_IMPORT_MAP[moduleId] = () => import(/* @vite-ignore */ hotDropUrl);
+      // Store a factory that generates a fresh cache-busted URL each time
+      MODULE_IMPORT_MAP[moduleId] = () => import(/* @vite-ignore */ getHotDropUrl(moduleId, manifest.version));
       registerDynamicManifest(manifest);
       return manifest;
     }

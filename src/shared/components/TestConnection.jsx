@@ -44,6 +44,11 @@ import React, { useState, useEffect } from 'react';
 import { Database, RefreshCw, Save, Eye, EyeOff } from 'lucide-react';
 import { Button } from '@shared';
 import ConnectionStatus from '@shared/components/ConnectionStatus';
+import uiText from '@config/uiElementsText.json';
+import messages from '@config/UIMessages.json';
+
+const connMessages = messages.connection;
+const connText = uiText.shared?.testConnection || {};
 
 export default function TestConnection({
   title = 'Connection Test',
@@ -66,7 +71,7 @@ export default function TestConnection({
   const [connectionStatus, setConnectionStatus] = useState({
     type: title,
     status: 'neutral',
-    message: 'Ready to test connection',
+    message: connMessages.readyToTest,
     meta: null,
     lastTested: null,
   });
@@ -86,7 +91,7 @@ export default function TestConnection({
     setConnectionStatus({
       type: title,
       status: 'loading',
-      message: 'Testing connection...',
+      message: connMessages.testing,
       meta: null,
       lastTested: null,
     });
@@ -101,7 +106,7 @@ export default function TestConnection({
         setConnectionStatus({
           type: title,
           status: 'success',
-          message: result.message || 'Connection successful',
+          message: result.message || connMessages.success,
           meta: result.meta || null,
           lastTested: timeString,
         });
@@ -109,7 +114,7 @@ export default function TestConnection({
         setConnectionStatus({
           type: title,
           status: 'error',
-          message: result.message || 'Connection failed',
+          message: result.message || connMessages.failed,
           meta: result.meta || null,
           lastTested: timeString,
         });
@@ -122,7 +127,7 @@ export default function TestConnection({
       setConnectionStatus({
         type: title,
         status: 'error',
-        message: error.message || 'Connection test failed',
+        message: error.message || connMessages.testFailed,
         meta: null,
         lastTested: timeString,
       });
@@ -140,14 +145,14 @@ export default function TestConnection({
       setConnectionStatus({
         type: 'Configuration',
         status: 'success',
-        message: 'Configuration saved successfully',
+        message: connMessages.configSaved,
         meta: null,
       });
     } catch (error) {
       setConnectionStatus({
         type: 'Configuration',
         status: 'error',
-        message: error.message || 'Failed to save configuration',
+        message: error.message || connMessages.configSaveFailed,
         meta: null,
       });
     } finally {
@@ -163,7 +168,7 @@ export default function TestConnection({
         setConnectionStatus({
           type: title,
           status: 'loading',
-          message: 'Testing connection...',
+          message: connMessages.testing,
           meta: null,
           lastTested: null,
         });
@@ -175,7 +180,7 @@ export default function TestConnection({
             setConnectionStatus({
               type: title,
               status: 'success',
-              message: result.message || 'Connection successful',
+              message: result.message || connMessages.success,
               meta: result.meta || null,
               lastTested: timeString,
             });
@@ -183,7 +188,7 @@ export default function TestConnection({
             setConnectionStatus({
               type: title,
               status: 'error',
-              message: result.message || 'Connection failed',
+              message: result.message || connMessages.failed,
               meta: result.meta || null,
               lastTested: timeString,
             });
@@ -194,7 +199,7 @@ export default function TestConnection({
           setConnectionStatus({
             type: title,
             status: 'error',
-            message: error.message || 'Connection test failed',
+            message: error.message || connMessages.testFailed,
             meta: null,
             lastTested: timeString,
           });
@@ -267,7 +272,7 @@ export default function TestConnection({
             onClick={handleTest}
             isLoading={isTesting}
           >
-            {isTesting ? 'Testing...' : 'Test Connection'}
+            {isTesting ? connMessages.testing : (connText.testButton || 'Test Connection')}
           </Button>
         )}
         {onSave && (
@@ -278,7 +283,7 @@ export default function TestConnection({
             onClick={handleSave}
             isLoading={isSaving}
           >
-            {isSaving ? 'Saving...' : 'Save Configuration'}
+            {isSaving ? uiText.common.saving : (connText.saveButton || 'Save Configuration')}
           </Button>
         )}
       </div>
