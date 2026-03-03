@@ -1,0 +1,26 @@
+{
+  "storage": "file",
+  "file": {
+    "uiLogsPath": "logs/UILogs.json",
+    "apiLogsPath": "logs/APILogs.json",
+    "maxEntries": 5000,
+    "rotateOnMax": true
+  },
+  "database": {
+    "uiLogsTable": "system_ui_logs",
+    "apiLogsTable": "system_api_logs",
+    "retentionDays": 90,
+    "batchInsertSize": 50
+  },
+  "sync": {
+    "pushIntervalMs": 30000,
+    "maxBatchSize": 100
+  },
+  "levels": ["debug", "info", "warn", "error"],
+  "defaultLevel": "info",
+  "captureOptions": {
+    "uiLogs": true,
+    "apiLogs": true,
+    "moduleLogs": true
+  }
+}

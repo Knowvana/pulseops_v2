@@ -20,6 +20,11 @@
     "authTokenRefreshed": "Access token refreshed successfully.",
     "authProviderSaved": "Authentication provider saved successfully.",
     "authProviderLoaded": "Authentication provider configuration loaded.",
+    "logsWritten": "Log entries written successfully.",
+    "logsDeleted": "Log entries deleted successfully.",
+    "logConfigSaved": "Log configuration saved successfully.",
+    "logTablesCreated": "Log tables created successfully.",
+    "logStorageSwitched": "Log storage mode updated successfully.",
     "serverStarted": "PulseOps V2 API started",
     "serverShutdown": "Server shutting down gracefully.",
     "databasePoolClosed": "Database pool closed."

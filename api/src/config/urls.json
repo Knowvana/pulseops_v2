@@ -50,7 +50,14 @@
   },
   "logs": {
     "base": "/logs",
-    "stats": "/logs/stats"
+    "stats": "/logs/stats",
+    "config": "/logs/config",
+    "configStatus": "/logs/config/status",
+    "configTables": "/logs/config/tables",
+    "ui": "/logs/ui",
+    "api": "/logs/api",
+    "uiStats": "/logs/ui/stats",
+    "apiStats": "/logs/api/stats"
   },
   "config": {
     "base": "/config",

@@ -67,6 +67,31 @@ export function requestLogger(req, res, next) {
       success: data?.success,
       error: data?.error?.message
     });
+
+    // Persist API log entry (skip /logs endpoints to prevent recursion)
+    if (!req.path.startsWith('/api/logs')) {
+      const level = res.statusCode >= 500 ? 'error' : res.statusCode >= 400 ? 'warn' : 'info';
+      const safeBody = req.method !== 'GET' && req.body
+        ? { ...req.body, password: undefined, password_hash: undefined }
+        : undefined;
+      import('#core/services/logService.js').then(mod => {
+        mod.default.writeApiLog({
+          transactionId: req.requestId,
+          level,
+          source: 'API',
+          user: req.user?.email || null,
+          module: 'Core',
+          url: req.originalUrl || req.path,
+          method: req.method,
+          statusCode: res.statusCode,
+          responseTime: duration,
+          requestBody: safeBody,
+          responseBody: data,
+          error: data?.error?.message || null,
+          timestamp: new Date().toISOString(),
+        });
+      }).catch(() => {});
+    }
     
     return originalJson(data);
   };

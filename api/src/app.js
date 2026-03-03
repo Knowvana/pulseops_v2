@@ -59,6 +59,7 @@ import healthRoutes from '#core/routes/healthRoutes.js';
 import authRoutes from '#core/routes/authRoutes.js';
 import databaseRoutes from '#core/routes/databaseRoutes.js';
 import configRoutes from '#core/routes/configRoutes.js';
+import logRoutes from '#core/routes/logRoutes.js';
 
 // Swagger spec
 const swaggerSpec = loadJson('swagger.json');
@@ -108,6 +109,7 @@ export function createApp() {
   app.use(`${prefix}${apiUrls.health.base}`, healthRoutes);
   app.use(`${prefix}${apiUrls.auth.base}`, authRateLimiter, authRoutes);
   app.use(`${prefix}${apiUrls.database.base}`, databaseRoutes);
+  app.use(`${prefix}${apiUrls.logs.base}`, logRoutes);
 
   // ── 11. Protected Routes (JWT required) ─────────────────────────────────
   app.use(`${prefix}${apiUrls.config.base}`, authenticate, configRoutes);

@@ -21,6 +21,9 @@ export { default as ConfirmationModal } from '@shared/components/ConfirmationMod
 export { default as CrudSummary } from '@shared/components/CrudSummary';
 export { default as DatabaseManager } from '@shared/components/DatabaseManager';
 export { default as LoggingConfig } from '@shared/components/LoggingConfig';
+export { default as LogStats } from '@shared/components/LogStats';
+export { default as LogViewer } from '@shared/components/LogViewer';
+export { default as PageLoader } from '@shared/components/PageLoader';
 
 // --- Services ---
 // export { default as ApiClient } from '@shared/services/apiClient';

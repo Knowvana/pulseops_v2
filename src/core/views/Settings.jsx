@@ -190,52 +190,78 @@ function DatabaseObjectsTab() {
 function LogSettingsTab() {
   const [logMode, setLogMode] = useState('file');
   const [dbReady, setDbReady] = useState(false);
+  const [isSwitching, setIsSwitching] = useState(false);
+  const [allStats, setAllStats] = useState({ ui: { count: 0 }, api: { count: 0 } });
   const [logStatus, setLogStatus] = useState({ status: 'loading', message: connectionText.testing, meta: null, lastTested: null });
+  const apiBase = urls.server.api.url;
 
-  useEffect(() => {
-    const checkAll = async () => {
-      try {
-        const [dbRes, logRes] = await Promise.allSettled([
-          fetch(urls.database.schemaStatus),
-          fetch(urls.logs.stats),
-        ]);
+  const fetchStatus = useCallback(async () => {
+    try {
+      const [dbRes, configRes, statsRes] = await Promise.allSettled([
+        fetch(`${apiBase}${urls.database.schemaStatus}`, { credentials: 'include' }),
+        fetch(`${apiBase}${urls.logs.configStatus}`, { credentials: 'include' }),
+        fetch(`${apiBase}${urls.logs.stats}`, { credentials: 'include' }),
+      ]);
 
-        if (dbRes.status === 'fulfilled') {
-          const dbResult = await dbRes.value.json();
-          if (dbResult?.success && dbResult?.data?.initialized) setDbReady(true);
-        }
-
-        if (logRes.status === 'fulfilled' && logRes.value.ok) {
-          const logResult = await logRes.value.json();
-          if (logResult?.success && logResult?.data) {
-            const d = logResult.data;
-            const meta = [
-              d.fileSize ? `Size: ${d.fileSize}` : null,
-              d.entries != null ? `Entries: ${d.entries}` : null,
-            ].filter(Boolean).join(` ${connectionText.metaSeparator} `);
-            setLogStatus({
-              status: 'success',
-              message: logMode === 'file' ? logText.fileActive : logText.dbActive,
-              meta: meta || null,
-              lastTested: new Date().toLocaleString(),
-            });
-          } else {
-            setLogStatus({ status: 'success', message: logMode === 'file' ? logText.fileActive : logText.dbActive, meta: null, lastTested: new Date().toLocaleString() });
-          }
-        } else {
-          setLogStatus({ status: 'success', message: logMode === 'file' ? logText.fileActive : logText.dbActive, meta: null, lastTested: new Date().toLocaleString() });
-        }
-      } catch {
-        setLogStatus({ status: 'error', message: connectionText.failed, meta: null, lastTested: new Date().toLocaleString() });
+      if (dbRes.status === 'fulfilled') {
+        const dbResult = await dbRes.value.json();
+        if (dbResult?.success && dbResult?.data?.initialized) setDbReady(true);
       }
-    };
-    checkAll();
-  }, [logMode]);
 
-  const handleToggle = useCallback(() => {
-    if (logMode === 'file' && !dbReady) return;
-    setLogMode(prev => prev === 'file' ? 'database' : 'file');
-  }, [logMode, dbReady]);
+      if (configRes.status === 'fulfilled') {
+        const configResult = await configRes.value.json();
+        if (configResult?.success && configResult?.data) {
+          setLogMode(configResult.data.storage || 'file');
+        }
+      }
+
+      if (statsRes.status === 'fulfilled' && statsRes.value.ok) {
+        const statsResult = await statsRes.value.json();
+        if (statsResult?.success && statsResult?.data) {
+          const d = statsResult.data;
+          setAllStats({ ui: d.ui || { count: 0 }, api: d.api || { count: 0 } });
+          const totalCount = (d.ui?.count || 0) + (d.api?.count || 0);
+          const meta = `UI: ${d.ui?.count || 0} ${connectionText.metaSeparator} API: ${d.api?.count || 0} ${connectionText.metaSeparator} Total: ${totalCount}`;
+          const mode = d.storage || 'file';
+          setLogStatus({
+            status: 'success',
+            message: mode === 'file' ? logText.fileActive : logText.dbActive,
+            meta,
+            lastTested: new Date().toLocaleString(),
+          });
+        }
+      } else {
+        setLogStatus({ status: 'success', message: logMode === 'file' ? logText.fileActive : logText.dbActive, meta: null, lastTested: new Date().toLocaleString() });
+      }
+    } catch {
+      setLogStatus({ status: 'error', message: connectionText.failed, meta: null, lastTested: new Date().toLocaleString() });
+    }
+  }, []);
+
+  useEffect(() => { fetchStatus(); }, [fetchStatus]);
+
+  const handleSwitch = useCallback(async (newMode) => {
+    if (newMode === logMode) return;
+    if (newMode === 'database' && !dbReady) return;
+    setIsSwitching(true);
+    try {
+      const res = await fetch(`${apiBase}${urls.logs.config}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ storage: newMode }),
+      });
+      const result = await res.json();
+      if (result?.success) {
+        setLogMode(newMode);
+        await fetchStatus();
+      }
+    } catch {
+      // Keep current mode on error
+    } finally {
+      setIsSwitching(false);
+    }
+  }, [logMode, dbReady, fetchStatus]);
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -257,12 +283,13 @@ function LogSettingsTab() {
 
       {/* File Logging Option */}
       <button
-        onClick={() => setLogMode('file')}
+        onClick={() => handleSwitch('file')}
+        disabled={isSwitching}
         className={`w-full text-left p-4 rounded-xl border-2 transition-all ${
           logMode === 'file'
             ? 'border-brand-500 bg-brand-50/50'
             : 'border-surface-200 hover:border-surface-300 cursor-pointer'
-        }`}
+        } ${isSwitching ? 'opacity-60 cursor-wait' : ''}`}
       >
         <div className="flex items-start gap-3">
           <FileText size={18} className={logMode === 'file' ? 'text-brand-600' : 'text-surface-400'} />
@@ -275,15 +302,15 @@ function LogSettingsTab() {
 
       {/* Database Logging Option */}
       <button
-        onClick={handleToggle}
-        disabled={!dbReady}
+        onClick={() => handleSwitch('database')}
+        disabled={!dbReady || isSwitching}
         className={`w-full text-left p-4 rounded-xl border-2 transition-all ${
           !dbReady
             ? 'border-surface-100 bg-surface-50 cursor-not-allowed opacity-60'
             : logMode === 'database'
               ? 'border-brand-500 bg-brand-50/50'
               : 'border-surface-200 hover:border-surface-300 cursor-pointer'
-        }`}
+        } ${isSwitching ? 'opacity-60 cursor-wait' : ''}`}
       >
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-start gap-3 flex-1">

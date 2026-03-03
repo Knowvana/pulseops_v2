@@ -73,7 +73,7 @@
   "coreNav": {
     "dashboard": "Dashboard",
     "moduleManager": "Module Manager",
-    "logs": "System Logs",
+    "logs": "Logs",
     "settings": "Settings"
   },
   "coreViews": {
@@ -86,8 +86,78 @@
       "subtitle": "Install, enable, disable, and manage platform modules"
     },
     "logs": {
-      "title": "System Logs",
-      "subtitle": "Real-time platform logs, API calls, and diagnostics"
+      "title": "Platform Admin — Logs",
+      "subtitle": "View, search, and manage platform UI and API logs",
+      "logTypes": {
+        "ui": "UI Logs",
+        "api": "API Logs"
+      },
+      "filters": {
+        "all": "All",
+        "debug": "Debug",
+        "info": "Info",
+        "warn": "Warn",
+        "error": "Error"
+      },
+      "search": {
+        "placeholder": "Search logs..."
+      },
+      "stats": {
+        "logSource": "Log Source",
+        "file": "File",
+        "database": "Database",
+        "lastSync": "Last Sync",
+        "logEntries": "Log Entries",
+        "refreshNow": "Refresh",
+        "deleteLogs": "Delete Logs",
+        "deleteConfirm": "Are you sure you want to delete all logs from the configured source? This action cannot be undone.",
+        "deleteConfirmTitle": "Delete All Logs",
+        "deleteButton": "Delete",
+        "noLogs": "No logs found",
+        "noLogsHint": "Logs will appear here as the platform generates activity."
+      },
+      "grid": {
+        "transactionId": "Transaction ID",
+        "time": "Time (IST)",
+        "logLevel": "Level",
+        "source": "Source",
+        "event": "Event",
+        "component": "Component",
+        "user": "User",
+        "message": "Message",
+        "result": "Result",
+        "apiUrl": "API URL",
+        "method": "Method",
+        "statusCode": "Status",
+        "responseTime": "Response Time",
+        "error": "Error",
+        "module": "Module"
+      },
+      "detail": {
+        "title": "Log Details",
+        "url": "URL",
+        "method": "Method",
+        "statusCode": "Status Code",
+        "responseTime": "Response Time",
+        "timestamp": "Timestamp",
+        "user": "User",
+        "responseBody": "Response Body",
+        "requestBody": "Request Body",
+        "module": "Module",
+        "component": "Component",
+        "event": "Event",
+        "message": "Message",
+        "result": "Result",
+        "source": "Source",
+        "level": "Level",
+        "transactionId": "Transaction ID",
+        "noSelection": "Select a log entry to view details"
+      },
+      "pagination": {
+        "pageSize": "Page Size",
+        "of": "of",
+        "page": "Page"
+      }
     },
     "settings": {
       "title": "Platform Settings",

@@ -42,7 +42,14 @@
     "bundle": "/api/modules/bundle"
   },
   "logs": {
-    "stats": "/api/logs/stats"
+    "stats": "/api/logs/stats",
+    "config": "/api/logs/config",
+    "configStatus": "/api/logs/config/status",
+    "configTables": "/api/logs/config/tables",
+    "ui": "/api/logs/ui",
+    "api": "/api/logs/api",
+    "uiStats": "/api/logs/ui/stats",
+    "apiStats": "/api/logs/api/stats"
   },
   "config": {
     "list": "/api/config",

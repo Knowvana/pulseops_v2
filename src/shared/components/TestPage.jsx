@@ -16,6 +16,7 @@ import TestConnection from '@shared/components/TestConnection';
 import StatsCount from '@shared/components/StatsCount';
 import DatabaseManager from '@shared/components/DatabaseManager';
 import LoggingConfig from '@shared/components/LoggingConfig';
+import PageLoader from '@shared/components/PageLoader';
 
 export default function TestPage() {
   // State for managing various component demos
@@ -375,6 +376,26 @@ export default function TestPage() {
             onSave={handleSaveLoggingConfig}
             isSaving={isSavingLogging}
           />
+        </section>
+
+        {/* PageLoader Component Test */}
+        <section className="bg-white rounded-2xl p-6 shadow-sm border border-surface-200">
+          <h2 className="text-xl font-bold text-surface-800 mb-4">PageLoader.jsx - PageLoader Component</h2>
+          <p className="text-sm text-surface-600 mb-4">Universal loading spinner with brand gradient — inline variants</p>
+          <div className="grid grid-cols-3 gap-4">
+            <div className="border border-surface-200 rounded-xl p-4">
+              <p className="text-xs font-bold text-surface-500 mb-2 text-center">Small</p>
+              <PageLoader inline size="sm" />
+            </div>
+            <div className="border border-surface-200 rounded-xl p-4">
+              <p className="text-xs font-bold text-surface-500 mb-2 text-center">Medium (default)</p>
+              <PageLoader inline size="md" message="Loading..." />
+            </div>
+            <div className="border border-surface-200 rounded-xl p-4">
+              <p className="text-xs font-bold text-surface-500 mb-2 text-center">Large</p>
+              <PageLoader inline size="lg" message="Loading dashboard..." />
+            </div>
+          </div>
         </section>
 
         {/* LoginForm Component Test */}

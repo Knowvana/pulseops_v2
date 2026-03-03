@@ -61,6 +61,21 @@
     "configSaved": "Configuration saved successfully",
     "configSaveFailed": "Failed to save configuration"
   },
+  "logs": {
+    "fetchSuccess": "Logs loaded successfully.",
+    "fetchFailed": "Failed to load logs. Please try again.",
+    "deleteSuccess": "All logs deleted successfully.",
+    "deleteFailed": "Failed to delete logs.",
+    "pushSuccess": "Log entries pushed successfully.",
+    "pushFailed": "Failed to push log entries.",
+    "configSaved": "Log configuration saved successfully.",
+    "configFailed": "Failed to save log configuration.",
+    "switchedToFile": "Switched to file-based logging.",
+    "switchedToDb": "Switched to database logging.",
+    "tablesCreated": "Log tables created successfully.",
+    "tablesCreateFailed": "Failed to create log tables.",
+    "dbNotReady": "Database is not available. Set up the database first."
+  },
   "general": {
     "operationSuccess": "Operation completed successfully.",
     "changesSaved": "Changes saved.",
