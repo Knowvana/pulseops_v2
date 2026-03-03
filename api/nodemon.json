@@ -2,7 +2,9 @@
   "watch": ["src"],
   "ext": "js,mjs",
   "ignore": [
-    "logs/**",
-    "node_modules"
+    "node_modules",
+    "logs",
+    "*.json",
+    "src/config"
   ]
 }

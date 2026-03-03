@@ -76,6 +76,16 @@
     "tablesCreateFailed": "Failed to create log tables.",
     "dbNotReady": "Database is not available. Set up the database first."
   },
+  "generalSettings": {
+    "saved": "General settings saved successfully.",
+    "saveFailed": "Failed to save general settings.",
+    "confirmTitle": "Save General Settings",
+    "confirmDescription": "update the platform-wide general settings",
+    "confirmTarget": "Platform Configuration",
+    "summaryTimezone": "Timezone",
+    "summaryStatus": "Status",
+    "summarySuccess": "Settings saved successfully"
+  },
   "general": {
     "operationSuccess": "Operation completed successfully.",
     "changesSaved": "Changes saved.",

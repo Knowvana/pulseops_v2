@@ -24,8 +24,9 @@ import {
   Settings as SettingsIcon, Database, Layers, FileText, ScrollText,
   Shield, Globe, AlertTriangle, RefreshCw, Check, Save, Globe2
 } from 'lucide-react';
-import { ConfigLayout, TestConnection, DatabaseManager, LoggingConfig, Button, ConfirmationModal, ConnectionStatus } from '@shared';
+import { ConfigLayout, TestConnection, DatabaseManager, LoggingConfig, Button, ConfirmationModal, ConnectionStatus, TimezoneService } from '@shared';
 import uiText from '@config/uiElementsText.json';
+import uiMessages from '@config/UIMessages.json';
 import urls from '@config/urls.json';
 
 const viewText = uiText.coreViews.settings;
@@ -559,10 +560,10 @@ const TIMEZONE_OPTIONS = [
 
 function GeneralSettingsTab() {
   const [settings, setSettings] = useState({ timezone: 'Asia/Kolkata', dateFormat: 'dd MMM yyyy', timeFormat: 'HH:mm:ss' });
-  const [isSaving, setIsSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [showSaveModal, setShowSaveModal] = useState(false);
   const initRan = React.useRef(false);
+  const gsMessages = uiMessages.generalSettings;
 
   useEffect(() => {
     if (initRan.current) return;
@@ -578,23 +579,19 @@ function GeneralSettingsTab() {
     load();
   }, []);
 
-  const handleSave = useCallback(async () => {
-    setIsSaving(true);
-    try {
-      const res = await fetch(urls.generalSettings.save, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(settings),
-      });
-      const json = await res.json();
-      if (json.success) {
-        setSaved(true);
-        setTimeout(() => setSaved(false), 2000);
-      }
-    } catch { /* silent */ }
-    setIsSaving(false);
+  const handleSaveAction = useCallback(async () => {
+    const res = await fetch(urls.generalSettings.save, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(settings),
+    });
+    const json = await res.json();
+    if (!json.success) throw new Error(json?.error?.message || gsMessages.saveFailed);
+    return { timezone: settings.timezone, dateFormat: settings.dateFormat, timeFormat: settings.timeFormat };
   }, [settings]);
+
+  const tzLabel = TIMEZONE_OPTIONS.find(tz => tz.value === settings.timezone)?.label || settings.timezone;
 
   if (isLoading) {
     return (
@@ -633,13 +630,31 @@ function GeneralSettingsTab() {
         <Button
           variant="primary"
           size="md"
-          icon={saved ? <Check size={16} /> : <Save size={16} />}
-          onClick={handleSave}
-          disabled={isSaving}
+          icon={<Save size={16} />}
+          onClick={() => setShowSaveModal(true)}
         >
-          {saved ? 'Saved!' : isSaving ? 'Saving...' : 'Save Settings'}
+          Save Settings
         </Button>
       </div>
+
+      <ConfirmationModal
+        isOpen={showSaveModal}
+        onClose={() => setShowSaveModal(false)}
+        title={gsMessages.confirmTitle}
+        actionDescription={gsMessages.confirmDescription}
+        actionTarget={gsMessages.confirmTarget}
+        actionDetails={[
+          { label: gsMessages.summaryTimezone, value: tzLabel },
+        ]}
+        confirmLabel="Save"
+        action={handleSaveAction}
+        onSuccess={(data) => { if (data?.timezone) TimezoneService.setTimezone(data.timezone); }}
+        variant="info"
+        buildSummary={(data) => [
+          { label: gsMessages.summaryTimezone, value: TIMEZONE_OPTIONS.find(tz => tz.value === data?.timezone)?.label || data?.timezone },
+          { label: gsMessages.summaryStatus, value: gsMessages.summarySuccess },
+        ]}
+      />
     </div>
   );
 }

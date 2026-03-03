@@ -21,7 +21,7 @@
 // ============================================================================
 import React, { useState, useCallback } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import { LoginForm } from '@shared';
+import { LoginForm, UILogService } from '@shared';
 import PlatformDashboard from '@core/PlatformDashboard';
 import urls from '@config/urls.json';
 import uiText from '@config/uiElementsText.json';
@@ -98,6 +98,7 @@ export default function App() {
       if (result?.success && result.data?.user) {
         console.log('✅ [Frontend] Login successful! Setting user state:', result.data.user);
         setUser(result.data.user);
+        UILogService.setUserEmail(result.data.user.email);
         setIsAuthenticated(true);
         console.log('✅ [Frontend] User authenticated, redirecting to dashboard...');
         return;
@@ -125,6 +126,7 @@ export default function App() {
     } catch {
       // Logout even if API call fails — clear UI state regardless
     }
+    UILogService.setUserEmail(null);
     setIsAuthenticated(false);
     setUser({});
   }, []);

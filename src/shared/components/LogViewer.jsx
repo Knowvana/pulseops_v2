@@ -11,8 +11,10 @@ import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react'
 import {
   Search, ChevronLeft, ChevronRight, ChevronUp, ChevronDown,
   X, Copy, Check, FileJson, AlertCircle, Info, AlertTriangle, Bug, ChevronsUpDown,
+  Monitor, Server,
 } from 'lucide-react';
 import uiText from '@config/uiElementsText.json';
+import TimezoneService from '@shared/services/timezoneService';
 
 const logText = uiText.coreViews.logs;
 const gridText = logText.grid;
@@ -23,21 +25,7 @@ const paginationText = logText.pagination;
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function formatIST(isoString) {
-  if (!isoString) return '—';
-  try {
-    return new Date(isoString).toLocaleString('en-IN', {
-      timeZone: 'Asia/Kolkata',
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      hour12: true,
-    });
-  } catch {
-    return isoString;
-  }
+  return TimezoneService.formatTime(isoString);
 }
 
 const LEVEL_STYLES = {
@@ -51,7 +39,7 @@ function LevelBadge({ level }) {
   const style = LEVEL_STYLES[level] || LEVEL_STYLES.info;
   const Icon = style.icon;
   return (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${style.bg} ${style.text} border ${style.border}`}>
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold uppercase ${style.bg} ${style.text} border ${style.border}`}>
       <Icon size={10} />
       {level}
     </span>
@@ -67,47 +55,47 @@ function MethodBadge({ method }) {
     DELETE: 'bg-red-50 text-red-700 border-red-200',
   };
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase border ${colors[method] || 'bg-surface-50 text-surface-600 border-surface-200'}`}>
+    <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold uppercase border ${colors[method] || 'bg-surface-50 text-surface-600 border-surface-200'}`}>
       {method}
     </span>
   );
 }
 
 function StatusBadge({ code }) {
-  if (!code) return <span className="text-xs text-surface-400">—</span>;
+  if (!code) return <span className="text-[13px] text-surface-400">—</span>;
   const color = code >= 500 ? 'text-red-600' : code >= 400 ? 'text-amber-600' : 'text-emerald-600';
-  return <span className={`text-xs font-bold ${color}`}>{code}</span>;
+  return <span className={`text-[13px] font-bold ${color}`}>{code}</span>;
 }
 
 // ── UI Log Columns ───────────────────────────────────────────────────────────
 
 const UI_COLUMNS = [
-  { id: 'transactionId', label: gridText.transactionId, width: 150, sortable: true, render: (row) => <span className="text-[10px] font-mono text-surface-400 truncate">{row.transactionId || row.transaction_id || '—'}</span> },
-  { id: 'timestamp', label: gridText.time, width: 155, sortable: true, render: (row) => <span className="text-[11px] text-surface-700">{formatIST(row.timestamp || row.created_at)}</span> },
-  { id: 'level', label: gridText.logLevel, width: 80, sortable: true, render: (row) => <LevelBadge level={row.level || row.log_level} /> },
-  { id: 'source', label: gridText.source, width: 60, sortable: true, render: (row) => <span className="text-[11px] font-medium text-surface-500">{row.source || 'UI'}</span> },
-  { id: 'event', label: gridText.event, width: 120, sortable: true, render: (row) => <span className="text-[11px] text-surface-700 truncate">{row.event || '—'}</span> },
-  { id: 'component', label: gridText.component, width: 120, sortable: true, render: (row) => <span className="text-[11px] text-surface-600 truncate">{row.component || '—'}</span> },
-  { id: 'module', label: gridText.module, width: 80, sortable: true, render: (row) => <span className="text-[11px] text-surface-500">{row.module || row.log_module || 'Core'}</span> },
-  { id: 'user', label: gridText.user, width: 110, sortable: true, render: (row) => <span className="text-[11px] text-surface-600 truncate">{row.user || row.user_name || '—'}</span> },
-  { id: 'message', label: gridText.message, width: 260, sortable: false, render: (row) => <span className="text-[11px] text-surface-700 truncate block">{row.message || '—'}</span> },
-  { id: 'result', label: gridText.result, width: 100, sortable: false, render: (row) => <span className="text-[11px] text-surface-500 truncate">{row.result || '—'}</span> },
+  { id: 'transactionId', label: gridText.transactionId, width: 170, sortable: true, render: (row) => <span className="text-[13px] font-mono text-surface-500 truncate">{row.transactionId || row.transaction_id || '—'}</span> },
+  { id: 'timestamp', label: gridText.time, width: 170, sortable: true, render: (row) => <span className="text-[13px] text-surface-700">{formatIST(row.timestamp || row.created_at)}</span> },
+  { id: 'level', label: gridText.logLevel, width: 85, sortable: true, render: (row) => <LevelBadge level={row.level || row.log_level} /> },
+  { id: 'source', label: gridText.source, width: 65, sortable: true, render: (row) => <span className="text-[13px] font-medium text-surface-500">{row.source || 'UI'}</span> },
+  { id: 'event', label: gridText.event, width: 130, sortable: true, render: (row) => <span className="text-[13px] text-surface-700 truncate">{row.event || '—'}</span> },
+  { id: 'component', label: gridText.component, width: 130, sortable: true, render: (row) => <span className="text-[13px] text-surface-600 truncate">{row.component || '—'}</span> },
+  { id: 'module', label: gridText.module, width: 85, sortable: true, render: (row) => <span className="text-[13px] text-surface-500">{row.module || row.log_module || 'Core'}</span> },
+  { id: 'user', label: gridText.user, width: 120, sortable: true, render: (row) => <span className="text-[13px] text-surface-600 truncate">{row.user || row.user_name || '—'}</span> },
+  { id: 'message', label: gridText.message, width: 280, sortable: false, render: (row) => <span className="text-[13px] text-surface-700 truncate block">{row.message || '—'}</span> },
+  { id: 'result', label: gridText.result, width: 110, sortable: false, render: (row) => <span className="text-[13px] text-surface-500 truncate">{row.result || '—'}</span> },
 ];
 
 // ── API Log Columns ──────────────────────────────────────────────────────────
 
 const API_COLUMNS = [
-  { id: 'transactionId', label: gridText.transactionId, width: 150, sortable: true, render: (row) => <span className="text-[10px] font-mono text-surface-400 truncate">{row.transactionId || row.transaction_id || '—'}</span> },
-  { id: 'timestamp', label: gridText.time, width: 155, sortable: true, render: (row) => <span className="text-[11px] text-surface-700">{formatIST(row.timestamp || row.created_at)}</span> },
-  { id: 'level', label: gridText.logLevel, width: 80, sortable: true, render: (row) => <LevelBadge level={row.level || row.log_level} /> },
-  { id: 'user', label: gridText.user, width: 110, sortable: true, render: (row) => <span className="text-[11px] text-surface-600 truncate">{row.user || row.user_name || '—'}</span> },
-  { id: 'source', label: gridText.source, width: 60, sortable: true, render: (row) => <span className="text-[11px] font-medium text-surface-500">{row.source || 'API'}</span> },
-  { id: 'method', label: gridText.method, width: 72, sortable: true, render: (row) => row.method ? <MethodBadge method={row.method} /> : <span className="text-[11px] text-surface-400">—</span> },
-  { id: 'url', label: gridText.apiUrl, width: 220, sortable: true, render: (row) => <span className="text-[11px] font-mono text-surface-600 truncate block">{row.url || row.api_url || '—'}</span> },
-  { id: 'statusCode', label: gridText.statusCode, width: 64, sortable: true, render: (row) => <StatusBadge code={row.statusCode || row.status_code} /> },
-  { id: 'responseTime', label: gridText.responseTime, width: 100, sortable: true, render: (row) => { const t = row.responseTime || row.response_time_ms; return t ? <span className="text-[11px] text-surface-600">{t}ms</span> : <span className="text-[11px] text-surface-400">—</span>; } },
-  { id: 'error', label: gridText.error, width: 180, sortable: false, render: (row) => <span className="text-[11px] text-danger-600 truncate block">{row.error || '—'}</span> },
-  { id: 'module', label: gridText.module, width: 80, sortable: true, render: (row) => <span className="text-[11px] text-surface-500">{row.module || row.log_module || 'Core'}</span> },
+  { id: 'transactionId', label: gridText.transactionId, width: 170, sortable: true, render: (row) => <span className="text-[13px] font-mono text-surface-500 truncate">{row.transactionId || row.transaction_id || '—'}</span> },
+  { id: 'timestamp', label: gridText.time, width: 170, sortable: true, render: (row) => <span className="text-[13px] text-surface-700">{formatIST(row.timestamp || row.created_at)}</span> },
+  { id: 'level', label: gridText.logLevel, width: 85, sortable: true, render: (row) => <LevelBadge level={row.level || row.log_level} /> },
+  { id: 'user', label: gridText.user, width: 120, sortable: true, render: (row) => <span className="text-[13px] text-surface-600 truncate">{row.user || row.user_name || '—'}</span> },
+  { id: 'source', label: gridText.source, width: 65, sortable: true, render: (row) => <span className="text-[13px] font-medium text-surface-500">{row.source || 'API'}</span> },
+  { id: 'method', label: gridText.method, width: 76, sortable: true, render: (row) => row.method ? <MethodBadge method={row.method} /> : <span className="text-[13px] text-surface-400">—</span> },
+  { id: 'url', label: gridText.apiUrl, width: 240, sortable: true, render: (row) => <span className="text-[13px] font-mono text-surface-600 truncate block">{row.url || row.api_url || '—'}</span> },
+  { id: 'statusCode', label: gridText.statusCode, width: 68, sortable: true, render: (row) => <StatusBadge code={row.statusCode || row.status_code} /> },
+  { id: 'responseTime', label: gridText.responseTime, width: 110, sortable: true, render: (row) => { const t = row.responseTime || row.response_time_ms; return t ? <span className="text-[13px] text-surface-600">{t}ms</span> : <span className="text-[13px] text-surface-400">—</span>; } },
+  { id: 'error', label: gridText.error, width: 200, sortable: false, render: (row) => <span className="text-[13px] text-danger-600 truncate block">{row.error || '—'}</span> },
+  { id: 'module', label: gridText.module, width: 85, sortable: true, render: (row) => <span className="text-[13px] text-surface-500">{row.module || row.log_module || 'Core'}</span> },
 ];
 
 const PAGE_SIZE_OPTIONS = [25, 50, 100, 200];
@@ -223,6 +211,11 @@ export default function LogViewer({
   logType = 'api',
   isLoading = false,
   totalCount = 0,
+  onLogTypeChange,
+  levelFilter = 'all',
+  onLevelFilterChange,
+  searchTerm = '',
+  onSearchChange,
 }) {
   const [selectedLog, setSelectedLog] = useState(null);
   const [showDetail, setShowDetail] = useState(false);
@@ -323,24 +316,121 @@ export default function LogViewer({
   const noLogs = !isLoading && paginatedLogs.length === 0;
 
   return (
-    <div className="flex flex-1 min-h-0 overflow-hidden rounded-xl border border-surface-200 bg-white shadow-sm">
-      {/* Grid Area */}
-      <div className="flex-1 flex flex-col min-w-0">
-        {/* Transaction ID Filter */}
-        <div className="flex items-center gap-2 px-3 py-1.5 border-b border-surface-100 bg-surface-50 flex-shrink-0">
-          <span className="text-[10px] font-medium text-surface-500 whitespace-nowrap">TX ID:</span>
+    <div className="flex flex-col flex-1 min-h-0 overflow-hidden rounded-xl border border-surface-200 bg-white shadow-sm">
+      {/* Top Controls Row: Log Type + Level Filters + Search — spans full width above grid+detail */}
+      <div className="flex flex-wrap items-center gap-3 px-3 py-2.5 border-b border-surface-200 bg-gradient-to-r from-surface-50 to-white flex-shrink-0">
+        {/* Log Type Selector */}
+        {onLogTypeChange && (
+          <div className="flex items-center rounded-lg border border-surface-200 overflow-hidden bg-white shadow-sm">
+            <button
+              onClick={() => onLogTypeChange('ui')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors
+                ${logType === 'ui' ? 'bg-brand-500 text-white' : 'text-surface-600 hover:bg-surface-50'}`}
+            >
+              <Monitor size={13} />
+              UI Logs
+            </button>
+            <button
+              onClick={() => onLogTypeChange('api')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors
+                ${logType === 'api' ? 'bg-brand-500 text-white' : 'text-surface-600 hover:bg-surface-50'}`}
+            >
+              <Server size={13} />
+              API Logs
+            </button>
+          </div>
+        )}
+
+        {/* Level Filters */}
+        {onLevelFilterChange && (
+          <div className="flex items-center gap-1">
+            {['all', 'debug', 'info', 'warn', 'error'].map(level => (
+              <button
+                key={level}
+                onClick={() => onLevelFilterChange(level)}
+                className={`px-2.5 py-1.5 rounded-lg text-[11px] font-medium uppercase transition-colors border
+                  ${levelFilter === level
+                    ? 'bg-brand-500 text-white border-brand-500 shadow-sm'
+                    : 'bg-white text-surface-600 border-surface-200 hover:bg-surface-50 hover:border-surface-300'}`}
+              >
+                {level}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Search */}
+        {onSearchChange && (
+          <div className="relative flex-1 min-w-[200px] max-w-xs">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-surface-400" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => onSearchChange(e.target.value)}
+              placeholder="Search logs..."
+              className="w-full pl-8 pr-3 py-1.5 text-xs border border-surface-200 rounded-lg bg-white text-surface-700 placeholder:text-surface-400 focus:outline-none focus:ring-1 focus:ring-brand-300 focus:border-brand-300"
+            />
+          </div>
+        )}
+      </div>
+
+      {/* Grid + Detail Panel row — side by side */}
+      <div className="flex flex-1 min-h-0 overflow-hidden">
+        {/* Grid Area */}
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+          {/* Transaction ID Filter + Pagination */}
+          <div className="flex items-center gap-2 px-3 py-1.5 border-b border-surface-100 bg-surface-50 flex-shrink-0">
+          <span className="text-xs font-semibold text-surface-600 whitespace-nowrap">TX ID:</span>
           <input
             type="text"
             value={txFilter}
             onChange={(e) => { setTxFilter(e.target.value); setCurrentPage(1); }}
             placeholder="Filter by Transaction ID..."
-            className="flex-1 text-[10px] font-mono border border-surface-200 rounded px-2 py-0.5 bg-white text-surface-700 placeholder:text-surface-300 focus:outline-none focus:ring-1 focus:ring-brand-300"
+            className="w-64 text-xs font-mono border border-surface-200 rounded px-2 py-1 bg-white text-surface-700 placeholder:text-surface-400 focus:outline-none focus:ring-1 focus:ring-brand-300"
           />
           {txFilter && (
             <button onClick={() => { setTxFilter(''); setCurrentPage(1); }} className="p-0.5 rounded hover:bg-surface-200 transition-colors">
-              <X size={10} className="text-surface-400" />
+              <X size={12} className="text-surface-400" />
             </button>
           )}
+
+          {/* Gradient Separator */}
+          <div className="h-5 w-px bg-gradient-to-b from-transparent via-brand-400 to-transparent mx-1" />
+
+          {/* Page Size */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-surface-500">{paginationText.pageSize}:</span>
+            <select
+              value={pageSize}
+              onChange={(e) => { setPageSize(Number(e.target.value)); setCurrentPage(1); }}
+              className="text-xs border border-surface-200 rounded px-1.5 py-0.5 bg-white text-surface-700 focus:outline-none focus:ring-1 focus:ring-brand-300"
+            >
+              {PAGE_SIZE_OPTIONS.map(opt => (
+                <option key={opt} value={opt}>{opt}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Page Navigator */}
+          <div className="flex items-center gap-1.5 ml-auto">
+            <span className="text-xs text-surface-500">
+              {paginationText.page} {currentPage} {paginationText.of} {totalPages}
+            </span>
+            <button
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className="p-0.5 rounded hover:bg-surface-200 disabled:opacity-30 transition-colors"
+            >
+              <ChevronLeft size={14} className="text-surface-600" />
+            </button>
+            <button
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+              className="p-0.5 rounded hover:bg-surface-200 disabled:opacity-30 transition-colors"
+            >
+              <ChevronRight size={14} className="text-surface-600" />
+            </button>
+          </div>
         </div>
         {/* Grid */}
         <div className="flex-1 overflow-auto" ref={gridRef}>
@@ -355,7 +445,7 @@ export default function LogViewer({
                     <th
                       key={col.id}
                       style={{ width, minWidth: width, maxWidth: width }}
-                      className="relative px-2 py-1.5 text-[10px] font-bold text-surface-600 uppercase tracking-wide select-none whitespace-nowrap"
+                      className="relative px-2 py-1.5 text-[11px] font-bold text-surface-600 uppercase tracking-wide select-none whitespace-nowrap"
                     >
                       <div
                         className={`flex items-center gap-1 ${col.sortable ? 'cursor-pointer hover:text-brand-600' : ''}`}
@@ -415,7 +505,7 @@ export default function LogViewer({
 
                 return (
                   <tr
-                    key={log.id || log.transaction_id || log.transactionId || index}
+                    key={`${log.id || index}-${log.timestamp || log.created_at || ''}-${index}`}
                     onClick={() => handleRowClick(log)}
                     className={`border-b border-surface-100 cursor-pointer transition-colors
                       ${isSelected ? 'bg-brand-50 border-l-2 border-l-brand-400' : `${rowBg} hover:bg-surface-50`}`}
@@ -426,7 +516,7 @@ export default function LogViewer({
                         <td
                           key={col.id}
                           style={{ width, minWidth: width, maxWidth: width }}
-                          className="px-2 py-1 overflow-hidden"
+                          className="px-2 py-1.5 overflow-hidden"
                         >
                           {col.render(log)}
                         </td>
@@ -439,77 +529,42 @@ export default function LogViewer({
           </table>
         </div>
 
-        {/* Pagination Footer */}
-        <div className="flex items-center justify-between px-4 py-2 border-t border-surface-200 bg-surface-50 flex-shrink-0">
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-surface-500">{paginationText.pageSize}:</span>
-            <select
-              value={pageSize}
-              onChange={(e) => { setPageSize(Number(e.target.value)); setCurrentPage(1); }}
-              className="text-xs border border-surface-200 rounded px-2 py-1 bg-white text-surface-700 focus:outline-none focus:ring-1 focus:ring-brand-300"
-            >
-              {PAGE_SIZE_OPTIONS.map(opt => (
-                <option key={opt} value={opt}>{opt}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <span className="text-xs text-surface-500">
-              {paginationText.page} {currentPage} {paginationText.of} {totalPages}
-            </span>
-            <div className="flex items-center gap-1">
-              <button
-                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                disabled={currentPage === 1}
-                className="p-1 rounded hover:bg-surface-200 disabled:opacity-30 transition-colors"
-              >
-                <ChevronLeft size={14} className="text-surface-600" />
-              </button>
-              <button
-                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                disabled={currentPage === totalPages}
-                className="p-1 rounded hover:bg-surface-200 disabled:opacity-30 transition-colors"
-              >
-                <ChevronRight size={14} className="text-surface-600" />
-              </button>
-            </div>
-          </div>
+          {/* Bottom bar removed — pagination is now in the top filter bar */}
         </div>
-      </div>
 
-      {/* Detail Panel (resizable slide-out right) */}
-      {showDetail && (
-        <div
-          className="flex-shrink-0 border-l border-surface-200 bg-white overflow-hidden relative"
-          style={{ width: detailWidth, minWidth: 240, maxWidth: 600 }}
-        >
-          {/* Resize drag handle */}
+        {/* Detail Panel — inline beside grid, not overlaid */}
+        {showDetail && (
           <div
-            className="absolute left-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-brand-300 active:bg-brand-400 transition-colors z-10"
-            onMouseDown={(e) => {
-              e.preventDefault();
-              const startX = e.clientX;
-              const startWidth = detailWidth;
-              const onMove = (ev) => {
-                const diff = startX - ev.clientX;
-                setDetailWidth(Math.max(240, Math.min(600, startWidth + diff)));
-              };
-              const onUp = () => {
-                document.removeEventListener('mousemove', onMove);
-                document.removeEventListener('mouseup', onUp);
-              };
-              document.addEventListener('mousemove', onMove);
-              document.addEventListener('mouseup', onUp);
-            }}
-          />
-          <LogDetailPanel
-            log={selectedLog}
-            logType={logType}
-            onClose={() => { setShowDetail(false); setSelectedLog(null); }}
-          />
-        </div>
-      )}
+            className="flex-shrink-0 border-l border-surface-200 bg-white overflow-hidden relative"
+            style={{ width: detailWidth, minWidth: 240, maxWidth: 600 }}
+          >
+            {/* Resize drag handle */}
+            <div
+              className="absolute left-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-brand-300 active:bg-brand-400 transition-colors z-10"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                const startX = e.clientX;
+                const startWidth = detailWidth;
+                const onMove = (ev) => {
+                  const diff = startX - ev.clientX;
+                  setDetailWidth(Math.max(240, Math.min(600, startWidth + diff)));
+                };
+                const onUp = () => {
+                  document.removeEventListener('mousemove', onMove);
+                  document.removeEventListener('mouseup', onUp);
+                };
+                document.addEventListener('mousemove', onMove);
+                document.addEventListener('mouseup', onUp);
+              }}
+            />
+            <LogDetailPanel
+              log={selectedLog}
+              logType={logType}
+              onClose={() => { setShowDetail(false); setSelectedLog(null); }}
+            />
+          </div>
+        )}
+      </div>
     </div>
   );
 }

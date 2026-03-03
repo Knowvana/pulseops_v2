@@ -136,7 +136,7 @@ export default function LoggingConfig({
           {/* Log Capture Options Section */}
           <div className="flex-1 min-w-[320px] text-center">
             <h5 className="text-xs font-bold uppercase tracking-wider text-surface-400 mb-3">Log Capture Options</h5>
-            <div className="flex flex-wrap justify-center gap-3">
+            <div className="flex items-center justify-center gap-3">
               <ToggleRow 
                 icon={Monitor} 
                 label="Console Output" 
@@ -144,7 +144,7 @@ export default function LoggingConfig({
                 enabled={localConfig.captureOptions.console} 
                 onToggle={() => handleCaptureOptionToggle('console')} 
               />
-              <div className="hidden sm:block w-px h-16 bg-gradient-to-b from-transparent via-brand-400 to-transparent shadow-lg" />
+              <div className="w-px h-16 bg-gradient-to-b from-transparent via-brand-400 to-transparent shadow-lg shrink-0" />
               <ToggleRow 
                 icon={Server} 
                 label="API Logs" 
@@ -152,7 +152,7 @@ export default function LoggingConfig({
                 enabled={localConfig.captureOptions.api} 
                 onToggle={() => handleCaptureOptionToggle('api')} 
               />
-              <div className="hidden sm:block w-px h-16 bg-gradient-to-b from-transparent via-brand-400 to-transparent shadow-lg" />
+              <div className="w-px h-16 bg-gradient-to-b from-transparent via-brand-400 to-transparent shadow-lg shrink-0" />
               <ToggleRow 
                 icon={Eye} 
                 label="UI Logs" 
@@ -160,7 +160,7 @@ export default function LoggingConfig({
                 enabled={localConfig.captureOptions.ui} 
                 onToggle={() => handleCaptureOptionToggle('ui')} 
               />
-              <div className="hidden sm:block w-px h-16 bg-gradient-to-b from-transparent via-brand-400 to-transparent shadow-lg" />
+              <div className="w-px h-16 bg-gradient-to-b from-transparent via-brand-400 to-transparent shadow-lg shrink-0" />
               <ToggleRow 
                 icon={Package} 
                 label="Module Logs" 

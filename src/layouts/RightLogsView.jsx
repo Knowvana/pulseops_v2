@@ -44,6 +44,9 @@ const FILTER_OPTIONS = [
   { id: 'error', label: logText.filterError },
 ];
 
+// ── JSON Detail Collapsible Component ──────────────────────────────────────
+// Font sizes: Button label = text-[10px], JSON content = text-xs (12px)
+// Height: max-h-64 (16rem / 256px)
 function JsonDetail({ data, label }) {
   const [open, setOpen] = useState(false);
   if (!data) return null;
@@ -57,13 +60,13 @@ function JsonDetail({ data, label }) {
     <div className="mt-1">
       <button
         onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
-        className="flex items-center gap-0.5 text-[9px] font-medium text-brand-500 hover:text-brand-700"
+        className="flex items-center gap-0.5 text-[10px] font-medium text-brand-500 hover:text-brand-700"
       >
-        {open ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
+        {open ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
         {label || 'Details'}
       </button>
       {open && (
-        <pre className="mt-1 p-1.5 rounded bg-surface-100 border border-surface-200 text-[9px] font-mono text-surface-600 whitespace-pre-wrap break-all max-h-32 overflow-auto">
+        <pre className="mt-1 p-1.5 rounded bg-surface-100 border border-surface-200 text-xs font-mono text-surface-600 whitespace-pre-wrap break-all max-h-64 overflow-auto">
           {formatted}
         </pre>
       )}
@@ -71,6 +74,13 @@ function JsonDetail({ data, label }) {
   );
 }
 
+// ── Log Entry Card Component ───────────────────────────────────────────────
+// Font sizes:
+//   - Level badge (INFO/WARN/etc): text-[11px]
+//   - Source label: text-[11px]
+//   - Timestamp: text-[10px]
+//   - Message text: text-xs (12px)
+//   - Transaction ID: text-[9px]
 function LogEntryCard({ log }) {
   const cfg = LOG_LEVEL_CONFIG[log.level] || LOG_LEVEL_CONFIG.debug;
   const logJson = {
@@ -89,14 +99,14 @@ function LogEntryCard({ log }) {
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between gap-1">
             <div className="flex items-center gap-1">
-              <span className={`text-[9px] font-bold uppercase ${cfg.color}`}>{log.level}</span>
-              <span className="text-[9px] text-surface-400">{log.source || log.module || 'UI'}</span>
+              <span className={`text-[11px] font-bold uppercase ${cfg.color}`}>{log.level}</span>
+              <span className="text-[11px] text-surface-400">{log.source || log.module || 'UI'}</span>
             </div>
-            <span className="text-[8px] text-surface-400 shrink-0">{log.timestamp}</span>
+            <span className="text-[10px] text-surface-400 shrink-0">{log.timestamp}</span>
           </div>
-          <p className="text-[10px] text-surface-700 mt-0.5 break-words leading-tight">{log.message}</p>
+          <p className="text-xs text-surface-700 mt-0.5 break-words leading-snug">{log.message}</p>
           {log.transactionId && (
-            <span className="inline-block mt-0.5 text-[8px] font-mono text-surface-400 bg-surface-100 px-1 rounded">
+            <span className="inline-block mt-0.5 text-[9px] font-mono text-surface-400 bg-surface-100 px-1 rounded">
               TX: {log.transactionId}
             </span>
           )}
@@ -107,6 +117,12 @@ function LogEntryCard({ log }) {
   );
 }
 
+// ── API Call Card Component ────────────────────────────────────────────────
+// Font sizes:
+//   - Method badge (GET/POST/etc): text-[11px]
+//   - URL: text-xs (12px)
+//   - Status code: text-xs (12px)
+//   - Duration/TX/Error: text-[9px]
 function ApiCallCard({ call }) {
   const isSuccess = call.status >= 200 && call.status < 300;
   const callJson = {
@@ -123,21 +139,21 @@ function ApiCallCard({ call }) {
     <div className={`rounded-md border px-2 py-1.5 ${isSuccess ? 'border-emerald-100 bg-emerald-50/30' : 'border-rose-100 bg-rose-50/30'}`}>
       <div className="flex items-center justify-between gap-1">
         <div className="flex items-center gap-1.5 min-w-0">
-          <span className={`text-[9px] font-bold px-1 py-0.5 rounded ${
+          <span className={`text-[11px] font-bold px-1 py-0.5 rounded ${
             isSuccess ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
           }`}>{call.method}</span>
-          <span className="text-[10px] text-surface-600 truncate">{call.url}</span>
+          <span className="text-xs text-surface-600 truncate">{call.url}</span>
         </div>
-        <span className={`text-[10px] font-bold shrink-0 ${STATUS_COLOR(call.status)}`}>{call.status || '—'}</span>
+        <span className={`text-xs font-bold shrink-0 ${STATUS_COLOR(call.status)}`}>{call.status || '—'}</span>
       </div>
       <div className="flex items-center gap-2 mt-0.5">
-        {call.duration && <span className="text-[8px] text-surface-400">{call.duration}ms</span>}
+        {call.duration && <span className="text-[9px] text-surface-400">{call.duration}ms</span>}
         {call.transactionId && (
-          <span className="text-[8px] font-mono text-surface-400 bg-surface-100 px-1 rounded">
+          <span className="text-[9px] font-mono text-surface-400 bg-surface-100 px-1 rounded">
             TX: {call.transactionId}
           </span>
         )}
-        {call.error && <span className="text-[8px] text-rose-500 truncate">{call.error}</span>}
+        {call.error && <span className="text-[9px] text-rose-500 truncate">{call.error}</span>}
       </div>
       <JsonDetail data={callJson} label="View JSON" />
     </div>
@@ -170,42 +186,43 @@ export default function RightLogsView({ isOpen, onClose, logs = [], apiCalls = [
 
   return (
     <div
-      className={`fixed top-[var(--topnav-height)] right-0 bottom-0 w-[var(--right-panel-width)] bg-white border-l border-surface-200 shadow-xl z-20 transform transition-transform duration-300 ease-in-out flex flex-col ${
-        isOpen ? 'translate-x-0' : 'translate-x-full'
+      className={`flex-shrink-0 bg-white border-l border-surface-200 shadow-xl flex flex-col transition-all duration-300 ease-in-out overflow-hidden ${
+        isOpen ? 'w-[var(--right-panel-width)]' : 'w-0 border-l-0'
       }`}
     >
-      {/* Header */}
+      {/* Header - Tab labels and counts */}
+      {/* Font sizes: Tab labels = text-xs (12px), Count badges = text-[9px] */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-surface-200 flex-shrink-0">
         <div className="flex items-center gap-1">
           <button
             onClick={() => setActiveTab('logs')}
-            className={`px-2.5 py-1 rounded-lg text-[10px] font-semibold transition-all ${
+            className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
               activeTab === 'logs'
                 ? 'bg-brand-50 text-brand-700'
                 : 'text-surface-400 hover:text-surface-600 hover:bg-surface-50'
             }`}
           >
             <div className="flex items-center gap-1">
-              <ScrollText size={11} />
+              <ScrollText size={12} />
               {panelText.tabs.systemLogs}
               {filteredLogs.length > 0 && (
-                <span className="ml-0.5 px-1 py-0 rounded-full text-[8px] bg-brand-100 text-brand-600">{filteredLogs.length}</span>
+                <span className="ml-0.5 px-1 py-0 rounded-full text-[9px] bg-brand-100 text-brand-600">{filteredLogs.length}</span>
               )}
             </div>
           </button>
           <button
             onClick={() => setActiveTab('api')}
-            className={`px-2.5 py-1 rounded-lg text-[10px] font-semibold transition-all ${
+            className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
               activeTab === 'api'
                 ? 'bg-brand-50 text-brand-700'
                 : 'text-surface-400 hover:text-surface-600 hover:bg-surface-50'
             }`}
           >
             <div className="flex items-center gap-1">
-              <Globe size={11} />
+              <Globe size={12} />
               {panelText.tabs.apiCalls}
               {apiCalls.length > 0 && (
-                <span className="ml-0.5 px-1 py-0 rounded-full text-[8px] bg-brand-100 text-brand-600">{apiCalls.length}</span>
+                <span className="ml-0.5 px-1 py-0 rounded-full text-[9px] bg-brand-100 text-brand-600">{apiCalls.length}</span>
               )}
             </div>
           </button>
@@ -228,13 +245,14 @@ export default function RightLogsView({ isOpen, onClose, logs = [], apiCalls = [
       </div>
 
       {/* Log Filter Bar (only for logs tab) */}
+      {/* Font size: Filter buttons (ALL/DEBUG/INFO/WARN/ERROR) = text-xs (12px) */}
       {activeTab === 'logs' && (
         <div className="flex items-center gap-0.5 px-2 py-1.5 border-b border-surface-100 bg-surface-50 flex-shrink-0">
           {FILTER_OPTIONS.map((filter) => (
             <button
               key={filter.id}
               onClick={() => setLogFilter(filter.id)}
-              className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase transition-all ${
+              className={`px-1.5 py-0.5 rounded text-xs font-bold uppercase transition-all ${
                 logFilter === filter.id
                   ? 'bg-brand-100 text-brand-700'
                   : 'text-surface-400 hover:text-surface-600 hover:bg-surface-100'

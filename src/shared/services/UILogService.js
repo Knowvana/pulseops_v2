@@ -22,24 +22,35 @@
 // are notified synchronously when new entries arrive.
 // ============================================================================
 import urls from '@config/urls.json';
+import TimezoneService from '@shared/services/timezoneService';
 
 const MAX_LOG_ENTRIES = 500;
 const MAX_API_ENTRIES = 200;
 const PUSH_INTERVAL_MS = 30000;
 
+// Pre-compiled regex for performance (avoid re-creation on every _addLog call)
+const EMOJI_REGEX = /[\u{1F300}-\u{1F9FF}\u{2600}-\u{27BF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{2702}-\u{27B0}]/gu;
+const SOURCE_REGEX = /\[([^\]]+)\]/;
+
+// Messages to skip — React internals, Vite HMR, Chrome violations, DOM warnings
+const SKIP_PREFIXES = [
+  'Download the React DevTools',
+  '[Violation]',
+  '[HMR]',
+  '[vite]',
+  '[DOM]',
+  'Password field is not contained',
+  'Warning: ',
+  'React does not recognize',
+  '%c',
+];
+
 function formatISTTime() {
-  return new Date().toLocaleString('en-IN', {
-    timeZone: 'Asia/Kolkata',
-    day: '2-digit', month: 'short', year: 'numeric',
-    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true,
-  });
+  return TimezoneService.formatCurrentTime();
 }
 
 function toISTISO() {
-  // Return ISO string but in IST offset (+05:30)
-  const now = new Date();
-  const ist = new Date(now.getTime() + (5.5 * 60 * 60 * 1000));
-  return ist.toISOString().replace('Z', '+05:30');
+  return TimezoneService.toTimezoneISO();
 }
 
 class UILogServiceClass {
@@ -55,6 +66,7 @@ class UILogServiceClass {
     this._notifyTimer = null;
     this._notifyPending = false;
     this._sessionTxId = null;
+    this._userEmail = null;
   }
 
   _generateSessionTxId() {
@@ -73,6 +85,20 @@ class UILogServiceClass {
    */
   setSessionTxId(txId) {
     this._sessionTxId = txId;
+  }
+
+  /**
+   * Set the authenticated user email for log entries
+   */
+  setUserEmail(email) {
+    this._userEmail = email || null;
+  }
+
+  /**
+   * Get the current user email
+   */
+  getUserEmail() {
+    return this._userEmail;
   }
 
   // ── Init: Intercept console + fetch ──────────────────────────────────────
@@ -212,6 +238,7 @@ class UILogServiceClass {
       module: 'Core',
       message: typeof message === 'string' ? message : JSON.stringify(message),
       data: data || null,
+      user: this._userEmail || null,
       transactionId: this._sessionTxId || null,
       timestamp: formatISTTime(),
       isoTimestamp: toISTISO(),
@@ -245,6 +272,7 @@ class UILogServiceClass {
             event: 'console',
             component: e.source || 'Console',
             message: e.message,
+            user: e.user || this._userEmail || null,
             transactionId: e.transactionId || null,
             result: null,
             timestamp: e.isoTimestamp || new Date().toISOString(),
@@ -261,6 +289,15 @@ class UILogServiceClass {
 
   // ── Internal: Add console log ────────────────────────────────────────────
   _addLog(level, args) {
+    // Fast early-exit: skip if first arg matches known noise prefixes
+    const firstArg = args[0];
+    if (typeof firstArg === 'string') {
+      if (firstArg.includes('[UILogService]')) return;
+      for (let i = 0; i < SKIP_PREFIXES.length; i++) {
+        if (firstArg.startsWith(SKIP_PREFIXES[i])) return;
+      }
+    }
+
     const message = args
       .map((a) => {
         if (typeof a === 'string') return a;
@@ -268,25 +305,30 @@ class UILogServiceClass {
       })
       .join(' ');
 
-    // Skip internal log service messages to avoid recursion
+    // Second pass skip for joined messages
     if (message.includes('[UILogService]')) return;
 
     const source = this._extractSource(message);
 
     // Format in fixed log format: strip emojis, use structured format
-    const cleanMessage = message.replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{27BF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{2702}-\u{27B0}]/gu, '').trim();
+    const cleanMessage = message.replace(EMOJI_REGEX, '').trim();
 
     const entry = {
       level,
       source,
       module: 'Core',
       message: cleanMessage,
+      user: this._userEmail || null,
       transactionId: this._sessionTxId || null,
       timestamp: formatISTTime(),
       isoTimestamp: toISTISO(),
     };
 
-    this._logs = [...this._logs.slice(-(MAX_LOG_ENTRIES - 1)), entry];
+    // Use push + conditional trim instead of spread on every call
+    this._logs.push(entry);
+    if (this._logs.length > MAX_LOG_ENTRIES) {
+      this._logs = this._logs.slice(-MAX_LOG_ENTRIES);
+    }
     this._pendingPush.push(entry);
     this._notify();
   }
@@ -296,7 +338,10 @@ class UILogServiceClass {
     // Skip log push calls to avoid recursion
     if (entry.fullUrl?.includes('/api/logs/ui') && entry.method === 'POST') return;
 
-    this._apiCalls = [...this._apiCalls.slice(-(MAX_API_ENTRIES - 1)), { ...entry, transactionId: this._sessionTxId }];
+    this._apiCalls.push({ ...entry, transactionId: this._sessionTxId });
+    if (this._apiCalls.length > MAX_API_ENTRIES) {
+      this._apiCalls = this._apiCalls.slice(-MAX_API_ENTRIES);
+    }
     this._notify();
   }
 
@@ -313,7 +358,7 @@ class UILogServiceClass {
   // ── Internal: Extract source from message ────────────────────────────────
   _extractSource(message) {
     // Match patterns like [Frontend], [Auth], [PlatformDashboard], etc.
-    const match = message.match(/\[([^\]]+)\]/);
+    const match = message.match(SOURCE_REGEX);
     if (match) return match[1];
     return 'Console';
   }

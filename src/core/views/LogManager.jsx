@@ -25,23 +25,23 @@
 //   - @config/urls.json           → API endpoints
 //   - @shared → LogViewer, LogStats, ConfirmationModal
 // ============================================================================
-import React, { useState, useEffect, useCallback } from 'react';
-import { ScrollText, Search, Monitor, Server } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { ScrollText } from 'lucide-react';
 import { LogViewer, LogStats, ConfirmationModal } from '@shared';
 import uiText from '@config/uiElementsText.json';
 import uiMessages from '@config/UIMessages.json';
 import urls from '@config/urls.json';
 
 const viewText = uiText.coreViews.logs;
-const filterText = viewText.filters;
 const logTypeText = viewText.logTypes;
 // urls.logs.* paths already include /api prefix (e.g. /api/logs/api)
 // Vite proxy forwards /api/* to backend - use empty base to avoid double /api/api
 const apiBase = '';
 
-const LEVEL_FILTERS = ['all', 'debug', 'info', 'warn', 'error'];
-
 export default function LogManager() {
+  // ── StrictMode guard ────────────────────────────────────────────────────
+  const initRan = useRef(false);
+
   // ── State ────────────────────────────────────────────────────────────────
   const [logType, setLogType] = useState('api');
   const [logs, setLogs] = useState([]);
@@ -109,9 +109,12 @@ export default function LogManager() {
 
   // ── Auto-fetch on mount and when filters change ──────────────────────────
   useEffect(() => {
+    if (!initRan.current) {
+      initRan.current = true;
+      fetchLogConfig();
+    }
     fetchLogs();
     fetchStats();
-    fetchLogConfig();
   }, [fetchLogs, fetchStats, fetchLogConfig]);
 
   // ── Refresh handler ──────────────────────────────────────────────────────
@@ -156,57 +159,6 @@ export default function LogManager() {
         </div>
       </div>
 
-      {/* Controls Bar */}
-      <div className="flex flex-wrap items-center gap-3 flex-shrink-0 mb-3">
-        {/* Log Type Selector */}
-        <div className="flex items-center rounded-lg border border-surface-200 overflow-hidden bg-white shadow-sm">
-          <button
-            onClick={() => setLogType('ui')}
-            className={`flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium transition-colors
-              ${logType === 'ui' ? 'bg-brand-500 text-white' : 'text-surface-600 hover:bg-surface-50'}`}
-          >
-            <Monitor size={13} />
-            {logTypeText.ui}
-          </button>
-          <button
-            onClick={() => setLogType('api')}
-            className={`flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium transition-colors
-              ${logType === 'api' ? 'bg-brand-500 text-white' : 'text-surface-600 hover:bg-surface-50'}`}
-          >
-            <Server size={13} />
-            {logTypeText.api}
-          </button>
-        </div>
-
-        {/* Level Filters */}
-        <div className="flex items-center gap-1">
-          {LEVEL_FILTERS.map(level => (
-            <button
-              key={level}
-              onClick={() => setLevelFilter(level)}
-              className={`px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-colors border
-                ${levelFilter === level
-                  ? 'bg-brand-500 text-white border-brand-500 shadow-sm'
-                  : 'bg-white text-surface-600 border-surface-200 hover:bg-surface-50 hover:border-surface-300'}`}
-            >
-              {filterText[level]}
-            </button>
-          ))}
-        </div>
-
-        {/* Search */}
-        <div className="relative flex-1 min-w-[200px] max-w-xs">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-surface-400" />
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder={viewText.search.placeholder}
-            className="w-full pl-8 pr-3 py-2 text-xs border border-surface-200 rounded-lg bg-white text-surface-700 placeholder:text-surface-400 focus:outline-none focus:ring-1 focus:ring-brand-300 focus:border-brand-300"
-          />
-        </div>
-      </div>
-
       {/* Stats Bar */}
       <div className="flex-shrink-0 mb-3">
         <LogStats
@@ -219,12 +171,17 @@ export default function LogManager() {
         />
       </div>
 
-      {/* Log Grid + Detail Panel */}
+      {/* Log Grid + Detail Panel (controls moved inside LogViewer) */}
       <LogViewer
         logs={logs}
         logType={logType}
         isLoading={isLoading}
         totalCount={stats.count}
+        onLogTypeChange={setLogType}
+        levelFilter={levelFilter}
+        onLevelFilterChange={setLevelFilter}
+        searchTerm={searchTerm}
+        onSearchChange={setSearchTerm}
       />
 
       {/* Delete Confirmation Modal */}

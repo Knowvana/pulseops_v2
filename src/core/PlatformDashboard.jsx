@@ -30,21 +30,23 @@
 //   - @config/uiElementsText.json   → All UI text
 //   - @config/app.json          → App name, default credentials
 // ============================================================================
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, Suspense } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   LayoutDashboard, Package, ScrollText, Settings as SettingsIcon, Shield, Eye
 } from 'lucide-react';
 import { AppShell } from '@layouts';
 import { getAllManifests, getManifestById, loadModuleManifests } from '@modules/moduleRegistry';
-import { ConfigLayout } from '@shared';
-import AdminDashboard from '@core/views/AdminDashboard';
-import ModuleManager from '@core/views/ModuleManager';
-import LogManager from '@core/views/LogManager';
-import Settings from '@core/views/Settings';
-import TestPage from '@shared/components/TestPage';
+import { ConfigLayout, PageLoader } from '@shared';
 import appConfig from '@config/app.json';
 import uiText from '@config/uiElementsText.json';
+
+// Lazy-load heavy views for faster navigation (code-split per view)
+const AdminDashboard = React.lazy(() => import('@core/views/AdminDashboard'));
+const ModuleManager = React.lazy(() => import('@core/views/ModuleManager'));
+const LogManager = React.lazy(() => import('@core/views/LogManager'));
+const Settings = React.lazy(() => import('@core/views/Settings'));
+const TestPage = React.lazy(() => import('@shared/components/TestPage'));
 
 const coreNav = uiText.coreNav;
 
@@ -76,9 +78,11 @@ export default function PlatformDashboard({ user, onLogout }) {
   const navigate = useNavigate();
   const { moduleId: urlModuleId, viewId: urlViewId } = useParams();
 
+  // Derive active module/view directly from URL — no separate state to sync
+  const activeModuleId = urlModuleId || CORE_ADMIN.id;
+  const activeView = urlViewId || CORE_ADMIN.defaultView;
+
   const [dbModules, setDbModules] = useState([]);
-  const [activeModuleId, setActiveModuleId] = useState(urlModuleId || CORE_ADMIN.id);
-  const [activeView, setActiveView] = useState(urlViewId || CORE_ADMIN.defaultView);
   const [modulesLoading, setModulesLoading] = useState(true);
 
   // ── Fetch enabled modules from database + load manifests ──────────────────
@@ -114,16 +118,6 @@ export default function PlatformDashboard({ user, onLogout }) {
 
     return [CORE_ADMIN, ...dynamicTabs];
   }, [dbModules, modulesLoading]);
-
-  // ── Sync URL params with state ────────────────────────────────────────────
-  useEffect(() => {
-    if (urlModuleId && urlModuleId !== activeModuleId) {
-      setActiveModuleId(urlModuleId);
-    }
-    if (urlViewId && urlViewId !== activeView) {
-      setActiveView(urlViewId);
-    }
-  }, [urlModuleId, urlViewId]);
 
   // ── Auto-select Admin on initial load if no URL params ────────────────────
   useEffect(() => {
@@ -164,46 +158,27 @@ export default function PlatformDashboard({ user, onLogout }) {
     }
   }, [activeModuleId, navigate]);
 
-  // ── Render active content ─────────────────────────────────────────────────
-  const renderContent = useCallback(() => {
+  // ── Resolve active content component ───────────────────────────────────────
+  const activeContent = useMemo(() => {
     // Core Admin views
     if (isAdminActive) {
       const ViewComponent = CORE_ADMIN.views[activeView];
-      if (ViewComponent) {
-        return <ViewComponent user={user} onModulesChanged={fetchModules} />;
-      }
-      // Fallback to dashboard
-      const FallbackView = CORE_ADMIN.views[CORE_ADMIN.defaultView];
-      return FallbackView ? <FallbackView user={user} onModulesChanged={fetchModules} /> : null;
+      return ViewComponent || CORE_ADMIN.views[CORE_ADMIN.defaultView] || null;
     }
 
-    // Dynamic module views
-    if (!activeManifest) return null;
-
-    // Settings/config view (tabbed)
-    if (activeView === 'config' && activeManifest.getConfigTabs) {
-      const tabs = typeof activeManifest.getConfigTabs === 'function'
-        ? activeManifest.getConfigTabs() : activeManifest.getConfigTabs;
-      return (
-        <ConfigLayout
-          title={activeManifest.configTitle}
-          subtitle={activeManifest.configSubtitle}
-          icon={activeManifest.configIcon}
-          tabs={tabs}
-          defaultTab={activeManifest.configDefaultTab}
-        />
-      );
+    // Dynamic module views — config tab
+    if (activeView === 'config' && activeManifest?.getConfigTabs) {
+      return null; // handled separately below
     }
 
-    if (activeManifest.getViews) {
+    // Dynamic module views — regular views
+    if (activeManifest?.getViews) {
       const views = activeManifest.getViews();
-      const ViewComponent = views[activeView] || views[activeManifest.defaultView];
-      if (!ViewComponent) return null;
-      return <ViewComponent user={user} onNavigate={handleSideNavSelect} onModulesChanged={fetchModules} />;
+      return views[activeView] || views[activeManifest.defaultView] || null;
     }
 
     return null;
-  }, [isAdminActive, activeManifest, activeView, user, handleSideNavSelect, fetchModules]);
+  }, [isAdminActive, activeManifest, activeView]);
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -219,7 +194,32 @@ export default function PlatformDashboard({ user, onLogout }) {
       activeSideNavItemId={activeView}
       onSelectSideNavItem={handleSideNavSelect}
     >
-      {renderContent()}
+      <Suspense fallback={<PageLoader inline message="Loading view..." />}>
+        {(() => {
+          // Dynamic module config tab (special case)
+          if (!isAdminActive && activeView === 'config' && activeManifest?.getConfigTabs) {
+            const tabs = typeof activeManifest.getConfigTabs === 'function'
+              ? activeManifest.getConfigTabs() : activeManifest.getConfigTabs;
+            return (
+              <ConfigLayout
+                title={activeManifest.configTitle}
+                subtitle={activeManifest.configSubtitle}
+                icon={activeManifest.configIcon}
+                tabs={tabs}
+                defaultTab={activeManifest.configDefaultTab}
+              />
+            );
+          }
+
+          // Resolved view component
+          const ViewComponent = activeContent;
+          if (!ViewComponent) return null;
+
+          return isAdminActive
+            ? <ViewComponent user={user} onModulesChanged={fetchModules} />
+            : <ViewComponent user={user} onNavigate={handleSideNavSelect} onModulesChanged={fetchModules} />;
+        })()}
+      </Suspense>
     </AppShell>
   );
 }
