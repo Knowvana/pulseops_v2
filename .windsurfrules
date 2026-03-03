@@ -29,20 +29,30 @@ When executing terminal commands using the `run_command` tool:
 
 PulseOps V2 implements a **Microkernel + Micro-Frontend** architecture with zero-downtime hot-swappability. These mandates are NON-NEGOTIABLE.
 
-### 1.1 Module Classification
+### 1.1 Core Platform vs Modules (CRITICAL DISTINCTION)
 
-**Core Modules** (Statically Imported at Build):
-- `auth` — Authentication & authorization governance (CANNOT be disabled).
-- `platform_admin` — Platform administration (CANNOT be disabled).
-- These modules are bundled into the main application bundle.
-- Located in `src/modules/<id>/manifest.jsx` and imported directly in `src/modules/moduleRegistry.js`.
+**Core Platform** (Built-in, Statically Imported, CANNOT be disabled):
+The following are NOT modules. They are built-in core platform features that live in `src/core/`:
+- **Authentication & Authorization** — Login, RBAC, JWT. Views/config managed in `src/core/views/Settings.jsx`.
+- **Logging & Monitoring** — Log management, log viewer. Views in `src/core/views/LogManager.jsx`.
+- **Platform Administration** — Dashboard, module manager, settings. Views in `src/core/views/`.
+- **Database Management** — Schema, data, config. Managed via `DatabaseManager` shared component.
+
+Core platform views live in `src/core/views/`:
+- `AdminDashboard.jsx` — Platform admin dashboard with metrics.
+- `Settings.jsx` — Tabbed settings (Database Config, Database Objects, Log Settings, Auth Settings).
+- `LogManager.jsx` — Log viewer and management.
+- `ModuleManager.jsx` — Module lifecycle management.
+
+The core admin tab is hardcoded as `CORE_ADMIN` constant in `src/core/PlatformDashboard.jsx` and is ALWAYS the first tab.
 
 **Add-on Modules** (Hot-Dropped at Runtime):
-- All future custom modules.
+- All business/custom modules (e.g., ops_monitor, roster, reporting).
 - Built as standalone ES module bundles via `vite.module.config.js`.
 - Compiled to `dist-modules/<id>/manifest.js` + `dist-modules/<id>/constants.json`.
 - Served by the API at `/api/modules/bundle/<id>/manifest.js`.
-- Dynamically imported at runtime via `loadModuleManifest(moduleId)` in `moduleRegistry.js`.
+- Dynamically imported at runtime via `loadModuleManifest(moduleId)` in `src/modules/moduleRegistry.js`.
+- Template for new modules: `src/modules/_template/`.
 
 ### 1.2 Dependency Sharing (CRITICAL for Stability)
 
@@ -61,23 +71,49 @@ const hotDropUrl = `${base}${urls.modulesBundle}/${moduleId}/manifest.js?v=${ver
 const mod = await import(/* @vite-ignore */ hotDropUrl);
 ```
 
-### 1.4 Zero Hardcoding of UI Text, Logs, and URLs
+### 1.4 Zero Hardcoding of UI Text, Messages, Errors, and URLs
 
 **PROHIBITED:**
-- Hardcoded UI strings in components.
+- Hardcoded UI label/element strings in components.
+- Hardcoded success/error/info messages in components.
 - Hardcoded log messages in services.
 - Hardcoded error messages in middleware.
 - Hardcoded API URLs in code.
+- Hardcoded database names, schema names, or other config values that come from the API.
 
-**REQUIRED:**
-- **UI Text:** `src/modules/<id>/uiText.json` (imported as `import uiText from '@modules/<id>/uiText.json'`).
-- **Global UI Text:** `src/config/globalText.json` (imported as `import globalText from '@config/globalText.json'`).
-- **URLs:** `src/config/urls.json` (imported as `import urls from '@config/urls.json'`).
-- **Module Metadata:** `src/modules/<id>/constants.json` (imported as `import moduleConstants from '@modules/<id>/constants.json'`).
+**REQUIRED — Frontend JSON Files** (in `src/config/`, imported via `@config/`):
+
+| File | Purpose | Import Example |
+|------|---------|----------------|
+| `uiElementsText.json` | UI element labels (buttons, titles, field labels, tab names, placeholders) | `import uiText from '@config/uiElementsText.json'` |
+| `UIMessages.json` | Success, info, and confirmation messages shown to users | `import messages from '@config/UIMessages.json'` |
+| `UIErrors.json` | Error messages shown to users | `import errors from '@config/UIErrors.json'` |
+| `urls.json` | All API endpoint URLs | `import urls from '@config/urls.json'` |
+| `app.json` | App-level config (name, version) | `import appConfig from '@config/app.json'` |
+
+**REQUIRED — Backend JSON Files** (in `api/src/config/`, imported via `#config/`):
+
+| File | Purpose | Import Example |
+|------|---------|----------------|
+| `DatabaseConfig.json` | PostgreSQL connection config (host, port, database, schema, etc.) | `import dbConfig from '#config/DatabaseConfig.json'` |
+| `DefaultAdminUser.json` | Default admin user seed data | `import adminUser from '#config/DefaultAdminUser.json'` |
+| `APIMessages.json` | API response messages | `import apiMessages from '#config/APIMessages.json'` |
+| `APIErrors.json` | API error messages and codes | `import apiErrors from '#config/APIErrors.json'` |
+| `urls.json` | API route paths and endpoint URLs | `import urls from '#config/urls.json'` |
+| `swagger.json` | Swagger/OpenAPI documentation | Loaded by swagger-ui-express |
+| `auth-provider.json` | Auth provider configuration | `import authProvider from '#config/auth-provider.json'` |
+| `app.json` | App-level config defaults | `import appConfig from '#config/app.json'` |
+
+**REQUIRED — Module-Specific Text** (in `src/modules/<id>/`):
+- `uiText.json` — Module-specific UI text (imported as `import uiText from '@modules/<id>/uiText.json'`).
+- `constants.json` — Module metadata and constants (imported as `import moduleConstants from '@modules/<id>/constants.json'`).
+
+**CRITICAL RULE: Dynamic Config from API**
+- Database name, schema, tables, admin user email, and other runtime config MUST be fetched from the API at runtime. NEVER create config files in the frontend (`src/`) for data that originates from the backend.
 
 ### 1.5 Module Manifest Contract & Base Navigation (STRICT)
 
-Every module MUST export a manifest object. To maintain a consistent enterprise UI, **every module MUST implement three base navigation views**.
+Every **add-on module** MUST export a manifest object. To maintain a consistent enterprise UI, **every module MUST implement three base navigation views**.
 
 **REQUIRED Nav Items (Base 3):**
 The `navItems` array MUST include these three core IDs in this exact order. Modules may append custom items *after* these three:
@@ -86,8 +122,8 @@ The `navItems` array MUST include these three core IDs in this exact order. Modu
 3. `reports` — The reporting and data export view.
 
 **REQUIRED Manifest Fields:**
-- `id` — Unique module identifier (e.g., `'auth'`, `'logging'`).
-- `name` — Display name for UI (e.g., `'Authentication'`).
+- `id` — Unique module identifier (e.g., `'ops_monitor'`, `'roster'`).
+- `name` — Display name for UI (e.g., `'Operations Monitor'`).
 - `version` — Semantic version string (e.g., `'1.0.0'`).
 - `description` — Human-readable description.
 - `icon` — Lucide React icon component.
@@ -129,7 +165,20 @@ Every module's `constants.json` MUST include a `moduleDetails` object:
 
 ## 2. Enterprise Node.js Backend Rules (Scale & Security)
 
-### 2.1 Dual-Authentication Protocol (MANDATORY)
+The backend API lives in `api/` with its own `package.json`. It uses Node.js subpath imports (`#config`, `#shared`, `#core`, `#root`) defined in `api/package.json`.
+
+### 2.1 Backend Import Aliases (MANDATORY)
+
+All backend imports MUST use subpath aliases. NEVER use relative paths (`./` or `../`).
+
+| Alias | Resolves To | Example |
+|-------|-------------|---------|
+| `#config/*` | `./src/config/*` | `import dbConfig from '#config/DatabaseConfig.json'` |
+| `#shared/*` | `./src/shared/*` | `import logger from '#shared/logger.js'` |
+| `#core/*` | `./src/core/*` | `import { authenticate } from '#core/middleware/auth.js'` |
+| `#root/*` | `./*` | `import pkg from '#root/package.json'` |
+
+### 2.2 Dual-Authentication Protocol (MANDATORY)
 
 The API MUST support two authentication methods simultaneously:
 
@@ -140,7 +189,7 @@ The API MUST support two authentication methods simultaneously:
 **2. Authorization Header (Secondary for Swagger/Postman/Programmatic Clients):**
 - Format: `Authorization: Bearer <token>`.
 
-**Implementation in `authenticate` Middleware:**
+**Implementation in `authenticate` Middleware** (`api/src/core/middleware/auth.js`):
 ```javascript
 export function authenticate(req, res, next) {
   let token = null;
@@ -163,7 +212,7 @@ export function authenticate(req, res, next) {
 }
 ```
 
-### 2.2 Cookie Security (STRICT)
+### 2.3 Cookie Security (STRICT)
 
 When setting JWT cookies, ALWAYS use:
 ```javascript
@@ -175,7 +224,7 @@ const cookieOptions = {
 };
 ```
 
-### 2.3 CORS Configuration (MANDATORY)
+### 2.4 CORS Configuration (MANDATORY)
 
 ```javascript
 app.use(cors({
@@ -186,7 +235,7 @@ app.use(cors({
 }));
 ```
 
-### 2.4 CDN Readiness
+### 2.5 CDN Readiness
 
 Module asset URLs MUST assume eventual CDN serving:
 ```javascript
@@ -194,18 +243,21 @@ const cdnBaseUrl = process.env.CDN_BASE_URL || '/api/modules/bundle';
 const moduleUrl = `${cdnBaseUrl}/${moduleId}/manifest.js?v=${moduleVersion}`;
 ```
 
-### 2.5 Database & Caching Strategy
+### 2.6 Database & Caching Strategy
 
-- Centralize ALL database queries via `DatabaseService.query()` using parameterized queries.
+- Database config lives in `api/src/config/DatabaseConfig.json`. NEVER in the frontend.
+- Centralize ALL database queries via `databaseService.js` (`api/src/core/database/`) using parameterized queries.
 - NEVER construct SQL with string concatenation.
 - Connection pool: 10-20 connections per API instance (PgBouncer ready).
 - Redis caching layer for read-heavy data (module registry, config, RBAC). TTL: 5-15 min.
 
-### 2.6 Hot-Drop Module Security (Zero Trust)
+### 2.7 Hot-Drop Module Security (Zero Trust)
 
 Module scanner MUST verify checksum/signature before registering.
 
-### 2.7 Security Middleware Chain (MANDATORY ORDER)
+### 2.8 Security Middleware Chain (MANDATORY ORDER)
+
+Defined in `api/src/core/middleware/security.js` and applied in `api/src/app.js`:
 
 1. **Helmet.js** — HTTP security headers
 2. **Request ID** — UUID per request
@@ -221,12 +273,31 @@ Module scanner MUST verify checksum/signature before registering.
 12. **404 Handler**
 13. **Global Error Handler** — with Request ID
 
-### 2.8 Error Handling & Logging (CENTRALIZED)
+### 2.9 Error Handling & Logging (CENTRALIZED)
+
+- Backend error messages MUST come from `api/src/config/APIErrors.json`.
+- Backend success messages MUST come from `api/src/config/APIMessages.json`.
+- Logger: `api/src/shared/logger.js` (Winston-based).
+- JSON loader utility: `api/src/shared/loadJson.js`.
 
 **Error Response Format:**
 ```javascript
 { success: false, error: { message: "...", code: "ERROR_CODE", requestId: "uuid" } }
 ```
+
+### 2.10 API Routes (Core Platform)
+
+All routes defined in `api/src/core/routes/`:
+
+| Route File | Mount Path | Purpose |
+|------------|-----------|---------|
+| `healthRoutes.js` | `/api/health` | Health, liveness, readiness probes (PUBLIC) |
+| `authRoutes.js` | `/api/auth` | Login, logout, /me, user management |
+| `databaseRoutes.js` | `/api/database` | DB CRUD, schema, data seeding, config |
+| `configRoutes.js` | `/api/config` | System configuration CRUD |
+| `index.js` | — | Route aggregator |
+
+Route paths are centralized in `api/src/config/urls.json`. NEVER hardcode route paths.
 
 ---
 
@@ -236,36 +307,86 @@ Module scanner MUST verify checksum/signature before registering.
 
 - All reusable UI components MUST live in `src/shared/components/`.
 - Import shared components via `import { ComponentName } from '@shared'`.
+- Barrel export: `src/shared/index.js` — ALL shared components MUST be exported here.
 - PROHIBITED: Duplicating component logic across modules.
 
-### 3.2 Rendering Optimization (CRITICAL)
+**Current Shared Components:**
+- `Button.jsx` — Multi-variant button.
+- `ConfigLayout.jsx` — Tabbed configuration panel (used by Settings).
+- `ConfirmationModal.jsx` — 3-phase CRUD modal (Confirm → Progress → Summary).
+- `ConnectionStatus.jsx` — Connection status indicator with meta info.
+- `CrudSummary.jsx` — Standalone CRUD summary display.
+- `DatabaseManager.jsx` — Database CRUD operations panel.
+- `LoggingConfig.jsx` — Log configuration component.
+- `LoginForm.jsx` — Authentication login form.
+- `StatsCount.jsx` — Animated stats counter.
+- `TestConnection.jsx` — Connection test form with auto-test support.
+- `TestPage.jsx` — Design system showcase/test page.
+
+### 3.2 Frontend Import Aliases (MANDATORY)
+
+All frontend imports MUST use aliases. NEVER use relative paths (`./` or `../`).
+
+| Alias | Resolves To | Example |
+|-------|-------------|---------|
+| `@config/*` | `src/config/*` | `import urls from '@config/urls.json'` |
+| `@core/*` | `src/core/*` | `import App from '@core/App.jsx'` |
+| `@modules/*` | `src/modules/*` | `import registry from '@modules/moduleRegistry.js'` |
+| `@shared/*` | `src/shared/*` | `import { Button } from '@shared'` |
+| `@shared` | `src/shared/index.js` | `import { Button, ConfigLayout } from '@shared'` |
+| `@layouts/*` | `src/layouts/*` | `import { AppShell } from '@layouts'` |
+| `@layouts` | `src/layouts/index.js` | `import { TopMenu } from '@layouts'` |
+
+Defined in `jsconfig.json` (IDE) and `vite.config.js` (build).
+
+### 3.3 Rendering Optimization (CRITICAL)
 
 - `getViews()` MUST return Component References, NOT JSX Elements.
 - Use `useMemo` for expensive computations, `useCallback` for handlers.
 
-### 3.3 State Management (LOCALIZED)
+### 3.4 State Management (LOCALIZED)
 
 - Local state with `useState` / `useReducer`.
 - React Context ONLY for auth, theme, global notifications.
 - URL state via `react-router-dom` for navigation.
 
-### 3.4 Routing (URL-Driven)
+### 3.5 Routing & Orchestration (URL-Driven)
 
 - `<BrowserRouter>` wrapping authenticated UI.
-- Deep linking: `/:moduleId/:viewId`.
+- Deep linking: `/:moduleId/:viewId` (e.g., `/platform_admin/dashboard`).
+- `src/core/App.jsx` — Thin auth wrapper → BrowserRouter → PlatformDashboard.
+- `src/core/PlatformDashboard.jsx` — SINGLE orchestrator for core admin views AND dynamic module views.
+- Auto-redirects to `/platform_admin/dashboard` on load.
 
-### 3.5 Module Configuration View Standardization (MANDATORY)
+### 3.6 Layout Components
 
-The `config` view MUST use `<SettingsConfig />` from `@shared` with vertical tabs.
+All layout components live in `src/layouts/` (elevated to top-level, NOT inside shared):
+- `AppShell.jsx` — Module-driven props-only wrapper (TopMenu + SideNav + Main + RightPanel).
+- `TopMenu.jsx` — White bg, gradient accent line, dynamic module tabs with icons.
+- `LeftSideNavBar.jsx` — Collapsible sidebar with gradient active state, badge support.
+- `RightLogsView.jsx` — Slide-out right panel for logs/API calls.
+- `MainContent.jsx` — Scrollable main content wrapper.
+- `index.js` — Layout barrel export.
 
-### 3.6 Universal CRUD Action Pattern (MANDATORY)
+### 3.7 Module Configuration View Standardization (MANDATORY)
 
-All destructive CRUD operations MUST use `CrudActionModal` from `@shared`:
-- Phase 1: Confirmation
-- Phase 2: Progress bar
-- Phase 3: Summary (success/error) + Close
+The `config` view MUST use `<ConfigLayout />` from `@shared` with vertical tabs.
 
-UI Text for CRUD MUST come from `uiText.json` under a `crud` key.
+### 3.8 Universal CRUD Action Pattern (MANDATORY)
+
+All destructive CRUD operations MUST use `<ConfirmationModal />` from `@shared`:
+- Phase 1: **Confirmation** — Shows action description, target system, and affected details. Then asks for confirmation.
+  - Props: `actionDescription`, `actionTarget`, `actionDetails` (array of `{ label, value }`).
+  - Labels from `uiElementsText.json`, messages from `UIMessages.json`, dynamic data from API.
+- Phase 2: **Progress** — Animated progress bar during async operation.
+- Phase 3: **Summary** — Success/error result with details via `buildSummary` prop. Close button.
+
+**CRITICAL:** All text in CRUD modals MUST come from JSON files. Dynamic values (database name, schema, etc.) MUST come from the API. NEVER hardcode these values.
+
+### 3.9 API Communication
+
+- All API calls go through `src/shared/services/apiClient.js`.
+- API URLs come from `src/config/urls.json` — NEVER hardcode endpoint paths.
 
 ---
 
@@ -273,9 +394,14 @@ UI Text for CRUD MUST come from `uiText.json` under a `crud` key.
 
 ### 4.1 File Naming
 
-- **React Components:** `PascalCase.jsx` (e.g., `AdminDashboard.jsx`)
-- **Backend Services:** `camelCase.js` (e.g., `databaseService.js`)
-- **JSON Config:** `camelCase.json` (e.g., `constants.json`, `uiText.json`)
+- **React Components:** `PascalCase.jsx` (e.g., `AdminDashboard.jsx`, `DatabaseManager.jsx`)
+- **Backend Services/Routes:** `camelCase.js` (e.g., `databaseService.js`, `authRoutes.js`)
+- **JSON Config (Frontend):** `camelCase.json` or `PascalCase.json` matching existing convention:
+  - `uiElementsText.json`, `urls.json`, `app.json` (camelCase)
+  - `UIMessages.json`, `UIErrors.json` (PascalCase acronym prefix)
+- **JSON Config (Backend):** `PascalCase.json` for data configs, `camelCase.json` for system:
+  - `DatabaseConfig.json`, `DefaultAdminUser.json`, `APIMessages.json`, `APIErrors.json`
+  - `urls.json`, `app.json`, `swagger.json`, `auth-provider.json`
 
 ### 4.2 Variable & Function Naming
 
@@ -284,84 +410,110 @@ UI Text for CRUD MUST come from `uiText.json` under a `crud` key.
 
 ### 4.3 Constants
 
-- **UPPER_SNAKE_CASE** (e.g., `MAX_RETRIES`, `API_BASE_URL`).
+- **UPPER_SNAKE_CASE** (e.g., `MAX_RETRIES`, `CORE_ADMIN`, `PHASE`).
 
 ### 4.4 Folder Structure (NON-NEGOTIABLE)
 
 ```
 pulseops_v2/
-├── api/                          # Backend (Node.js + Express)
+├── api/                              # Backend (Node.js + Express)
 │   ├── src/
-│   │   ├── server.js             # Entry point
-│   │   ├── app.js                # Express factory
+│   │   ├── server.js                 # Entry point, graceful shutdown (K8s ready)
+│   │   ├── app.js                    # Express factory with middleware chain
 │   │   ├── config/
-│   │   │   ├── index.js          # Config loader
-│   │   │   └── app.json          # App config defaults
+│   │   │   ├── index.js              # 12-factor config loader from env vars
+│   │   │   ├── app.json              # App config defaults
+│   │   │   ├── urls.json             # API route paths (centralized)
+│   │   │   ├── swagger.json          # Swagger/OpenAPI documentation
+│   │   │   ├── DatabaseConfig.json   # PostgreSQL connection config
+│   │   │   ├── DefaultAdminUser.json # Default admin user seed data
+│   │   │   ├── auth-provider.json    # Auth provider configuration
+│   │   │   ├── APIMessages.json      # API success/info response messages
+│   │   │   └── APIErrors.json        # API error messages and codes
 │   │   ├── core/
 │   │   │   ├── middleware/
-│   │   │   │   ├── auth.js
-│   │   │   │   └── security.js
+│   │   │   │   ├── auth.js           # JWT auth, RBAC
+│   │   │   │   └── security.js       # Helmet, rate limiting, CORS, sanitization
 │   │   │   ├── routes/
-│   │   │   │   └── index.js
+│   │   │   │   ├── index.js          # Route aggregator
+│   │   │   │   ├── healthRoutes.js   # Health/liveness/readiness probes
+│   │   │   │   ├── authRoutes.js     # Authentication endpoints
+│   │   │   │   ├── databaseRoutes.js # Database CRUD endpoints
+│   │   │   │   └── configRoutes.js   # System config endpoints
 │   │   │   └── database/
+│   │   │       └── databaseService.js # DB queries, schema, seeding
+│   │   ├── modules/                  # Future: module-specific API routes
 │   │   └── shared/
-│   │       └── logger.js
-│   └── package.json
+│   │       ├── logger.js             # Winston logger
+│   │       └── loadJson.js           # JSON file loader utility
+│   └── package.json                  # Backend deps + #imports aliases
 │
-├── src/                          # Frontend (React + Vite)
-│   ├── config/                   # Global frontend config (NOT in shared/)
-│   │   ├── urls.json
-│   │   ├── globalText.json
-│   │   └── app.json
-│   ├── core/
-│   │   ├── App.jsx
-│   │   ├── PlatformDashboard.jsx
-│   │   └── views/               # Native core platform views
-│   │       ├── AdminDashboard.jsx
-│   │       ├── ModuleManager.jsx
-│   │       ├── LogManager.jsx
-│   │       └── Settings.jsx
-│   ├── layouts/                  # Global layout components (elevated to top-level)
-│   │   ├── AppShell.jsx
-│   │   ├── TopMenu.jsx
-│   │   ├── LeftSideNavBar.jsx
-│   │   ├── RightLogsView.jsx
-│   │   ├── MainContent.jsx
-│   │   └── index.js
-│   ├── modules/
-│   │   ├── moduleRegistry.js
-│   │   └── _template/
-│   │       ├── manifest.jsx
-│   │       ├── constants.json
-│   │       ├── uiText.json
-│   │       └── components/
-│   ├── shared/
-│   │   ├── components/
+├── src/                              # Frontend (React + Vite + TailwindCSS)
+│   ├── config/                       # Global frontend config (NOT in shared/)
+│   │   ├── uiElementsText.json       # UI element labels (buttons, titles, fields)
+│   │   ├── UIMessages.json           # Success, info, and confirmation messages
+│   │   ├── UIErrors.json             # Error messages for UI display
+│   │   ├── urls.json                 # All API endpoint URLs
+│   │   └── app.json                  # App name, version
+│   ├── core/                         # Core platform (NOT a module)
+│   │   ├── App.jsx                   # Thin auth wrapper → BrowserRouter
+│   │   ├── PlatformDashboard.jsx     # Single orchestrator (core + modules)
+│   │   └── views/                    # Built-in core platform views
+│   │       ├── AdminDashboard.jsx    # Platform admin dashboard
+│   │       ├── Settings.jsx          # Tabbed settings (DB, Logs, Auth)
+│   │       ├── LogManager.jsx        # Log viewer and management
+│   │       └── ModuleManager.jsx     # Module lifecycle management
+│   ├── layouts/                      # Global layout components (top-level)
+│   │   ├── AppShell.jsx              # Module-driven wrapper
+│   │   ├── TopMenu.jsx               # Top navigation bar
+│   │   ├── LeftSideNavBar.jsx        # Collapsible left sidebar
+│   │   ├── RightLogsView.jsx         # Slide-out right log panel
+│   │   ├── MainContent.jsx           # Scrollable main content
+│   │   └── index.js                  # Layout barrel export
+│   ├── modules/                      # Add-on modules ONLY (hot-droppable)
+│   │   ├── moduleRegistry.js         # Dynamic module loader (NO core modules)
+│   │   └── _template/                # Template for new add-on modules
+│   │       ├── manifest.jsx          # Module manifest (icon, navItems, getViews)
+│   │       ├── constants.json        # Module metadata (id, name, version)
+│   │       ├── uiText.json           # Module-specific UI text
+│   │       └── components/           # Module-specific components
+│   ├── shared/                       # Design system + platform services
+│   │   ├── components/               # Reusable UI components
 │   │   ├── services/
-│   │   ├── contexts/
-│   │   ├── hooks/
-│   │   └── index.js              # Barrel export
-│   ├── index.css
-│   └── main.jsx
+│   │   │   └── apiClient.js          # HTTP client for all API calls
+│   │   ├── contexts/                 # React contexts (auth, theme)
+│   │   ├── hooks/                    # Custom React hooks
+│   │   ├── test/                     # Shared test utilities
+│   │   └── index.js                  # Barrel export for ALL shared components
+│   ├── index.css                     # Global styles + Tailwind + animations
+│   └── main.jsx                      # App entry point
 │
-├── dist-modules/                 # Compiled hot-drop modules
+├── dist-modules/                     # Compiled hot-drop module bundles
 ├── scripts/
-│   └── build-module.js
+│   └── build-module.js               # Module build script
 ├── docs/
-│   └── memory.md
-├── .windsurfrules
-├── .env.example
-├── jsconfig.json
-├── package.json
-├── vite.config.js
-└── README.md
+│   ├── memory.md                     # Development session memory
+│   ├── implementationSummary.md      # Implementation details
+│   ├── THEMING_ANALYSIS.md           # Theming documentation
+│   └── TAILWIND_V3_VS_V4_ISSUE.md   # Tailwind migration notes
+├── .windsurfrules                    # THIS FILE — Enterprise coding standards
+├── .env.example                      # Environment template (no secrets)
+├── jsconfig.json                     # IDE path aliases
+├── vite.config.js                    # Vite build config + path aliases
+├── tailwind.config.js                # Tailwind theme + semantic tokens
+├── postcss.config.js                 # PostCSS config
+├── package.json                      # Frontend deps
+├── index.html                        # HTML entry point
+└── README.md                         # Project documentation
 ```
 
 **PROHIBITED:**
 - Hardcoding paths (use aliases: `@shared`, `@modules`, `@core`, `@config`, `@layouts`).
 - Mixing backend and frontend code.
 - Placing module-specific code in `shared/`.
-- Importing from relative paths (always use aliases).
+- Importing from relative paths (always use aliases in frontend, `#` aliases in backend).
+- Creating frontend config files for data that belongs in the backend (e.g., database config).
+- Treating Auth, Logs, or Admin as modules — they are core platform.
 
 ---
 
@@ -371,10 +523,10 @@ pulseops_v2/
 
 ```javascript
 // ============================================================================
-// ComponentName — PulseOps V2 Module
+// ComponentName — PulseOps V2 [Core Platform | Shared Component | Module]
 //
 // PURPOSE: Brief description.
-// ARCHITECTURE: Where it fits.
+// ARCHITECTURE: Where it fits (core/shared/module).
 // DEPENDENCIES: What it imports.
 // ============================================================================
 ```
@@ -384,6 +536,10 @@ pulseops_v2/
 All functions, hooks, and services MUST include JSDoc.
 
 ### 5.3 Inline Comments (EXPLAIN WHY, NOT WHAT)
+
+### 5.4 Development Memory
+
+- `docs/memory.md` — Updated after each work session with changes, findings, and build status.
 
 ---
 
@@ -413,6 +569,7 @@ All functions, hooks, and services MUST include JSDoc.
 - **Integration Tests:** API endpoint flows.
 - **Visual Tests:** Storybook for component library.
 - **E2E Tests:** Playwright for critical user flows.
+- **Build Verification:** Run `npx vite build` after every change set to confirm zero errors.
 
 ---
 
@@ -427,18 +584,20 @@ All functions, hooks, and services MUST include JSDoc.
 
 ## 10. Code Review Checklist
 
-- [ ] Architecture: follows module/hot-drop pattern?
+- [ ] Architecture: follows core-platform/hot-drop-module pattern?
+- [ ] Core vs Module: Auth, Logs, Admin are in `src/core/`, NOT `src/modules/`?
 - [ ] Security: inputs validated? secrets in `.env`? cookies secure?
 - [ ] Performance: memoized? state local? queries optimized?
 - [ ] Naming: files, variables, functions correct?
 - [ ] Documentation: file header? JSDoc?
 - [ ] Testing: unit tests included? coverage >80%?
-- [ ] No Hardcoding: strings from JSON? URLs from config?
-- [ ] Imports: all using aliases?
+- [ ] No Hardcoding: UI labels from `uiElementsText.json`? Messages from `UIMessages.json`? Errors from `UIErrors.json`? URLs from `urls.json`? Dynamic config from API?
+- [ ] Imports: all using aliases (`@shared`, `@config`, `@core`, `@layouts`, `@modules`, `#config`, `#shared`, `#core`)?
 - [ ] Error Handling: logged with Request ID? responses consistent?
+- [ ] Build: `npx vite build` passes with zero errors?
 
 ---
 
-**Last Updated:** March 1, 2026
-**Version:** 2.0.0
+**Last Updated:** March 3, 2026
+**Version:** 2.1.0
 **Scope:** PulseOps V2 (All code in this repository)
