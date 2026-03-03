@@ -39,6 +39,8 @@ import uiText from '@config/uiElementsText.json';
 import messages from '@config/UIMessages.json';
 import urls from '@config/urls.json';
 
+const LOG_SRC = '[DatabaseManager]';
+
 export default function DatabaseManager({
   onCreateDatabase,
   onDeleteDatabase,
@@ -53,7 +55,11 @@ export default function DatabaseManager({
   const [modalState, setModalState] = useState({ type: null, open: false });
   const [dbConfig, setDbConfig] = useState({ database: '', schema: '', tables: [], defaultAdmin: { email: '' } });
 
+  const initRan = React.useRef(false);
   useEffect(() => {
+    if (initRan.current) return;
+    initRan.current = true;
+    console.log(`📋 ${LOG_SRC} Page accessed — loading database configuration from API`);
     const fetchDbConfig = async () => {
       try {
         const response = await fetch(urls.database.saveConfig, { credentials: 'include' });
@@ -61,15 +67,22 @@ export default function DatabaseManager({
           const result = await response.json();
           if (result?.data) {
             setDbConfig({
-              database: result.data.database || 'pulseops_v2',
-              schema: result.data.schema || 'pulseops',
-              tables: result.data.tables || ['system_users', 'system_config', 'system_modules', 'system_logs'],
-              defaultAdmin: result.data.defaultAdmin || { email: 'admin@test.com' }
+              database: result.data.database || '',
+              schema: result.data.schema || '',
+              tables: result.data.tables || [],
+              defaultAdmin: result.data.defaultAdmin || { email: '' },
+            });
+            console.log(`✅ ${LOG_SRC} Database config loaded from API`, {
+              database: result.data.database,
+              schema: result.data.schema,
+              tables: result.data.tables?.length || 0,
             });
           }
+        } else {
+          console.warn(`⚠️ ${LOG_SRC} Failed to fetch DB config — HTTP ${response.status}`);
         }
       } catch (error) {
-        console.error('Failed to fetch database config:', error);
+        console.error(`❌ ${LOG_SRC} Failed to fetch database config:`, error.message);
       }
     };
     fetchDbConfig();
@@ -78,16 +91,31 @@ export default function DatabaseManager({
   const confirmText = uiText.admin.settings.databaseObjects.confirmations;
   const dbMessages = messages.database.confirmations;
 
-  const openModal = (type) => setModalState({ type, open: true });
-  const closeModal = () => setModalState({ type: null, open: false });
+  const openModal = (type) => {
+    console.log(`🔔 ${LOG_SRC} Modal opened — action: ${type}`, { database: dbConfig.database, schema: dbConfig.schema });
+    setModalState({ type, open: true });
+  };
+  const closeModal = () => {
+    console.log(`🔕 ${LOG_SRC} Modal closed — action: ${modalState.type}`);
+    setModalState({ type: null, open: false });
+  };
 
   const handleSuccess = async () => {
+    console.log(`✅ ${LOG_SRC} Operation completed successfully — action: ${modalState.type}`);
     closeModal();
+    console.log(`🔄 ${LOG_SRC} Refreshing database status after successful operation`);
     await onRefreshStatus?.();
   };
 
   return (
     <div className="space-y-6">
+      {/* Top Refresh Button — refreshes all sections */}
+      <div className="flex items-center justify-end">
+        <Button variant="secondary" size="sm" icon={<RefreshCw />} onClick={onRefreshStatus} isLoading={isLoading}>
+          Refresh All
+        </Button>
+      </div>
+
       {/* Database Instance Status */}
       {!dbStatus.exists ? (
         <div className="bg-gradient-to-r from-pink-50 via-rose-50 to-pink-50 rounded-xl border border-pink-200 p-4">
@@ -159,8 +187,8 @@ export default function DatabaseManager({
           </div>
         )}
 
-        <div className="flex items-center gap-2">
-          {!dbStatus.schemaInitialized && (
+        {!dbStatus.schemaInitialized && (
+          <div className="flex items-center gap-2">
             <Button 
               variant="primary" 
               size="sm" 
@@ -170,11 +198,8 @@ export default function DatabaseManager({
             >
               Initialize Schema
             </Button>
-          )}
-          <Button variant="secondary" size="sm" icon={<RefreshCw />} onClick={onRefreshStatus} isLoading={isLoading}>
-            Refresh
-          </Button>
-        </div>
+          </div>
+        )}
       </div>
 
       {/* Default Data */}
@@ -295,12 +320,12 @@ export default function DatabaseManager({
         actionTarget={dbMessages.initializeSchema.actionTarget}
         actionDetails={[
           { label: uiText.admin.settings.databaseConfiguration.fields.schema.label, value: dbConfig.schema },
-          { label: confirmText.initializeSchema.tablesLabel, value: dbConfig.tables.join(', ') }
+          { label: `${confirmText.initializeSchema.tablesLabel} (${dbConfig.tables.length})`, value: dbConfig.tables.join(', ') }
         ]}
         confirmLabel={confirmText.initializeSchema.confirmLabel}
         action={onInitializeSchema}
         onSuccess={handleSuccess}
-        variant="info"
+        variant="schema"
         buildSummary={(data) => [
           { label: confirmText.initializeSchema.summaryTablesLabel, value: data?.tables?.join(', ') || dbConfig.tables.join(', ') },
           { label: 'Status', value: messages.database.schemaCreated },

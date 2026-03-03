@@ -171,6 +171,7 @@ async function loginWithDatabase(email, password) {
 
 // ── GET /auth/config (Public) ───────────────────────────────────────────────
 router.get('/config', async (req, res) => {
+  logger.info('API event: GET /auth/config');
   try {
     const fileConfig = loadJson(AUTH_PROVIDER_FILE);
     const activeProvider = await getAuthProvider();
@@ -197,6 +198,7 @@ router.get('/config', async (req, res) => {
 
 // ── POST /auth/config (Protected — super_admin only) ────────────────────────
 router.post('/config', authenticate, requireRole('super_admin'), async (req, res) => {
+  logger.info('API event: POST /auth/config', { provider: req.body?.provider, user: req.user?.email });
   const { provider } = req.body;
   const validProviders = ['json_file', 'database', 'social'];
 
@@ -346,6 +348,7 @@ router.post('/login', async (req, res) => {
 
 // ── POST /auth/refresh ──────────────────────────────────────────────────────
 router.post('/refresh', async (req, res) => {
+  logger.info('API event: POST /auth/refresh');
   const { refreshToken } = req.body;
 
   if (!refreshToken) {
@@ -421,6 +424,7 @@ router.post('/logout', authenticate, (req, res) => {
 
 // ── GET /auth/me (Protected) ───────────────────────────────────────────────
 router.get('/me', authenticate, async (req, res) => {
+  logger.info('API event: GET /auth/me', { userId: req.user?.userId });
   try {
     const provider = await getAuthProvider();
 

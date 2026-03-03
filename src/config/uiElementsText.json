@@ -163,7 +163,7 @@
       "title": "Platform Settings",
       "subtitle": "Global configuration — Admin only",
       "tabs": {
-        "dbConfig": "Database Configuration",
+        "dbConfig": "Database Connection Status",
         "dbObjects": "Database Objects",
         "logSettings": "Log Settings",
         "logConfig": "Log Configuration",
@@ -404,6 +404,8 @@
       "unknown": "Unknown"
     },
     "testConnection": {
+      "defaultTitle": "Connection Test",
+      "defaultDescription": "Configure and test connection",
       "testButton": "Test Connection",
       "saveButton": "Save Configuration"
     },

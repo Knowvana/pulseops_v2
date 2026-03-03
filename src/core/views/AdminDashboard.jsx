@@ -21,6 +21,7 @@ import uiText from '@config/uiElementsText.json';
 const viewText = uiText.coreViews.dashboard;
 
 export default function AdminDashboard() {
+  console.log('📋 [AdminDashboard] Dashboard page accessed');
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Page Header */}

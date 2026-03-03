@@ -85,15 +85,18 @@ export default function PlatformDashboard({ user, onLogout }) {
   const [dbModules, setDbModules] = useState([]);
   const [modulesLoading, setModulesLoading] = useState(true);
 
+  console.log('📋 [PlatformDashboard] Dashboard rendered', { activeModule: activeModuleId, activeView, user: user?.email });
+
   // ── Fetch enabled modules from database + load manifests ──────────────────
   const fetchModules = useCallback(async () => {
+    console.log('🔄 [PlatformDashboard] Fetching enabled modules');
     setModulesLoading(true);
     try {
       // TODO: Replace with ApiClient.get(urls.modules) when backend is ready
       // For now, no add-on modules — only core Admin
       setDbModules([]);
     } catch (err) {
-      console.warn('[PlatformDashboard] Failed to fetch modules:', err.message);
+      console.warn('⚠️ [PlatformDashboard] Failed to fetch modules:', err.message);
     } finally {
       setModulesLoading(false);
     }
@@ -142,6 +145,7 @@ export default function PlatformDashboard({ user, onLogout }) {
 
   // ── Module switching ──────────────────────────────────────────────────────
   const handleSwitchModule = useCallback((moduleId) => {
+    console.log(`🔀 [PlatformDashboard] Switching module: ${activeModuleId} → ${moduleId}`);
     if (moduleId === CORE_ADMIN.id) {
       navigate(`/${CORE_ADMIN.id}/${CORE_ADMIN.defaultView}`);
     } else {
@@ -149,10 +153,11 @@ export default function PlatformDashboard({ user, onLogout }) {
       const defaultView = manifest?.defaultView || 'dashboard';
       navigate(`/${moduleId}/${defaultView}`);
     }
-  }, [navigate]);
+  }, [navigate, activeModuleId]);
 
   // ── SideNav item selection ────────────────────────────────────────────────
   const handleSideNavSelect = useCallback((viewId) => {
+    console.log(`📄 [PlatformDashboard] Navigating to view: ${viewId} (module: ${activeModuleId})`);
     if (activeModuleId) {
       navigate(`/${activeModuleId}/${viewId}`);
     }

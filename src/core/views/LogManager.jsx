@@ -39,6 +39,7 @@ const logTypeText = viewText.logTypes;
 const apiBase = '';
 
 export default function LogManager() {
+  console.log('📋 [LogManager] Log Manager page accessed');
   // ── StrictMode guard ────────────────────────────────────────────────────
   const initRan = useRef(false);
 
@@ -62,6 +63,7 @@ export default function LogManager() {
 
   // ── Fetch Logs ───────────────────────────────────────────────────────────
   const fetchLogs = useCallback(async () => {
+    console.log(`🔄 [LogManager] Fetching ${logType} logs`, { levelFilter, search: debouncedSearch });
     setIsLoading(true);
     try {
       const params = new URLSearchParams();
@@ -74,11 +76,14 @@ export default function LogManager() {
       const json = await res.json();
       if (json.success) {
         setLogs(json.data.logs || []);
+        console.log(`✅ [LogManager] Loaded ${json.data.logs?.length || 0} ${logType} log entries`);
       } else {
         setLogs([]);
+        console.warn('⚠️ [LogManager] Logs fetch returned unsuccessful response');
       }
-    } catch {
+    } catch (err) {
       setLogs([]);
+      console.error('❌ [LogManager] Failed to fetch logs:', err.message);
     } finally {
       setIsLoading(false);
     }
@@ -119,12 +124,14 @@ export default function LogManager() {
 
   // ── Refresh handler ──────────────────────────────────────────────────────
   const handleRefresh = useCallback(() => {
+    console.log('🔄 [LogManager] Refreshing logs and stats');
     fetchLogs();
     fetchStats();
   }, [fetchLogs, fetchStats]);
 
   // ── Delete handler ─────────────────────────────────────────────────────
   const handleDelete = useCallback(async () => {
+    console.log(`🗑️ [LogManager] Deleting all ${logType} logs`);
     setIsDeleting(true);
     try {
       const endpoint = logType === 'ui' ? urls.logs.ui : urls.logs.api;
@@ -136,8 +143,10 @@ export default function LogManager() {
       if (json.success) {
         setLogs([]);
         setStats(prev => ({ ...prev, count: 0 }));
+        console.log(`✅ [LogManager] All ${logType} logs deleted successfully`);
       }
-    } catch {
+    } catch (err) {
+      console.error('❌ [LogManager] Failed to delete logs:', err.message);
       // Silently fail — stats will show current state on next refresh
     } finally {
       setIsDeleting(false);

@@ -45,7 +45,7 @@
 // Manages phase state internally (confirm → progress → summary).
 // ============================================================================
 import React, { useState, useCallback, useEffect } from 'react';
-import { CheckCircle2, XCircle, AlertTriangle, Info, Loader2, X } from 'lucide-react';
+import { CheckCircle2, XCircle, AlertTriangle, Info, Loader2, X, Database } from 'lucide-react';
 import { Button } from '@shared';
 
 const PHASE = { CONFIRM: 'confirm', PROGRESS: 'progress', SUMMARY: 'summary' };
@@ -71,6 +71,13 @@ const VARIANT_CONFIG = {
     iconBg: 'bg-brand-50', 
     buttonVariant: 'primary', 
     progressColor: 'bg-brand-500' 
+  },
+  schema: { 
+    icon: Database, 
+    iconColor: 'text-indigo-600', 
+    iconBg: 'bg-indigo-50', 
+    buttonVariant: 'primary', 
+    progressColor: 'bg-indigo-500' 
   },
 };
 
@@ -183,9 +190,9 @@ export default function ConfirmationModal({
                 {actionDetails.length > 0 && (
                   <div className="bg-surface-50 rounded-lg p-3 space-y-2 border border-surface-200 ml-2">
                     {actionDetails.map((detail, idx) => (
-                      <div key={idx} className="flex items-center justify-between text-xs">
-                        <span className="text-surface-500 font-medium">{detail.label}:</span>
-                        <span className="text-surface-800 font-semibold">{detail.value}</span>
+                      <div key={idx} className="flex items-start text-xs">
+                        <span className="text-surface-500 font-medium mr-2">{detail.label}:</span>
+                        <span className="text-surface-800 font-semibold flex-1">{detail.value}</span>
                       </div>
                     ))}
                   </div>

@@ -21,6 +21,7 @@ import uiText from '@config/uiElementsText.json';
 const viewText = uiText.coreViews.moduleManager;
 
 export default function ModuleManager() {
+  console.log('📋 [ModuleManager] Module Manager page accessed');
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Page Header */}

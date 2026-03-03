@@ -18,6 +18,7 @@ const loginText = uiText.login;
 const authMessages = messages.auth;
 
 export default function LoginForm({ onLogin, isLoading = false }) {
+  console.log('📋 [LoginForm] Login page accessed');
   // TODO: Remove default credentials before production deployment
   const [email, setEmail] = useState('admin@test.com');
   const [password, setPassword] = useState('Infosys@123');
@@ -30,14 +31,18 @@ export default function LoginForm({ onLogin, isLoading = false }) {
     setError(null);
 
     if (!email.trim() || !password.trim()) {
+      console.warn('⚠️ [LoginForm] Validation failed — email or password empty');
       setError(loginText.validationError);
       return;
     }
 
     try {
+      console.log('🔐 [LoginForm] Login form submitted', { email });
       setLoading(true);
       await onLogin(email, password);
+      console.log('✅ [LoginForm] Login successful — redirecting');
     } catch (err) {
+      console.error('❌ [LoginForm] Login failed:', err.message);
       setError(err.message || authMessages.loginFailed);
     } finally {
       setLoading(false);
@@ -45,6 +50,7 @@ export default function LoginForm({ onLogin, isLoading = false }) {
   };
 
   const handleSocialLogin = (provider) => {
+    console.log(`ℹ️ [LoginForm] Social login attempted — provider: ${provider} (not available)`);
     setError(`${provider}${loginText.socialComingSoon}`);
   };
 

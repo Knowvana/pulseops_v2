@@ -10,7 +10,7 @@
 |---------|-----|-------|
 | **Frontend (Vite Dev)** | `http://localhost:1001` | React SPA — auto-reloads on save |
 | **Backend API** | `http://localhost:4001/api` | Express REST API |
-| **Swagger UI** | `http://localhost:4001/api-docs` | Interactive API documentation |
+| **Swagger UI** | `http://localhost:4001/swagger-ui` | Interactive API documentation |
 | **Health Check** | `http://localhost:4001/api/health` | Liveness probe |
 | **Readiness Check** | `http://localhost:4001/api/health/readiness` | K8s readiness probe |
 | **PgAdmin** | `http://localhost:5050` | PostgreSQL admin UI (if running via Docker) |
@@ -62,7 +62,7 @@
 |--------|----------|------|-------------|
 | POST | `/api/database/test-connection` | Cookie | Test PostgreSQL connection |
 | POST | `/api/database/save-config` | Cookie | Save database config |
-| GET | `/api/database/save-config` | Cookie | Get current database config |
+| GET | `/api/database/config` | Cookie | Get current database config |
 | GET | `/api/database/schema-status` | Cookie | Check schema/data status |
 | POST | `/api/database/create-database` | Cookie | Create database |
 | DELETE | `/api/database/delete-database` | Cookie | Delete database |
@@ -86,6 +86,7 @@
 |--------|----------|------|-------------|
 | GET | `/api/config` | Cookie | List system config |
 | POST | `/api/config` | Cookie | Save system config |
+| GET | `/api/config/:key` | Cookie | Get config by key |
 
 ### Logs
 

@@ -27,8 +27,8 @@
         "warningMessage": "All data will be permanently removed"
       },
       "initializeSchema": {
-        "actionDescription": "initialize the Database schema",
-        "actionTarget": "Backend PostgreSQL"
+        "actionDescription": "initialize the Database schema and create new Tables in Database",
+        "actionTarget": "PostgreSQL"
       },
       "loadDefaultData": {
         "actionDescription": "load default data",
@@ -59,7 +59,10 @@
     "failed": "Connection failed",
     "testFailed": "Connection test failed",
     "configSaved": "Configuration saved successfully",
-    "configSaveFailed": "Failed to save configuration"
+    "configSaveFailed": "Failed to save configuration",
+    "saveDescription": "save the database connection configuration",
+    "saveTarget": "Backend PostgreSQL",
+    "statusLabel": "Status"
   },
   "logs": {
     "fetchSuccess": "Logs loaded successfully.",
@@ -79,6 +82,9 @@
   "generalSettings": {
     "saved": "General settings saved successfully.",
     "saveFailed": "Failed to save general settings.",
+    "subtitle": "Platform-wide general settings. Changes apply globally.",
+    "timezoneLabel": "Timezone",
+    "timezoneDescription": "All dates and timestamps across the platform will use this timezone.",
     "confirmTitle": "Save General Settings",
     "confirmDescription": "update the platform-wide general settings",
     "confirmTarget": "Platform Configuration",

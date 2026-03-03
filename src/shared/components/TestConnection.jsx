@@ -41,18 +41,21 @@
 // ConnectionStatus component to display test results.
 // ============================================================================
 import React, { useState, useEffect } from 'react';
-import { Database, RefreshCw, Save, Eye, EyeOff } from 'lucide-react';
-import { Button } from '@shared';
+import { Database, RefreshCw, Save, Eye, EyeOff, CheckCircle2 } from 'lucide-react';
+import { Button, ConfirmationModal } from '@shared';
 import ConnectionStatus from '@shared/components/ConnectionStatus';
+import TimezoneService from '@shared/services/timezoneService';
 import uiText from '@config/uiElementsText.json';
 import messages from '@config/UIMessages.json';
 
 const connMessages = messages.connection;
 const connText = uiText.shared?.testConnection || {};
 
+const LOG_SRC = '[TestConnection]';
+
 export default function TestConnection({
-  title = 'Connection Test',
-  description = 'Configure and test connection',
+  title = connText.defaultTitle || 'Connection Test',
+  description = connText.defaultDescription || '',
   icon: Icon = Database,
   fields = [],
   onTest,
@@ -79,6 +82,8 @@ export default function TestConnection({
   const [isTesting, setIsTesting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [showPasswords, setShowPasswords] = useState({});
+  const [showSaveModal, setShowSaveModal] = useState(false);
+  const [saveMessage, setSaveMessage] = useState(null);
 
   const handleFieldChange = (name, value) => {
     setConfig(prev => ({ ...prev, [name]: value }));
@@ -86,6 +91,7 @@ export default function TestConnection({
 
   const handleTest = async () => {
     if (!onTest) return;
+    console.log(`🔌 ${LOG_SRC} Testing connection for: ${title}`, config);
 
     setIsTesting(true);
     setConnectionStatus({
@@ -98,11 +104,11 @@ export default function TestConnection({
 
     try {
       const result = await onTest(config);
-      const now = new Date();
-      const timeString = now.toLocaleString();
+      const timeString = TimezoneService.formatCurrentTime();
       setLastTestedTime(timeString);
       
       if (result.success) {
+        console.log(`✅ ${LOG_SRC} Connection test successful for: ${title}`, { message: result.message, meta: result.meta });
         setConnectionStatus({
           type: title,
           status: 'success',
@@ -111,6 +117,7 @@ export default function TestConnection({
           lastTested: timeString,
         });
       } else {
+        console.warn(`⚠️ ${LOG_SRC} Connection test failed for: ${title}`, { message: result.message });
         setConnectionStatus({
           type: title,
           status: 'error',
@@ -120,9 +127,9 @@ export default function TestConnection({
         });
       }
     } catch (error) {
-      const now = new Date();
-      const timeString = now.toLocaleString();
+      const timeString = TimezoneService.formatCurrentTime();
       setLastTestedTime(timeString);
+      console.error(`❌ ${LOG_SRC} Connection test error for: ${title}`, error.message);
       
       setConnectionStatus({
         type: title,
@@ -136,28 +143,21 @@ export default function TestConnection({
     }
   };
 
-  const handleSave = async () => {
+  const handleSaveAction = async () => {
     if (!onSave) return;
+    console.log(`💾 ${LOG_SRC} Saving configuration for: ${title}`, config);
+    await onSave(config);
+    return {
+      host: config.host || '',
+      port: config.port || '',
+      database: config.database || '',
+    };
+  };
 
-    setIsSaving(true);
-    try {
-      await onSave(config);
-      setConnectionStatus({
-        type: 'Configuration',
-        status: 'success',
-        message: connMessages.configSaved,
-        meta: null,
-      });
-    } catch (error) {
-      setConnectionStatus({
-        type: 'Configuration',
-        status: 'error',
-        message: error.message || connMessages.configSaveFailed,
-        meta: null,
-      });
-    } finally {
-      setIsSaving(false);
-    }
+  const handleSaveSuccess = () => {
+    console.log(`✅ ${LOG_SRC} Configuration saved successfully for: ${title}`);
+    setSaveMessage({ type: 'success', text: connMessages.configSaved });
+    setTimeout(() => setSaveMessage(null), 5000);
   };
 
   // Auto-test on mount when autoTest prop is true (ref guard prevents StrictMode double-fire)
@@ -165,6 +165,7 @@ export default function TestConnection({
   useEffect(() => {
     if (autoTest && onTest && !autoTestRan.current) {
       autoTestRan.current = true;
+      console.log(`🔄 ${LOG_SRC} Auto-test triggered on mount for: ${title}`);
       const runAutoTest = async () => {
         setIsTesting(true);
         setConnectionStatus({
@@ -176,7 +177,7 @@ export default function TestConnection({
         });
         try {
           const result = await onTest(config);
-          const timeString = new Date().toLocaleString();
+          const timeString = TimezoneService.formatCurrentTime();
           setLastTestedTime(timeString);
           if (result.success) {
             setConnectionStatus({
@@ -196,7 +197,7 @@ export default function TestConnection({
             });
           }
         } catch (error) {
-          const timeString = new Date().toLocaleString();
+          const timeString = TimezoneService.formatCurrentTime();
           setLastTestedTime(timeString);
           setConnectionStatus({
             type: title,
@@ -282,13 +283,49 @@ export default function TestConnection({
             variant="primary"
             size="sm"
             icon={<Save />}
-            onClick={handleSave}
-            isLoading={isSaving}
+            onClick={() => setShowSaveModal(true)}
           >
-            {isSaving ? uiText.common.saving : (connText.saveButton || 'Save Configuration')}
+            {connText.saveButton || 'Save Configuration'}
           </Button>
         )}
       </div>
+
+      {/* Save Success/Error Message — shown above Save button, not in ConnectionStatus */}
+      {saveMessage && (
+        <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium ${
+          saveMessage.type === 'success'
+            ? 'bg-emerald-50 border border-emerald-200 text-emerald-700'
+            : 'bg-rose-50 border border-rose-200 text-rose-700'
+        }`}>
+          <CheckCircle2 size={14} />
+          {saveMessage.text}
+        </div>
+      )}
+
+      {/* Save Configuration Confirmation Modal */}
+      {onSave && (
+        <ConfirmationModal
+          isOpen={showSaveModal}
+          onClose={() => setShowSaveModal(false)}
+          title={connText.saveButton}
+          actionDescription={connMessages.saveDescription}
+          actionTarget={connMessages.saveTarget}
+          actionDetails={
+            fields
+              .filter(f => f.type !== 'password')
+              .map(f => ({ label: f.label, value: config[f.name] || '' }))
+          }
+          confirmLabel={connText.saveButton}
+          action={handleSaveAction}
+          onSuccess={handleSaveSuccess}
+          variant="info"
+          buildSummary={(data) => [
+            ...(fields.filter(f => f.type !== 'password' && f.name !== 'schema' && f.name !== 'username' && f.name !== 'port')
+              .map(f => ({ label: f.label, value: data?.[f.name] || config[f.name] || '' }))),
+            { label: connMessages.statusLabel, value: connMessages.configSaved },
+          ]}
+        />
+      )}
     </div>
   );
 }
