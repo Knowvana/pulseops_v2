@@ -10,7 +10,7 @@
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import {
   Search, ChevronLeft, ChevronRight, ChevronUp, ChevronDown,
-  X, FileJson, AlertCircle, Info, AlertTriangle, Bug, ChevronsUpDown,
+  X, Copy, Check, FileJson, AlertCircle, Info, AlertTriangle, Bug, ChevronsUpDown,
 } from 'lucide-react';
 import uiText from '@config/uiElementsText.json';
 
@@ -82,32 +82,32 @@ function StatusBadge({ code }) {
 // ── UI Log Columns ───────────────────────────────────────────────────────────
 
 const UI_COLUMNS = [
-  { id: 'timestamp', label: gridText.time, width: 180, sortable: true, render: (row) => formatIST(row.timestamp || row.created_at) },
-  { id: 'level', label: gridText.logLevel, width: 90, sortable: true, render: (row) => <LevelBadge level={row.level || row.log_level} /> },
-  { id: 'source', label: gridText.source, width: 60, sortable: true, render: (row) => <span className="text-xs font-medium text-surface-500">{row.source || 'UI'}</span> },
-  { id: 'event', label: gridText.event, width: 140, sortable: true, render: (row) => <span className="text-xs text-surface-700 truncate">{row.event || '—'}</span> },
-  { id: 'component', label: gridText.component, width: 140, sortable: true, render: (row) => <span className="text-xs text-surface-600 truncate">{row.component || '—'}</span> },
-  { id: 'module', label: gridText.module, width: 100, sortable: true, render: (row) => <span className="text-xs text-surface-500">{row.module || row.log_module || 'Core'}</span> },
-  { id: 'user', label: gridText.user, width: 130, sortable: true, render: (row) => <span className="text-xs text-surface-600 truncate">{row.user || row.user_name || '—'}</span> },
-  { id: 'message', label: gridText.message, width: 300, sortable: false, render: (row) => <span className="text-xs text-surface-700 truncate block">{row.message || '—'}</span> },
-  { id: 'result', label: gridText.result, width: 120, sortable: false, render: (row) => <span className="text-xs text-surface-500 truncate">{row.result || '—'}</span> },
-  { id: 'transactionId', label: gridText.transactionId, width: 200, sortable: true, render: (row) => <span className="text-[10px] font-mono text-surface-400 truncate">{row.transactionId || row.transaction_id || '—'}</span> },
+  { id: 'transactionId', label: gridText.transactionId, width: 150, sortable: true, render: (row) => <span className="text-[10px] font-mono text-surface-400 truncate">{row.transactionId || row.transaction_id || '—'}</span> },
+  { id: 'timestamp', label: gridText.time, width: 155, sortable: true, render: (row) => <span className="text-[11px] text-surface-700">{formatIST(row.timestamp || row.created_at)}</span> },
+  { id: 'level', label: gridText.logLevel, width: 80, sortable: true, render: (row) => <LevelBadge level={row.level || row.log_level} /> },
+  { id: 'source', label: gridText.source, width: 60, sortable: true, render: (row) => <span className="text-[11px] font-medium text-surface-500">{row.source || 'UI'}</span> },
+  { id: 'event', label: gridText.event, width: 120, sortable: true, render: (row) => <span className="text-[11px] text-surface-700 truncate">{row.event || '—'}</span> },
+  { id: 'component', label: gridText.component, width: 120, sortable: true, render: (row) => <span className="text-[11px] text-surface-600 truncate">{row.component || '—'}</span> },
+  { id: 'module', label: gridText.module, width: 80, sortable: true, render: (row) => <span className="text-[11px] text-surface-500">{row.module || row.log_module || 'Core'}</span> },
+  { id: 'user', label: gridText.user, width: 110, sortable: true, render: (row) => <span className="text-[11px] text-surface-600 truncate">{row.user || row.user_name || '—'}</span> },
+  { id: 'message', label: gridText.message, width: 260, sortable: false, render: (row) => <span className="text-[11px] text-surface-700 truncate block">{row.message || '—'}</span> },
+  { id: 'result', label: gridText.result, width: 100, sortable: false, render: (row) => <span className="text-[11px] text-surface-500 truncate">{row.result || '—'}</span> },
 ];
 
 // ── API Log Columns ──────────────────────────────────────────────────────────
 
 const API_COLUMNS = [
-  { id: 'timestamp', label: gridText.time, width: 180, sortable: true, render: (row) => formatIST(row.timestamp || row.created_at) },
-  { id: 'level', label: gridText.logLevel, width: 90, sortable: true, render: (row) => <LevelBadge level={row.level || row.log_level} /> },
-  { id: 'user', label: gridText.user, width: 130, sortable: true, render: (row) => <span className="text-xs text-surface-600 truncate">{row.user || row.user_name || '—'}</span> },
-  { id: 'source', label: gridText.source, width: 60, sortable: true, render: (row) => <span className="text-xs font-medium text-surface-500">{row.source || 'API'}</span> },
-  { id: 'method', label: gridText.method, width: 80, sortable: true, render: (row) => row.method ? <MethodBadge method={row.method} /> : <span className="text-xs text-surface-400">—</span> },
-  { id: 'url', label: gridText.apiUrl, width: 260, sortable: true, render: (row) => <span className="text-xs font-mono text-surface-600 truncate block">{row.url || row.api_url || '—'}</span> },
-  { id: 'statusCode', label: gridText.statusCode, width: 70, sortable: true, render: (row) => <StatusBadge code={row.statusCode || row.status_code} /> },
-  { id: 'responseTime', label: gridText.responseTime, width: 110, sortable: true, render: (row) => { const t = row.responseTime || row.response_time_ms; return t ? <span className="text-xs text-surface-600">{t}ms</span> : <span className="text-xs text-surface-400">—</span>; } },
-  { id: 'error', label: gridText.error, width: 200, sortable: false, render: (row) => <span className="text-xs text-danger-600 truncate block">{row.error || '—'}</span> },
-  { id: 'module', label: gridText.module, width: 100, sortable: true, render: (row) => <span className="text-xs text-surface-500">{row.module || row.log_module || 'Core'}</span> },
-  { id: 'transactionId', label: gridText.transactionId, width: 200, sortable: true, render: (row) => <span className="text-[10px] font-mono text-surface-400 truncate">{row.transactionId || row.transaction_id || '—'}</span> },
+  { id: 'transactionId', label: gridText.transactionId, width: 150, sortable: true, render: (row) => <span className="text-[10px] font-mono text-surface-400 truncate">{row.transactionId || row.transaction_id || '—'}</span> },
+  { id: 'timestamp', label: gridText.time, width: 155, sortable: true, render: (row) => <span className="text-[11px] text-surface-700">{formatIST(row.timestamp || row.created_at)}</span> },
+  { id: 'level', label: gridText.logLevel, width: 80, sortable: true, render: (row) => <LevelBadge level={row.level || row.log_level} /> },
+  { id: 'user', label: gridText.user, width: 110, sortable: true, render: (row) => <span className="text-[11px] text-surface-600 truncate">{row.user || row.user_name || '—'}</span> },
+  { id: 'source', label: gridText.source, width: 60, sortable: true, render: (row) => <span className="text-[11px] font-medium text-surface-500">{row.source || 'API'}</span> },
+  { id: 'method', label: gridText.method, width: 72, sortable: true, render: (row) => row.method ? <MethodBadge method={row.method} /> : <span className="text-[11px] text-surface-400">—</span> },
+  { id: 'url', label: gridText.apiUrl, width: 220, sortable: true, render: (row) => <span className="text-[11px] font-mono text-surface-600 truncate block">{row.url || row.api_url || '—'}</span> },
+  { id: 'statusCode', label: gridText.statusCode, width: 64, sortable: true, render: (row) => <StatusBadge code={row.statusCode || row.status_code} /> },
+  { id: 'responseTime', label: gridText.responseTime, width: 100, sortable: true, render: (row) => { const t = row.responseTime || row.response_time_ms; return t ? <span className="text-[11px] text-surface-600">{t}ms</span> : <span className="text-[11px] text-surface-400">—</span>; } },
+  { id: 'error', label: gridText.error, width: 180, sortable: false, render: (row) => <span className="text-[11px] text-danger-600 truncate block">{row.error || '—'}</span> },
+  { id: 'module', label: gridText.module, width: 80, sortable: true, render: (row) => <span className="text-[11px] text-surface-500">{row.module || row.log_module || 'Core'}</span> },
 ];
 
 const PAGE_SIZE_OPTIONS = [25, 50, 100, 200];
@@ -115,6 +115,8 @@ const PAGE_SIZE_OPTIONS = [25, 50, 100, 200];
 // ── Detail Panel ─────────────────────────────────────────────────────────────
 
 function LogDetailPanel({ log, logType, onClose }) {
+  const [copied, setCopied] = useState(false);
+
   if (!log) {
     return (
       <div className="flex items-center justify-center h-full text-sm text-surface-400 italic px-4">
@@ -124,6 +126,13 @@ function LogDetailPanel({ log, logType, onClose }) {
   }
 
   const isApi = logType === 'api';
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(JSON.stringify(log, null, 2)).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }).catch(() => {});
+  };
 
   const renderJsonBlock = (label, data) => {
     if (!data) return null;
@@ -136,7 +145,7 @@ function LogDetailPanel({ log, logType, onClose }) {
     return (
       <div>
         <h4 className="text-xs font-bold text-surface-600 mb-1">{label}</h4>
-        <div className="bg-surface-50 rounded-lg border border-surface-200 p-3 max-h-64 overflow-auto">
+        <div className="bg-surface-50 rounded-lg border border-surface-200 p-3">
           <pre className="text-[11px] font-mono text-surface-700 whitespace-pre-wrap break-all">{formatted}</pre>
         </div>
       </div>
@@ -153,15 +162,24 @@ function LogDetailPanel({ log, logType, onClose }) {
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-surface-200 bg-gradient-to-r from-brand-50 to-white">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-surface-200 bg-gradient-to-r from-brand-50 to-white flex-shrink-0">
         <h3 className="text-sm font-bold text-surface-800">{detailText.title}</h3>
-        <button onClick={onClose} className="p-1 rounded-lg hover:bg-surface-100 transition-colors">
-          <X size={16} className="text-surface-500" />
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={handleCopy}
+            title="Copy to clipboard"
+            className="p-1 rounded-lg hover:bg-surface-100 transition-colors"
+          >
+            {copied ? <Check size={14} className="text-emerald-500" /> : <Copy size={14} className="text-surface-500" />}
+          </button>
+          <button onClick={onClose} className="p-1 rounded-lg hover:bg-surface-100 transition-colors">
+            <X size={16} className="text-surface-500" />
+          </button>
+        </div>
       </div>
 
-      {/* Fields */}
-      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-1">
+      {/* Single scrollable area — fields + JSON blocks together */}
+      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
         {renderField(detailText.transactionId, log.transactionId || log.transaction_id)}
         {renderField(detailText.timestamp, formatIST(log.timestamp || log.created_at))}
         {renderField(detailText.level, log.level || log.log_level)}
@@ -186,15 +204,14 @@ function LogDetailPanel({ log, logType, onClose }) {
             {renderField(detailText.result, log.result)}
           </>
         )}
-      </div>
 
-      {/* JSON Blocks */}
-      {isApi && (
-        <div className="px-4 pb-4 space-y-3 overflow-y-auto max-h-[50%]">
-          {renderJsonBlock(detailText.requestBody, log.requestBody || log.request_body)}
-          {renderJsonBlock(detailText.responseBody, log.responseBody || log.response_body)}
-        </div>
-      )}
+        {isApi && (
+          <div className="space-y-3 pt-1">
+            {renderJsonBlock(detailText.requestBody, log.requestBody || log.request_body)}
+            {renderJsonBlock(detailText.responseBody, log.responseBody || log.response_body)}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -214,6 +231,7 @@ export default function LogViewer({
   const [pageSize, setPageSize] = useState(50);
   const [currentPage, setCurrentPage] = useState(1);
   const [columnWidths, setColumnWidths] = useState({});
+  const [txFilter, setTxFilter] = useState('');
   const gridRef = useRef(null);
   const resizingRef = useRef(null);
 
@@ -226,13 +244,22 @@ export default function LogViewer({
     setShowDetail(false);
   }, [logType, logs.length]);
 
+  // ── TX Filter (client-side by transaction ID) ─────────────────────────────
+  const filteredByTx = useMemo(() => {
+    if (!txFilter.trim()) return logs;
+    const q = txFilter.trim().toLowerCase();
+    return logs.filter(log =>
+      (log.transactionId || log.transaction_id || '').toLowerCase().includes(q)
+    );
+  }, [logs, txFilter]);
+
   // ── Sorting ────────────────────────────────────────────────────────────────
   const sortedLogs = useMemo(() => {
-    if (!sortColumn) return logs;
+    if (!sortColumn) return filteredByTx;
     const col = columns.find(c => c.id === sortColumn);
-    if (!col?.sortable) return logs;
+    if (!col?.sortable) return filteredByTx;
 
-    return [...logs].sort((a, b) => {
+    return [...filteredByTx].sort((a, b) => {
       let aVal = a[sortColumn] || a[sortColumn.replace(/([A-Z])/g, '_$1').toLowerCase()] || '';
       let bVal = b[sortColumn] || b[sortColumn.replace(/([A-Z])/g, '_$1').toLowerCase()] || '';
       if (sortColumn === 'timestamp') {
@@ -246,7 +273,7 @@ export default function LogViewer({
       const strB = String(bVal).toLowerCase();
       return sortDirection === 'asc' ? strA.localeCompare(strB) : strB.localeCompare(strA);
     });
-  }, [logs, sortColumn, sortDirection, columns]);
+  }, [filteredByTx, sortColumn, sortDirection, columns]);
 
   // ── Pagination ─────────────────────────────────────────────────────────────
   const totalPages = Math.max(1, Math.ceil(sortedLogs.length / pageSize));
@@ -298,6 +325,22 @@ export default function LogViewer({
     <div className="flex flex-1 min-h-0 overflow-hidden rounded-xl border border-surface-200 bg-white shadow-sm">
       {/* Grid Area */}
       <div className="flex-1 flex flex-col min-w-0">
+        {/* Transaction ID Filter */}
+        <div className="flex items-center gap-2 px-3 py-1.5 border-b border-surface-100 bg-surface-50 flex-shrink-0">
+          <span className="text-[10px] font-medium text-surface-500 whitespace-nowrap">TX ID:</span>
+          <input
+            type="text"
+            value={txFilter}
+            onChange={(e) => { setTxFilter(e.target.value); setCurrentPage(1); }}
+            placeholder="Filter by Transaction ID..."
+            className="flex-1 text-[10px] font-mono border border-surface-200 rounded px-2 py-0.5 bg-white text-surface-700 placeholder:text-surface-300 focus:outline-none focus:ring-1 focus:ring-brand-300"
+          />
+          {txFilter && (
+            <button onClick={() => { setTxFilter(''); setCurrentPage(1); }} className="p-0.5 rounded hover:bg-surface-200 transition-colors">
+              <X size={10} className="text-surface-400" />
+            </button>
+          )}
+        </div>
         {/* Grid */}
         <div className="flex-1 overflow-auto" ref={gridRef}>
           <table className="w-full border-collapse text-left min-w-max">
@@ -311,13 +354,13 @@ export default function LogViewer({
                     <th
                       key={col.id}
                       style={{ width, minWidth: width, maxWidth: width }}
-                      className="relative px-3 py-2.5 text-xs font-bold text-surface-600 uppercase tracking-wide select-none"
+                      className="relative px-2 py-1.5 text-[10px] font-bold text-surface-600 uppercase tracking-wide select-none whitespace-nowrap"
                     >
                       <div
                         className={`flex items-center gap-1 ${col.sortable ? 'cursor-pointer hover:text-brand-600' : ''}`}
                         onClick={() => col.sortable && handleSort(col.id)}
                       >
-                        <span className="truncate">{col.label}</span>
+                        <span>{col.label}</span>
                         {col.sortable && (
                           <span className="flex-shrink-0">
                             {isSorted ? (
@@ -382,7 +425,7 @@ export default function LogViewer({
                         <td
                           key={col.id}
                           style={{ width, minWidth: width, maxWidth: width }}
-                          className="px-3 py-2 overflow-hidden"
+                          className="px-2 py-1 overflow-hidden"
                         >
                           {col.render(log)}
                         </td>

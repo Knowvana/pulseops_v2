@@ -193,7 +193,9 @@ function LogSettingsTab() {
   const [isSwitching, setIsSwitching] = useState(false);
   const [allStats, setAllStats] = useState({ ui: { count: 0 }, api: { count: 0 } });
   const [logStatus, setLogStatus] = useState({ status: 'loading', message: connectionText.testing, meta: null, lastTested: null });
-  const apiBase = urls.server.api.url;
+  // urls.database.* and urls.logs.* already include /api prefix
+  // Vite proxy forwards /api/* to backend - use empty base to avoid double /api/api
+  const apiBase = '';
 
   const fetchStatus = useCallback(async () => {
     try {

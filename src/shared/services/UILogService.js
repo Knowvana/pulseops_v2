@@ -39,6 +39,11 @@ class UILogServiceClass {
     this._pendingPush = [];
     this._notifyTimer = null;
     this._notifyPending = false;
+    this._currentTxId = null;
+  }
+
+  _generateTxId() {
+    return `txn-${Date.now().toString(36)}-${Math.random().toString(36).substr(2, 6)}`;
   }
 
   // ── Init: Intercept console + fetch ──────────────────────────────────────
@@ -73,8 +78,22 @@ class UILogServiceClass {
       const method = init?.method?.toUpperCase() || 'GET';
       const start = performance.now();
 
+      // Generate a transaction ID per request and share it with the backend
+      // This links UI logs and API logs for the same user action
+      const isLogPush = requestUrl.includes('/api/logs/') && method === 'POST';
+      if (!isLogPush) {
+        this._currentTxId = this._generateTxId();
+      }
+      const augmentedInit = {
+        ...(init || {}),
+        headers: {
+          ...(init?.headers || {}),
+          ...(!isLogPush && this._currentTxId ? { 'X-Transaction-Id': this._currentTxId } : {}),
+        },
+      };
+
       try {
-        const response = await this._originalFetch(...args);
+        const response = await this._originalFetch(input, augmentedInit);
         const duration = Math.round(performance.now() - start);
         this._addApiCall({
           method,
@@ -94,6 +113,7 @@ class UILogServiceClass {
           status: 0,
           duration,
           error: err.message,
+          transactionId: this._currentTxId,
           timestamp: new Date().toLocaleTimeString(),
         });
         throw err;
@@ -175,8 +195,9 @@ class UILogServiceClass {
     this._pendingPush = [];
 
     try {
-      const apiBase = urls.server.api.url;
-      const endpoint = `${apiBase}${urls.logs.ui}`;
+      // urls.logs.ui = '/api/logs/ui' - already a full relative path
+      // Vite proxy forwards /api/* to backend. Do NOT prepend server url (causes CORS).
+      const endpoint = urls.logs.ui;
       // Use original fetch to avoid recursion
       const fetcher = this._originalFetch || window.fetch;
       await fetcher(endpoint, {
@@ -191,6 +212,7 @@ class UILogServiceClass {
             event: 'console',
             component: e.source || 'Console',
             message: e.message,
+            transactionId: e.transactionId || null,
             result: null,
             timestamp: e.isoTimestamp || new Date().toISOString(),
           })),
@@ -223,6 +245,7 @@ class UILogServiceClass {
       source,
       module: 'Core',
       message,
+      transactionId: this._currentTxId || null,
       timestamp: new Date().toLocaleTimeString(),
       isoTimestamp: new Date().toISOString(),
     };
@@ -237,7 +260,7 @@ class UILogServiceClass {
     // Skip log push calls to avoid recursion
     if (entry.fullUrl?.includes('/api/logs/ui') && entry.method === 'POST') return;
 
-    this._apiCalls = [...this._apiCalls.slice(-(MAX_API_ENTRIES - 1)), entry];
+    this._apiCalls = [...this._apiCalls.slice(-(MAX_API_ENTRIES - 1)), { ...entry, transactionId: this._currentTxId }];
     this._notify();
   }
 

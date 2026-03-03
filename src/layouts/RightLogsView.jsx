@@ -137,31 +137,20 @@ export default function RightLogsView({ isOpen, onClose, logs = [], apiCalls = [
                 <p className="text-[10px] text-surface-400 mt-1">{logText.emptyHint}</p>
               </div>
             ) : (
-              filteredLogs.map((log, idx) => {
-                const levelCfg = LOG_LEVEL_CONFIG[log.level] || LOG_LEVEL_CONFIG.debug;
-                const LevelIcon = levelCfg.icon;
-                return (
-                  <div
-                    key={idx}
-                    className={`p-2 rounded-lg border ${levelCfg.bg} ${levelCfg.border} text-xs`}
-                  >
-                    <div className="flex items-start gap-2">
-                      <LevelIcon size={12} className={`mt-0.5 shrink-0 ${levelCfg.color}`} />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="font-semibold text-surface-700 truncate">
-                            {log.source || log.module}
-                          </span>
-                          <span className="text-[10px] text-surface-400 shrink-0">
-                            {log.timestamp}
-                          </span>
-                        </div>
-                        <p className="text-surface-600 mt-0.5 break-words">{log.message}</p>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })
+              <pre className="text-[10px] font-mono text-surface-700 whitespace-pre-wrap break-all leading-relaxed">
+                {JSON.stringify(
+                  filteredLogs.map(log => ({
+                    time: log.timestamp,
+                    level: log.level,
+                    source: log.source || log.module || 'UI',
+                    message: log.message,
+                    transactionId: log.transactionId || undefined,
+                    ...(log.data ? { data: log.data } : {}),
+                  })),
+                  null,
+                  2
+                )}
+              </pre>
             )}
             <div ref={logsEndRef} />
           </>
@@ -187,34 +176,21 @@ export default function RightLogsView({ isOpen, onClose, logs = [], apiCalls = [
                 <p className="text-[10px] text-surface-400 mt-1">{apiText.emptyHint}</p>
               </div>
             ) : (
-              apiCalls.map((call, idx) => {
-                const isSuccess = call.status >= 200 && call.status < 300;
-                return (
-                  <div
-                    key={idx}
-                    className={`p-2 rounded-lg border text-xs ${
-                      isSuccess
-                        ? 'bg-emerald-50 border-emerald-200'
-                        : 'bg-rose-50 border-rose-200'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-1.5">
-                        <span className={`font-bold ${isSuccess ? 'text-emerald-600' : 'text-rose-600'}`}>
-                          {call.method}
-                        </span>
-                        <span className="text-surface-600 truncate">{call.url}</span>
-                      </div>
-                      <span className={`font-bold shrink-0 ${isSuccess ? 'text-emerald-600' : 'text-rose-600'}`}>
-                        {call.status}
-                      </span>
-                    </div>
-                    {call.duration && (
-                      <p className="text-[10px] text-surface-400 mt-0.5">{call.duration}ms</p>
-                    )}
-                  </div>
-                );
-              })
+              <pre className="text-[10px] font-mono text-surface-700 whitespace-pre-wrap break-all leading-relaxed">
+                {JSON.stringify(
+                  apiCalls.map(call => ({
+                    time: call.timestamp,
+                    method: call.method,
+                    url: call.url,
+                    status: call.status,
+                    duration: call.duration ? `${call.duration}ms` : undefined,
+                    transactionId: call.transactionId || undefined,
+                    ...(call.error ? { error: call.error } : {}),
+                  })),
+                  null,
+                  2
+                )}
+              </pre>
             )}
           </>
         )}

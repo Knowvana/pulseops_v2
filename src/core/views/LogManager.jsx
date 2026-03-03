@@ -35,7 +35,9 @@ import urls from '@config/urls.json';
 const viewText = uiText.coreViews.logs;
 const filterText = viewText.filters;
 const logTypeText = viewText.logTypes;
-const apiBase = urls.server.api.url;
+// urls.logs.* paths already include /api prefix (e.g. /api/logs/api)
+// Vite proxy forwards /api/* to backend - use empty base to avoid double /api/api
+const apiBase = '';
 
 const LEVEL_FILTERS = ['all', 'debug', 'info', 'warn', 'error'];
 

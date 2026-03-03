@@ -36,7 +36,7 @@ export const helmetMiddleware = helmet({
 
 // ── 2. Request ID: UUID per request ─────────────────────────────────────────
 export function requestIdMiddleware(req, _res, next) {
-  req.requestId = crypto.randomUUID();
+  req.requestId = req.headers['x-transaction-id'] || crypto.randomUUID();
   next();
 }
 
