@@ -26,6 +26,7 @@ export { default as LogViewer } from '@shared/components/LogViewer';
 export { default as PageLoader } from '@shared/components/PageLoader';
 
 // --- Services ---
+export { default as UILogService } from '@shared/services/UILogService';
 // export { default as ApiClient } from '@shared/services/apiClient';
 
 // --- Hooks ---

@@ -91,7 +91,19 @@
 
 | Method | Endpoint | Auth | Description |
 |--------|----------|------|-------------|
-| GET | `/api/logs/stats` | Cookie | Log statistics |
+| GET | `/api/logs/config` | No | Get current logging configuration |
+| POST | `/api/logs/config` | No | Update logging config (storage mode: file/database) |
+| GET | `/api/logs/config/status` | No | Check log storage status and DB availability |
+| POST | `/api/logs/config/tables` | No | Create log tables in database |
+| GET | `/api/logs/stats` | No | Get stats for both UI and API logs |
+| GET | `/api/logs/ui` | No | Get UI logs (query: `level`, `search`, `limit`, `offset`) |
+| GET | `/api/logs/api` | No | Get API logs (query: `level`, `search`, `limit`, `offset`) |
+| POST | `/api/logs/ui` | No | Push UI log entries (body: `{ entries: [...] }`) |
+| POST | `/api/logs/api` | No | Push API log entries (body: `{ entries: [...] }`) |
+| DELETE | `/api/logs/ui` | No | Delete all UI logs |
+| DELETE | `/api/logs/api` | No | Delete all API logs |
+| GET | `/api/logs/ui/stats` | No | Get stats for UI logs only |
+| GET | `/api/logs/api/stats` | No | Get stats for API logs only |
 
 ---
 

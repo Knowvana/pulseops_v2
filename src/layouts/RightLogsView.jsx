@@ -40,7 +40,7 @@ const FILTER_OPTIONS = [
   { id: 'error', label: logText.filterError },
 ];
 
-export default function RightLogsView({ isOpen, onClose, logs = [], apiCalls = [] }) {
+export default function RightLogsView({ isOpen, onClose, logs = [], apiCalls = [], onClearLogs, onClearApiCalls }) {
   const [activeTab, setActiveTab] = useState('logs');
   const [logFilter, setLogFilter] = useState('all');
   const logsEndRef = useRef(null);
@@ -117,6 +117,7 @@ export default function RightLogsView({ isOpen, onClose, logs = [], apiCalls = [
           ))}
           <div className="flex-1" />
           <button
+            onClick={onClearLogs}
             title={logText.clearTooltip}
             className="p-1 rounded text-surface-400 hover:text-rose-500 hover:bg-rose-50 transition-colors"
           >
@@ -168,6 +169,17 @@ export default function RightLogsView({ isOpen, onClose, logs = [], apiCalls = [
 
         {activeTab === 'api' && (
           <>
+            {apiCalls.length > 0 && (
+              <div className="flex justify-end mb-1">
+                <button
+                  onClick={onClearApiCalls}
+                  title="Clear API calls"
+                  className="p-1 rounded text-surface-400 hover:text-rose-500 hover:bg-rose-50 transition-colors"
+                >
+                  <Trash2 size={12} />
+                </button>
+              </div>
+            )}
             {apiCalls.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-center">
                 <Globe size={28} className="text-surface-300 mb-2" />

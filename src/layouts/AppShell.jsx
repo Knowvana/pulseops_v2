@@ -26,10 +26,11 @@
 //   - @layouts/LeftSideNavBar
 //   - @layouts/RightLogsView
 // ============================================================================
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import TopMenu from '@layouts/TopMenu';
 import LeftSideNavBar from '@layouts/LeftSideNavBar';
 import RightLogsView from '@layouts/RightLogsView';
+import { UILogService } from '@shared';
 
 export default function AppShell({
   appName,
@@ -55,6 +56,24 @@ export default function AppShell({
   const onToggleSideNav = controlledToggle || (() => setInternalCollapsed((c) => !c));
 
   const [isRightPanelOpen, setIsRightPanelOpen] = useState(false);
+  const [uiLogs, setUiLogs] = useState([]);
+  const [apiCalls, setApiCalls] = useState([]);
+
+  // Initialize UILogService and subscribe for updates
+  useEffect(() => {
+    UILogService.init();
+    const unsub = UILogService.subscribe(({ logs, apiCalls: calls }) => {
+      setUiLogs(logs);
+      setApiCalls(calls);
+    });
+    return () => {
+      unsub();
+      UILogService.destroy();
+    };
+  }, []);
+
+  const handleClearLogs = useCallback(() => UILogService.clearLogs(), []);
+  const handleClearApiCalls = useCallback(() => UILogService.clearApiCalls(), []);
 
   return (
     <div className="h-screen flex flex-col bg-surface-50 font-sans text-surface-800 overflow-hidden">
@@ -93,6 +112,10 @@ export default function AppShell({
         <RightLogsView
           isOpen={isRightPanelOpen}
           onClose={() => setIsRightPanelOpen(false)}
+          logs={uiLogs}
+          apiCalls={apiCalls}
+          onClearLogs={handleClearLogs}
+          onClearApiCalls={handleClearApiCalls}
         />
       </div>
     </div>

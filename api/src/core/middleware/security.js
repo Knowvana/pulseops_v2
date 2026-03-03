@@ -43,12 +43,14 @@ export function requestIdMiddleware(req, _res, next) {
 // ── 6. Request/Response Logger: Detailed API call tracking ─────────────────
 export function requestLogger(req, res, next) {
   const startTime = Date.now();
+  const requestPath = req.originalUrl || req.path;
+  const isLogRoute = requestPath.startsWith('/api/logs');
   
   // Log incoming request
-  logger.info(`[${req.requestId}] → ${req.method} ${req.path}`, {
+  logger.info(`[${req.requestId}] → ${req.method} ${requestPath}`, {
     requestId: req.requestId,
     method: req.method,
-    path: req.path,
+    path: requestPath,
     query: Object.keys(req.query).length > 0 ? req.query : undefined,
     body: req.method !== 'GET' && req.body ? { ...req.body, password: req.body.password ? '***' : undefined } : undefined,
     ip: req.ip,
@@ -60,7 +62,7 @@ export function requestLogger(req, res, next) {
   res.json = function(data) {
     const duration = Date.now() - startTime;
     
-    logger.info(`[${req.requestId}] ← ${res.statusCode} ${req.method} ${req.path} (${duration}ms)`, {
+    logger.info(`[${req.requestId}] ← ${res.statusCode} ${req.method} ${requestPath} (${duration}ms)`, {
       requestId: req.requestId,
       statusCode: res.statusCode,
       duration,
@@ -69,7 +71,7 @@ export function requestLogger(req, res, next) {
     });
 
     // Persist API log entry (skip /logs endpoints to prevent recursion)
-    if (!req.path.startsWith('/api/logs')) {
+    if (!isLogRoute) {
       const level = res.statusCode >= 500 ? 'error' : res.statusCode >= 400 ? 'warn' : 'info';
       const safeBody = req.method !== 'GET' && req.body
         ? { ...req.body, password: undefined, password_hash: undefined }
@@ -81,7 +83,7 @@ export function requestLogger(req, res, next) {
           source: 'API',
           user: req.user?.email || null,
           module: 'Core',
-          url: req.originalUrl || req.path,
+          url: requestPath,
           method: req.method,
           statusCode: res.statusCode,
           responseTime: duration,

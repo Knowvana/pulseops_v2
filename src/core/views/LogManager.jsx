@@ -49,6 +49,13 @@ export default function LogManager() {
   const [searchTerm, setSearchTerm] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+
+  // ── Search debounce ──────────────────────────────────────────────────────
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchTerm), 400);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
 
   // ── Fetch Logs ───────────────────────────────────────────────────────────
   const fetchLogs = useCallback(async () => {
@@ -56,7 +63,7 @@ export default function LogManager() {
     try {
       const params = new URLSearchParams();
       if (levelFilter !== 'all') params.set('level', levelFilter);
-      if (searchTerm.trim()) params.set('search', searchTerm.trim());
+      if (debouncedSearch.trim()) params.set('search', debouncedSearch.trim());
       params.set('limit', '500');
 
       const endpoint = logType === 'ui' ? urls.logs.ui : urls.logs.api;
@@ -72,7 +79,7 @@ export default function LogManager() {
     } finally {
       setIsLoading(false);
     }
-  }, [logType, levelFilter, searchTerm]);
+  }, [logType, levelFilter, debouncedSearch]);
 
   // ── Fetch Stats ──────────────────────────────────────────────────────────
   const fetchStats = useCallback(async () => {
@@ -121,16 +128,6 @@ export default function LogManager() {
       setShowDeleteConfirm(false);
     }
   }, [logType]);
-
-  // ── Search debounce ──────────────────────────────────────────────────────
-  const [debouncedSearch, setDebouncedSearch] = useState('');
-  useEffect(() => {
-    const timer = setTimeout(() => setDebouncedSearch(searchTerm), 400);
-    return () => clearTimeout(timer);
-  }, [searchTerm]);
-  useEffect(() => {
-    if (debouncedSearch !== undefined) fetchLogs();
-  }, [debouncedSearch]);
 
   // ── Render ─────────────────────────────────────────────────────────────
   return (

@@ -343,8 +343,8 @@ export default function LogViewer({
             <tbody>
               {isLoading && (
                 <tr>
-                  <td colSpan={columns.length} className="text-center py-16">
-                    <div className="flex flex-col items-center gap-2">
+                  <td colSpan={columns.length} className="py-16">
+                    <div className="sticky left-0 w-[calc(100vw-320px)] flex flex-col items-center justify-center gap-2">
                       <div className="w-6 h-6 border-2 border-brand-400 border-t-transparent rounded-full animate-spin" />
                       <span className="text-xs text-surface-400">{uiText.coreViews.logs.stats.refreshNow}...</span>
                     </div>
@@ -354,8 +354,8 @@ export default function LogViewer({
 
               {noLogs && (
                 <tr>
-                  <td colSpan={columns.length} className="text-center py-16">
-                    <div className="flex flex-col items-center gap-2">
+                  <td colSpan={columns.length} className="py-16">
+                    <div className="sticky left-0 w-[calc(100vw-320px)] flex flex-col items-center justify-center gap-2">
                       <FileJson size={32} className="text-surface-300" />
                       <span className="text-sm font-medium text-surface-500">{logText.stats.noLogs}</span>
                       <span className="text-xs text-surface-400">{logText.stats.noLogsHint}</span>
