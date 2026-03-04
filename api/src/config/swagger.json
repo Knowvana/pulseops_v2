@@ -370,10 +370,10 @@
         }
       }
     },
-    "/auth/config": {
+    "/auth/provider": {
       "get": {
         "tags": ["Authentication"],
-        "operationId": "getAuthConfig",
+        "operationId": "getAuthProvider",
         "summary": "Get auth provider config",
         "description": "Returns the active authentication provider and list of all available providers. Public endpoint — no auth required.",
         "responses": {
@@ -383,10 +383,10 @@
           }
         }
       },
-      "post": {
+      "put": {
         "tags": ["Authentication"],
-        "operationId": "setAuthConfig",
-        "summary": "Set auth provider",
+        "operationId": "updateAuthProvider",
+        "summary": "Update auth provider",
         "description": "Changes the active authentication provider. Requires super_admin role. If switching to 'database', validates that the database is initialized and has default data. Writes to auth-provider.json and system_config table.",
         "security": [{ "BearerAuth": [] }],
         "requestBody": {
@@ -482,36 +482,20 @@
         }
       }
     },
-    "/database/test-connection": {
+    "/database/config": {
       "get": {
         "tags": ["Database"],
-        "operationId": "testConnectionServer",
-        "summary": "Test connection with server config",
-        "description": "Tests PostgreSQL connectivity using the server's DatabaseConfig.json settings. Returns connection status, latency in ms, and PostgreSQL version string.",
+        "operationId": "getDbConfig",
+        "summary": "Get database configuration",
+        "description": "Returns the current database configuration from DatabaseConfig.json (password masked).",
         "responses": {
-          "200": { "description": "Connection test result.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ConnectionTestResult" } } } }
+          "200": { "description": "Database configuration.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } } }
         }
       },
-      "post": {
+      "put": {
         "tags": ["Database"],
-        "operationId": "testConnectionCustom",
-        "summary": "Test connection with custom config",
-        "description": "Tests PostgreSQL connectivity using the provided configuration. Creates a temporary connection pool, runs SELECT version(), and returns latency. Pool is destroyed after test.",
-        "requestBody": {
-          "required": true,
-          "description": "Database connection parameters to test.",
-          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DatabaseConfig" } } }
-        },
-        "responses": {
-          "200": { "description": "Connection test result.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ConnectionTestResult" } } } }
-        }
-      }
-    },
-    "/database/save-config": {
-      "post": {
-        "tags": ["Database"],
-        "operationId": "saveDbConfig",
-        "summary": "Save database configuration",
+        "operationId": "updateDbConfig",
+        "summary": "Update database configuration",
         "description": "Persists the provided database configuration to DatabaseConfig.json on the API server's filesystem. Takes effect on next connection pool creation.",
         "requestBody": {
           "required": true,
@@ -524,23 +508,48 @@
         }
       }
     },
-    "/database/create-database": {
+    "/database/config/test": {
+      "post": {
+        "tags": ["Database"],
+        "operationId": "testDbConfig",
+        "summary": "Test database configuration",
+        "description": "Tests PostgreSQL connectivity using the provided configuration. Creates a temporary connection pool, runs SELECT version(), and returns latency. Pool is destroyed after test.",
+        "requestBody": {
+          "required": true,
+          "description": "Database connection parameters to test.",
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DatabaseConfig" } } }
+        },
+        "responses": {
+          "200": { "description": "Connection test result.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ConnectionTestResult" } } } }
+        }
+      }
+    },
+    "/database/connection": {
+      "get": {
+        "tags": ["Database"],
+        "operationId": "testConnection",
+        "summary": "Test connection with server config",
+        "description": "Tests PostgreSQL connectivity using the server's DatabaseConfig.json settings. Returns connection status, latency in ms, and PostgreSQL version string.",
+        "responses": {
+          "200": { "description": "Connection test result.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ConnectionTestResult" } } } }
+        }
+      }
+    },
+    "/database/instance": {
       "post": {
         "tags": ["Database"],
         "operationId": "createDatabase",
-        "summary": "Create the database",
+        "summary": "Create the database instance",
         "description": "Connects to the 'postgres' system database and runs CREATE DATABASE for the target database name from config. Returns success if database already exists.",
         "responses": {
           "200": { "description": "Database created or already exists.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } } },
           "500": { "description": "Database creation failed.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
         }
-      }
-    },
-    "/database/delete-database": {
+      },
       "delete": {
         "tags": ["Database"],
         "operationId": "deleteDatabase",
-        "summary": "Delete the database",
+        "summary": "Delete the database instance",
         "description": "DESTRUCTIVE: Drops the entire PostgreSQL database including all schemas, tables, and data. Requires JWT authentication. Terminates all active connections before dropping.",
         "security": [{ "BearerAuth": [] }],
         "responses": {
@@ -550,7 +559,7 @@
         }
       }
     },
-    "/database/schema-status": {
+    "/database/schema": {
       "get": {
         "tags": ["Database"],
         "operationId": "getSchemaStatus",
@@ -559,9 +568,7 @@
         "responses": {
           "200": { "description": "Schema status.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SchemaStatusResult" } } } }
         }
-      }
-    },
-    "/database/create-schema": {
+      },
       "post": {
         "tags": ["Database"],
         "operationId": "createSchema",
@@ -571,13 +578,24 @@
           "200": { "description": "Schema and tables created.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SchemaCreateResult" } } } },
           "500": { "description": "Schema creation failed (rolled back).", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
         }
+      },
+      "delete": {
+        "tags": ["Database"],
+        "operationId": "deleteSchema",
+        "summary": "Delete database schema",
+        "description": "DESTRUCTIVE: Drops the entire schema CASCADE, removing all tables and data. Requires JWT authentication. The database itself is not dropped — only the schema.",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Schema deleted.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } } },
+          "401": { "description": "Authentication required.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
       }
     },
-    "/database/load-default-data": {
+    "/database/schema/seed": {
       "post": {
         "tags": ["Database"],
-        "operationId": "loadDefaultData",
-        "summary": "Load default data",
+        "operationId": "seedDefaultData",
+        "summary": "Seed default data",
         "description": "Seeds the default admin user (from DefaultAdminUser.json with bcrypt-hashed password) and registers core modules (platform_admin, auth). Skips if data already exists.",
         "responses": {
           "200": { "description": "Default data loaded.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DefaultDataResult" } } } },
@@ -594,19 +612,6 @@
         }
       }
     },
-    "/database/wipe": {
-      "post": {
-        "tags": ["Database"],
-        "operationId": "wipeDatabase",
-        "summary": "Wipe database schema",
-        "description": "DESTRUCTIVE: Drops the entire schema CASCADE, removing all tables and data. Requires JWT authentication. The database itself is not dropped — only the schema.",
-        "security": [{ "BearerAuth": [] }],
-        "responses": {
-          "200": { "description": "Schema wiped.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } } },
-          "401": { "description": "Authentication required.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
-        }
-      }
-    },
     "/database/stats": {
       "get": {
         "tags": ["Database"],
@@ -620,7 +625,7 @@
         }
       }
     },
-    "/config": {
+    "/system/config": {
       "get": {
         "tags": ["Configuration"],
         "operationId": "listConfig",
@@ -651,7 +656,7 @@
         }
       }
     },
-    "/config/{key}": {
+    "/system/config/{key}": {
       "get": {
         "tags": ["Configuration"],
         "operationId": "getConfig",

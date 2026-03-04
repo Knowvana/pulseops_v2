@@ -12,7 +12,7 @@
 //   TimezoneService.getTimezone(); // Get current timezone string
 //   TimezoneService.setTimezone('Asia/Kolkata'); // Update timezone immediately
 //
-// ARCHITECTURE: Singleton service. Fetches from /api/general-settings on init.
+// ARCHITECTURE: Singleton service. Fetches from /api/settings on init.
 // Components subscribe to timezone changes via subscribe/unsubscribe pattern.
 // ============================================================================
 import urls from '@config/urls.json';
@@ -33,7 +33,7 @@ class TimezoneServiceClass {
     if (this._initialized) return;
     this._initialized = true;
     try {
-      const res = await fetch(urls.generalSettings.get, { credentials: 'include' });
+      const res = await fetch(urls.settings.get, { credentials: 'include' });
       const json = await res.json();
       if (json.success && json.data?.timezone) {
         this._timezone = json.data.timezone;
@@ -79,16 +79,16 @@ class TimezoneServiceClass {
   formatTime(isoString) {
     if (!isoString) return '—';
     try {
-      return new Date(isoString).toLocaleString('en-IN', {
-        timeZone: this._timezone,
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: true,
+      const date = new Date(isoString);
+      if (isNaN(date.getTime())) return isoString;
+      const tz = this._timezone;
+      const day   = date.toLocaleString('en-GB', { timeZone: tz, day: '2-digit' });
+      const month = date.toLocaleString('en-GB', { timeZone: tz, month: 'long' });
+      const year  = date.toLocaleString('en-GB', { timeZone: tz, year: 'numeric' });
+      const time  = date.toLocaleString('en-US', {
+        timeZone: tz, hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true,
       });
+      return `${day}.${month}.${year},${time}`;
     } catch {
       return isoString;
     }
@@ -99,16 +99,7 @@ class TimezoneServiceClass {
    * @returns {string} Formatted current time
    */
   formatCurrentTime() {
-    return new Date().toLocaleString('en-IN', {
-      timeZone: this._timezone,
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      hour12: true,
-    });
+    return this.formatTime(new Date().toISOString());
   }
 
   /**

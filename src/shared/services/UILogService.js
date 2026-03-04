@@ -288,23 +288,36 @@ class UILogServiceClass {
 
   _trackInteractions() {
     document.addEventListener('click', (e) => {
-      const target = e.target.closest('button, a[href], [role="button"], [data-log]');
+      const target = e.target.closest('button, a[href], [role="button"], [data-log], input, select, textarea');
       if (!target) return;
 
-      const text = (
-        target.getAttribute('aria-label') ||
-        target.textContent ||
-        target.getAttribute('title') || ''
-      ).replace(/\s+/g, ' ').trim().slice(0, 100);
+      const tag       = target.tagName.toLowerCase();
+      const ariaLabel = target.getAttribute('aria-label');
+      const title     = target.getAttribute('title');
+      const rawText   = (ariaLabel || target.textContent || title || '').replace(/\s+/g, ' ').trim().slice(0, 100);
+      const dataLog   = target.getAttribute('data-log');
 
-      if (!text) return;
+      if (!rawText && !dataLog) return;
 
-      const tag  = target.tagName.toLowerCase();
-      const href = target.getAttribute('href');
-      const ctx  = href ? { tag, href } : { tag };
+      const ctx = {
+        interactionType: 'click',
+        element:         tag,
+        ...(target.id                           && { id:       target.id }),
+        ...(target.name                         && { name:     target.name }),
+        ...(ariaLabel                           && { ariaLabel }),
+        ...(title                               && { title }),
+        ...(target.getAttribute('role')         && { role:     target.getAttribute('role') }),
+        ...(target.getAttribute('type')         && { type:     target.getAttribute('type') }),
+        ...(tag === 'a' && target.href          && { href:     target.getAttribute('href') }),
+        ...(target.getAttribute('data-testid')  && { testId:   target.getAttribute('data-testid') }),
+        ...(dataLog                             && { dataLog }),
+        ...(rawText                             && { text:     rawText }),
+        page: window.location.pathname,
+      };
 
+      const label = tag === 'a' ? 'Link' : tag === 'input' ? 'Input' : tag === 'select' ? 'Select' : 'Button';
       this._addUiEntryRaw('debug',
-        `[Interaction] ${tag === 'a' ? 'Link' : 'Button'}: ${text}`,
+        `[Interaction] ${label}: ${rawText || dataLog || tag}`,
         ctx, 'interaction',
         { file: 'UILogService.js', func: 'interaction' });
     }, { capture: true, passive: true });

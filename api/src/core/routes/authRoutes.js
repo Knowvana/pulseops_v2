@@ -8,13 +8,13 @@
 //
 // ENDPOINTS (Public):
 //   POST /auth/login      — Authenticate with email/password → JWT tokens
-//   GET  /auth/config     — Get current auth provider configuration
+//   GET  /auth/provider   — Get current auth provider configuration
 //
 // ENDPOINTS (Protected — JWT required):
 //   POST /auth/refresh    — Refresh an expired access token
 //   POST /auth/logout     — Logout (clear cookies + client discards token)
 //   GET  /auth/me         — Get current authenticated user profile
-//   POST /auth/config     — Save auth provider (super_admin only)
+//   PUT  /auth/provider   — Save auth provider (super_admin only)
 //
 // PROVIDER ROUTING:
 //   json_file  → validates against api/src/config/DefaultAdminUser.json
@@ -169,8 +169,8 @@ async function loginWithDatabase(email, password) {
   };
 }
 
-// ── GET /auth/config (Public) ───────────────────────────────────────────────
-router.get('/config', async (req, res) => {
+// ── GET /auth/provider (Public) ────────────────────────────────────────────
+router.get('/provider', async (req, res) => {
   logger.info('API event: GET /auth/config');
   try {
     const fileConfig = loadJson(AUTH_PROVIDER_FILE);
@@ -196,8 +196,8 @@ router.get('/config', async (req, res) => {
   }
 });
 
-// ── POST /auth/config (Protected — super_admin only) ────────────────────────
-router.post('/config', authenticate, requireRole('super_admin'), async (req, res) => {
+// ── PUT /auth/provider (Protected — super_admin only) ──────────────────────
+router.put('/provider', authenticate, requireRole('super_admin'), async (req, res) => {
   logger.info('API event: POST /auth/config', { provider: req.body?.provider, user: req.user?.email });
   const { provider } = req.body;
   const validProviders = ['json_file', 'database', 'social'];

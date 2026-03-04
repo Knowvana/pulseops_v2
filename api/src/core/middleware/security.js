@@ -25,8 +25,22 @@
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import crypto from 'crypto';
+import jwt from 'jsonwebtoken';
 import { errors } from '#shared/loadJson.js';
 import { logger } from '#shared/logger.js';
+import { config } from '#config';
+
+function _extractUserEmail(req) {
+  try {
+    const token = req.cookies?.accessToken ||
+      (req.headers.authorization?.startsWith('Bearer ') ? req.headers.authorization.slice(7) : null);
+    if (!token) return null;
+    const decoded = jwt.verify(token, config.auth.jwtSecret);
+    return decoded?.email || null;
+  } catch {
+    return null;
+  }
+}
 
 // ── 1. Helmet.js: HTTP Security Headers ─────────────────────────────────────
 export const helmetMiddleware = helmet({
@@ -76,12 +90,14 @@ export function requestLogger(req, res, next) {
       const safeBody = req.method !== 'GET' && req.body
         ? { ...req.body, password: undefined, password_hash: undefined }
         : undefined;
+      const userEmail = req.user?.email || _extractUserEmail(req) || 'Anonymous';
       import('#core/services/logService.js').then(mod => {
         mod.default.writeApiLog({
           transactionId: req.requestId,
           level,
           source: 'API',
-          user: req.user?.email || 'Anonymous',
+          user: userEmail,
+          fileName: 'security.js:requestLogger',
           module: 'Core',
           url: requestPath,
           method: req.method,

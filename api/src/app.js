@@ -111,10 +111,10 @@ export function createApp() {
   app.use(`${prefix}${apiUrls.auth.base}`, authRateLimiter, authRoutes);
   app.use(`${prefix}${apiUrls.database.base}`, databaseRoutes);
   app.use(`${prefix}${apiUrls.logs.base}`, logRoutes);
-  app.use(`${prefix}/general-settings`, generalSettingsRoutes);
+  app.use(`${prefix}${apiUrls.settings.base}`, generalSettingsRoutes);
 
   // ── 11. Protected Routes (JWT required) ─────────────────────────────────
-  app.use(`${prefix}${apiUrls.config.base}`, authenticate, configRoutes);
+  app.use(`${prefix}${apiUrls.systemConfig.base}`, authenticate, configRoutes);
 
   // ── 12. 404 Handler ─────────────────────────────────────────────────────
   app.use((req, res) => {

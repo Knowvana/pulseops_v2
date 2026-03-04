@@ -4,25 +4,31 @@
 // PURPOSE: REST endpoints for database configuration, connection testing,
 // schema management, and data operations.
 //
+// REST RESOURCE MODEL:
+//   /database/config         — Database connection configuration (resource)
+//   /database/connection     — Live connection status (read-only, server config)
+//   /database/schema         — Schema lifecycle (create / status / wipe)
+//   /database/schema/seed    — Seed data sub-resource (load / clean)
+//   /database/instance       — Physical database instance (create / delete)
+//   /database/stats          — Observability (read-only)
+//
 // AUTH STRATEGY (Selective):
-//   - Public (no auth): setup/status routes (called before any user exists)
-//     test-connection, save-config, schema-status, create-database,
-//     create-schema, load-default-data, clean-default-data
-//   - Protected (JWT required): destructive routes only
-//     wipe, stats, delete-database
+//   - Public (no auth): setup routes called before any user exists
+//   - Protected (JWT required): destructive operations only
 //
 // ENDPOINTS:
-//   POST   /database/test-connection    — Test DB connection (public)
-//   GET    /database/test-connection    — Test with server config (public)
-//   POST   /database/save-config       — Save DB config to DatabaseConfig.json (public)
-//   POST   /database/create-database    — Create the database if not exists (public)
-//   DELETE /database/delete-database    — Drop the database entirely (protected)
-//   GET    /database/schema-status      — Check schema initialization state (public)
-//   POST   /database/create-schema      — Create core schema and tables (public)
-//   POST   /database/load-default-data  — Seed default admin user + config (public)
-//   DELETE /database/load-default-data  — Clean default data (public)
-//   POST   /database/wipe               — Drop entire schema (protected)
-//   GET    /database/stats              — Table sizes and counts (protected)
+//   GET    /database/config          — Read saved DB config (public)
+//   PUT    /database/config          — Save DB config (public)
+//   POST   /database/config/test     — Test connection with supplied config body (public)
+//   GET    /database/connection      — Test connection with server-saved config (public)
+//   GET    /database/schema          — Schema initialization status (public)
+//   POST   /database/schema          — Initialize schema + tables (public)
+//   DELETE /database/schema          — Wipe entire schema (protected)
+//   POST   /database/schema/seed     — Load default seed data (public)
+//   DELETE /database/schema/seed     — Clean seed data (public)
+//   POST   /database/instance        — Create database (public)
+//   DELETE /database/instance        — Drop database entirely (protected)
+//   GET    /database/stats           — Table sizes and counts (protected)
 //
 // DEPENDENCIES:
 //   - ../database/databaseService.js → all database operations
@@ -39,49 +45,9 @@ import { reloadDbConfig } from '#config';
 
 const router = Router();
 
-// ── POST /database/test-connection (Public) ─────────────────────────────────
-router.post('/test-connection', async (req, res) => {
-  logger.info('API event: POST /database/test-connection', { host: req.body?.host, database: req.body?.database });
-  try {
-    const result = await DatabaseService.testConnection(req.body);
-    logger.info('Database connection test successful', { host: req.body?.host, database: req.body?.database });
-    res.json({ success: true, data: result });
-  } catch (err) {
-    logger.error(errors.errors.dbConnectionFailed, { error: err.message });
-    const isDbNotExist = err.message?.includes('does not exist');
-    res.json({
-      success: false,
-      error: {
-        message: err.message || errors.errors.dbConnectionFailed,
-        code: isDbNotExist ? 'DB_NOT_EXIST' : 'CONNECTION_FAILED',
-      },
-    });
-  }
-});
-
-// ── GET /database/test-connection (Public) ──────────────────────────────────
-router.get('/test-connection', async (_req, res) => {
-  logger.info('API event: GET /database/test-connection (server config)');
-  try {
-    const result = await DatabaseService.testConnection();
-    logger.info('Database connection test (server config) successful');
-    res.json({ success: true, data: result });
-  } catch (err) {
-    logger.error(errors.errors.dbConnectionFailed, { error: err.message });
-    const isDbNotExist = err.message?.includes('does not exist');
-    res.json({
-      success: false,
-      error: {
-        message: err.message || errors.errors.dbConnectionFailed,
-        code: isDbNotExist ? 'DB_NOT_EXIST' : 'CONNECTION_FAILED',
-      },
-    });
-  }
-});
-
-// ── GET /database/save-config (Public) ───────────────────────────────────────
-router.get('/save-config', async (_req, res) => {
-  logger.info('API event: GET /database/save-config');
+// ── GET /database/config (Public) ────────────────────────────────────────────
+router.get('/config', async (_req, res) => {
+  logger.info('API event: GET /database/config');
   try {
     const dbConfig = loadJson('DatabaseConfig.json');
     let defaultAdmin = { email: '' };
@@ -117,8 +83,48 @@ router.get('/save-config', async (_req, res) => {
   }
 });
 
-// ── POST /database/save-config (Public) ─────────────────────────────────────
-router.post('/save-config', async (req, res) => {
+// ── POST /database/config/test (Public) ───────────────────────────────────
+router.post('/config/test', async (req, res) => {
+  logger.info('API event: POST /database/config/test', { host: req.body?.host, database: req.body?.database });
+  try {
+    const result = await DatabaseService.testConnection(req.body);
+    logger.info('Database connection test successful', { host: req.body?.host, database: req.body?.database });
+    res.json({ success: true, data: result });
+  } catch (err) {
+    logger.error(errors.errors.dbConnectionFailed, { error: err.message });
+    const isDbNotExist = err.message?.includes('does not exist');
+    res.json({
+      success: false,
+      error: {
+        message: err.message || errors.errors.dbConnectionFailed,
+        code: isDbNotExist ? 'DB_NOT_EXIST' : 'CONNECTION_FAILED',
+      },
+    });
+  }
+});
+
+// ── GET /database/connection (Public) ──────────────────────────────────────
+router.get('/connection', async (_req, res) => {
+  logger.info('API event: GET /database/connection (server config)');
+  try {
+    const result = await DatabaseService.testConnection();
+    logger.info('Database connection test (server config) successful');
+    res.json({ success: true, data: result });
+  } catch (err) {
+    logger.error(errors.errors.dbConnectionFailed, { error: err.message });
+    const isDbNotExist = err.message?.includes('does not exist');
+    res.json({
+      success: false,
+      error: {
+        message: err.message || errors.errors.dbConnectionFailed,
+        code: isDbNotExist ? 'DB_NOT_EXIST' : 'CONNECTION_FAILED',
+      },
+    });
+  }
+});
+
+// ── PUT /database/config (Public) ─────────────────────────────────────────────
+router.put('/config', async (req, res) => {
   logger.info('API event: POST /database/save-config', { host: req.body?.host, database: req.body?.database });
   try {
     const { host, port, database, schema, username, password } = req.body;
@@ -146,35 +152,9 @@ router.post('/save-config', async (req, res) => {
   }
 });
 
-// ── POST /database/create-database (Public) ─────────────────────────────────
-router.post('/create-database', async (_req, res) => {
-  logger.info('API event: POST /database/create-database');
-  try {
-    const result = await DatabaseService.createDatabase();
-    logger.info('Database created successfully', result);
-    res.json({ success: true, data: result });
-  } catch (err) {
-    logger.error(errors.errors.dbCreateFailed, { error: err.message });
-    res.status(500).json({ success: false, error: { message: err.message || errors.errors.dbCreateFailed } });
-  }
-});
-
-// ── DELETE /database/delete-database (Protected) ────────────────────────────
-router.delete('/delete-database', authenticate, async (req, res) => {
-  logger.info('API event: DELETE /database/delete-database', { user: req.user?.email });
-  try {
-    const result = await DatabaseService.dropDatabase();
-    logger.info('Database deleted successfully', { user: req.user?.email });
-    res.json({ success: true, data: result });
-  } catch (err) {
-    logger.error(errors.errors.dbDeleteFailed, { error: err.message });
-    res.status(500).json({ success: false, error: { message: err.message || errors.errors.dbDeleteFailed } });
-  }
-});
-
-// ── GET /database/schema-status (Public) ────────────────────────────────────
-router.get('/schema-status', async (_req, res) => {
-  logger.info('API event: GET /database/schema-status');
+// ── GET /database/schema (Public) ─────────────────────────────────────────────
+router.get('/schema', async (_req, res) => {
+  logger.info('API event: GET /database/schema');
   try {
     const result = await DatabaseService.getSchemaStatus();
     res.json({ success: true, data: result });
@@ -184,55 +164,81 @@ router.get('/schema-status', async (_req, res) => {
   }
 });
 
-// ── POST /database/create-schema (Public) ───────────────────────────────────
-router.post('/create-schema', async (_req, res) => {
-  logger.info('API event: POST /database/create-schema');
+// ── POST /database/schema (Public) ────────────────────────────────────────────
+router.post('/schema', async (_req, res) => {
+  logger.info('API event: POST /database/schema');
   try {
     const result = await DatabaseService.createSchema();
-    logger.info('Schema created successfully');
-    res.json({ success: true, data: result });
+    logger.info('Schema initialized successfully');
+    res.status(201).json({ success: true, data: result });
   } catch (err) {
     logger.error(errors.errors.schemaInitFailed, { error: err.message });
     res.status(500).json({ success: false, error: { message: err.message || errors.errors.schemaInitFailed } });
   }
 });
 
-// ── POST /database/load-default-data (Public) ──────────────────────────────
-router.post('/load-default-data', async (_req, res) => {
-  logger.info('API event: POST /database/load-default-data');
+// ── DELETE /database/schema (Protected — wipe entire schema) ──────────────────
+router.delete('/schema', authenticate, async (req, res) => {
+  logger.info('API event: DELETE /database/schema', { user: req.user?.email });
+  try {
+    const result = await DatabaseService.wipeDatabase();
+    logger.info('Schema wiped successfully', { user: req.user?.email });
+    res.json({ success: true, data: result });
+  } catch (err) {
+    logger.error(errors.errors.dbWipeFailed, { error: err.message });
+    res.status(500).json({ success: false, error: { message: err.message || errors.errors.dbWipeFailed } });
+  }
+});
+
+// ── POST /database/schema/seed (Public) ───────────────────────────────────────
+router.post('/schema/seed', async (_req, res) => {
+  logger.info('API event: POST /database/schema/seed');
   try {
     const result = await DatabaseService.loadDefaultData();
-    logger.info('Default data loaded successfully');
-    res.json({ success: true, data: result });
+    logger.info('Seed data loaded successfully');
+    res.status(201).json({ success: true, data: result });
   } catch (err) {
     logger.error(errors.errors.dbInitFailed, { error: err.message });
     res.status(500).json({ success: false, error: { message: err.message || errors.errors.dbInitFailed } });
   }
 });
 
-// ── DELETE /database/load-default-data (Public) ─────────────────────────────
-router.delete('/load-default-data', async (_req, res) => {
-  logger.info('API event: DELETE /database/load-default-data');
+// ── DELETE /database/schema/seed (Public) ─────────────────────────────────────
+router.delete('/schema/seed', async (_req, res) => {
+  logger.info('API event: DELETE /database/schema/seed');
   try {
     const result = await DatabaseService.cleanDefaultData();
-    logger.info('Default data cleaned successfully');
+    logger.info('Seed data cleaned successfully');
     res.json({ success: true, data: result });
   } catch (err) {
-    logger.error('Failed to clean default data', { error: err.message });
+    logger.error('Failed to clean seed data', { error: err.message });
     res.status(500).json({ success: false, error: { message: err.message } });
   }
 });
 
-// ── POST /database/wipe (Protected) ────────────────────────────────────────
-router.post('/wipe', authenticate, async (req, res) => {
-  logger.info('API event: POST /database/wipe', { user: req.user?.email });
+// ── POST /database/instance (Public) ──────────────────────────────────────────
+router.post('/instance', async (_req, res) => {
+  logger.info('API event: POST /database/instance');
   try {
-    const result = await DatabaseService.wipeDatabase();
-    logger.info('Database wiped successfully', { user: req.user?.email });
+    const result = await DatabaseService.createDatabase();
+    logger.info('Database instance created successfully', result);
+    res.status(201).json({ success: true, data: result });
+  } catch (err) {
+    logger.error(errors.errors.dbCreateFailed, { error: err.message });
+    res.status(500).json({ success: false, error: { message: err.message || errors.errors.dbCreateFailed } });
+  }
+});
+
+// ── DELETE /database/instance (Protected) ─────────────────────────────────────
+router.delete('/instance', authenticate, async (req, res) => {
+  logger.info('API event: DELETE /database/instance', { user: req.user?.email });
+  try {
+    const result = await DatabaseService.dropDatabase();
+    logger.info('Database instance deleted successfully', { user: req.user?.email });
     res.json({ success: true, data: result });
   } catch (err) {
-    logger.error(errors.errors.dbWipeFailed, { error: err.message });
-    res.status(500).json({ success: false, error: { message: err.message || errors.errors.dbWipeFailed } });
+    logger.error(errors.errors.dbDeleteFailed, { error: err.message });
+    res.status(500).json({ success: false, error: { message: err.message || errors.errors.dbDeleteFailed } });
   }
 });
 

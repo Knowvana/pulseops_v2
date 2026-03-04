@@ -62,7 +62,7 @@ export default function DatabaseManager({
     console.log(`📋 ${LOG_SRC} Page accessed — loading database configuration from API`);
     const fetchDbConfig = async () => {
       try {
-        const response = await fetch(urls.database.saveConfig, { credentials: 'include' });
+        const response = await fetch(urls.database.config, { credentials: 'include' });
         if (response.ok) {
           const result = await response.json();
           if (result?.data) {

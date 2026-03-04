@@ -28,18 +28,16 @@
     "logout": "/auth/logout",
     "refresh": "/auth/refresh",
     "me": "/auth/me",
-    "config": "/auth/config"
+    "provider": "/auth/provider"
   },
   "database": {
     "base": "/database",
-    "testConnection": "/database/test-connection",
-    "saveConfig": "/database/save-config",
-    "schemaStatus": "/database/schema-status",
-    "createDatabase": "/database/create-database",
-    "deleteDatabase": "/database/delete-database",
-    "createSchema": "/database/create-schema",
-    "loadDefaultData": "/database/load-default-data",
-    "wipe": "/database/wipe",
+    "config": "/database/config",
+    "testConfig": "/database/config/test",
+    "connection": "/database/connection",
+    "schema": "/database/schema",
+    "schemaSeed": "/database/schema/seed",
+    "instance": "/database/instance",
     "stats": "/database/stats"
   },
   "modules": {
@@ -51,17 +49,22 @@
   "logs": {
     "base": "/logs",
     "stats": "/logs/stats",
-    "config": "/logs/config",
-    "configStatus": "/logs/config/status",
-    "configTables": "/logs/config/tables",
+    "settings": "/logs/settings",
+    "settingsStatus": "/logs/settings/status",
+    "settingsTables": "/logs/settings/tables",
     "ui": "/logs/ui",
     "api": "/logs/api",
     "uiStats": "/logs/ui/stats",
     "apiStats": "/logs/api/stats"
   },
-  "config": {
-    "base": "/config",
-    "list": "/config",
-    "byKey": "/config/:key"
+  "systemConfig": {
+    "base": "/system/config",
+    "list": "/system/config",
+    "byKey": "/system/config/:key"
+  },
+  "settings": {
+    "base": "/settings",
+    "get": "/settings",
+    "save": "/settings"
   }
 }

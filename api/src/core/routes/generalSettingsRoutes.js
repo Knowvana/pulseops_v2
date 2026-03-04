@@ -6,8 +6,8 @@
 // timezone configuration; more settings will be added gradually.
 //
 // ENDPOINTS:
-//   GET  /general-settings     → Get current general settings
-//   POST /general-settings     → Update general settings
+//   GET   /settings  → Get current general settings
+//   PATCH /settings  → Partial-update general settings
 //
 // ARCHITECTURE: Uses loadJson/saveJson for file persistence.
 // ============================================================================
@@ -18,7 +18,7 @@ import { logger } from '#shared/logger.js';
 const router = Router();
 const CONFIG_FILE = 'GeneralSettings.json';
 
-// ── GET /general-settings — Read current settings ───────────────────────────
+// ── GET /settings — Read current settings ──────────────────────────────────
 router.get('/', (_req, res) => {
   try {
     const settings = loadJson(CONFIG_FILE);
@@ -29,8 +29,8 @@ router.get('/', (_req, res) => {
   }
 });
 
-// ── POST /general-settings — Update settings ────────────────────────────────
-router.post('/', (req, res) => {
+// ── PATCH /settings — Partial-update settings ───────────────────────────────
+router.patch('/', (req, res) => {
   try {
     const current = loadJson(CONFIG_FILE);
     const updated = { ...current, ...req.body };

@@ -5,10 +5,10 @@
 // deleting, and configuring logs for both UI and API log types.
 //
 // ENDPOINTS:
-//   GET    /logs/config          → Get current logging configuration
-//   POST   /logs/config          → Update logging configuration (storage mode)
-//   GET    /logs/config/status   → Check if DB logging tables exist
-//   POST   /logs/config/tables   → Create log tables in database
+//   GET    /logs/settings          → Get current logging configuration
+//   PUT    /logs/settings          → Update logging configuration (storage mode)
+//   GET    /logs/settings/status   → Check if DB logging tables exist
+//   POST   /logs/settings/tables   → Create log tables in database
 //   GET    /logs/stats           → Get stats for both log types
 //   GET    /logs/:type           → Get logs (type = ui | api)
 //   POST   /logs/:type           → Write log entries (push from UI)
@@ -25,8 +25,8 @@ import { logger } from '#shared/logger.js';
 
 const router = Router();
 
-// ── GET /logs/config — Get current logging configuration ─────────────────────
-router.get('/config', (_req, res) => {
+// ── GET /logs/settings — Get current logging configuration ──────────────────
+router.get('/settings', (_req, res) => {
   try {
     const config = LogService.getConfig();
     res.json({ success: true, data: config });
@@ -36,8 +36,8 @@ router.get('/config', (_req, res) => {
   }
 });
 
-// ── POST /logs/config — Update storage mode ──────────────────────────────────
-router.post('/config', async (req, res) => {
+// ── PUT /logs/settings — Update storage mode ────────────────────────────────
+router.put('/settings', async (req, res) => {
   try {
     const { storage } = req.body;
     if (!storage || !['file', 'database'].includes(storage)) {
@@ -57,8 +57,8 @@ router.post('/config', async (req, res) => {
   }
 });
 
-// ── GET /logs/config/status — Check if DB log tables exist ───────────────────
-router.get('/config/status', async (_req, res) => {
+// ── GET /logs/settings/status — Check if DB log tables exist ────────────────
+router.get('/settings/status', async (_req, res) => {
   try {
     const available = await LogService.isDatabaseLoggingAvailable();
     const config = LogService.getConfig();
@@ -77,8 +77,8 @@ router.get('/config/status', async (_req, res) => {
   }
 });
 
-// ── POST /logs/config/tables — Create log tables in database ─────────────────
-router.post('/config/tables', async (_req, res) => {
+// ── POST /logs/settings/tables — Create log tables in database ──────────────
+router.post('/settings/tables', async (_req, res) => {
   try {
     const result = await LogService.createLogTables();
     res.json({ success: true, data: result });

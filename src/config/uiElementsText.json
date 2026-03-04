@@ -258,7 +258,7 @@
   },
   "rightPanel": {
     "tabs": {
-      "systemLogs": "System Logs",
+      "systemLogs": "UI Logs",
       "apiCalls": "API Calls"
     },
     "logs": {

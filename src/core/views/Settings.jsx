@@ -57,7 +57,7 @@ function DatabaseConfigTab() {
     console.log('📋 [DatabaseConfigTab] Tab accessed — loading saved configuration from API');
     const loadConfig = async () => {
       try {
-        const response = await fetch(urls.database.saveConfig, { credentials: 'include' });
+        const response = await fetch(urls.database.config, { credentials: 'include' });
         if (response.ok) {
           const result = await response.json();
           if (result?.data) {
@@ -81,7 +81,7 @@ function DatabaseConfigTab() {
   const handleTest = useCallback(async (config) => {
     console.log('🔌 [DatabaseConfigTab] Testing connection', { host: config.host, port: config.port, database: config.database });
     try {
-      const response = await fetch(urls.database.testConnection, {
+      const response = await fetch(urls.database.testConfig, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -116,8 +116,8 @@ function DatabaseConfigTab() {
 
   const handleSave = useCallback(async (config) => {
     console.log('💾 [DatabaseConfigTab] Saving configuration', { host: config.host, database: config.database });
-    const response = await fetch(urls.database.saveConfig, {
-      method: 'POST',
+    const response = await fetch(urls.database.config, {
+      method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
       body: JSON.stringify(config),
@@ -160,7 +160,7 @@ function DatabaseObjectsTab() {
     setIsLoading(true);
     try {
       // Step 1: Test actual DB connection with server config
-      const connResponse = await fetch(urls.database.testConnection, { credentials: 'include' });
+      const connResponse = await fetch(urls.database.connection, { credentials: 'include' });
       const connResult = await connResponse.json();
 
       if (!connResult?.success) {
@@ -182,7 +182,7 @@ function DatabaseObjectsTab() {
       console.log('✅ [DatabaseObjectsTab] Connection test passed, checking schema status');
 
       // Step 2: Connection succeeded — now check schema status
-      const response = await fetch(urls.database.schemaStatus, { credentials: 'include' });
+      const response = await fetch(urls.database.schema, { credentials: 'include' });
       const result = await response.json();
       if (result?.success && result?.data) {
         const status = {
@@ -223,7 +223,7 @@ function DatabaseObjectsTab() {
       <DatabaseManager
         onCreateDatabase={async () => {
           console.log('🏗️ [DatabaseObjectsTab] Creating database');
-          const res = await fetch(urls.database.createDatabase, { method: 'POST', credentials: 'include' });
+          const res = await fetch(urls.database.instance, { method: 'POST', credentials: 'include' });
           const result = await res.json();
           if (!result?.success) { console.error('❌ [DatabaseObjectsTab] Create database failed:', result?.error?.message); throw new Error(result?.error?.message || uiText.errors.serverError); }
           console.log('✅ [DatabaseObjectsTab] Database created successfully', result.data);
@@ -231,7 +231,7 @@ function DatabaseObjectsTab() {
         }}
         onDeleteDatabase={async () => {
           console.log('🗑️ [DatabaseObjectsTab] Deleting database');
-          const res = await fetch(urls.database.deleteDatabase, { method: 'DELETE', credentials: 'include' });
+          const res = await fetch(urls.database.instance, { method: 'DELETE', credentials: 'include' });
           const result = await res.json();
           if (!result?.success) { console.error('❌ [DatabaseObjectsTab] Delete database failed:', result?.error?.message); throw new Error(result?.error?.message || uiText.errors.serverError); }
           console.log('✅ [DatabaseObjectsTab] Database deleted successfully', result.data);
@@ -239,7 +239,7 @@ function DatabaseObjectsTab() {
         }}
         onInitializeSchema={async () => {
           console.log('📐 [DatabaseObjectsTab] Initializing schema');
-          const res = await fetch(urls.database.createSchema, { method: 'POST', credentials: 'include' });
+          const res = await fetch(urls.database.schema, { method: 'POST', credentials: 'include' });
           const result = await res.json();
           if (!result?.success) { console.error('❌ [DatabaseObjectsTab] Schema init failed:', result?.error?.message); throw new Error(result?.error?.message || uiText.errors.serverError); }
           console.log('✅ [DatabaseObjectsTab] Schema initialized successfully', result.data);
@@ -247,7 +247,7 @@ function DatabaseObjectsTab() {
         }}
         onLoadDefaultData={async () => {
           console.log('📥 [DatabaseObjectsTab] Loading default data');
-          const res = await fetch(urls.database.loadDefaultData, { method: 'POST', credentials: 'include' });
+          const res = await fetch(urls.database.schemaSeed, { method: 'POST', credentials: 'include' });
           const result = await res.json();
           if (!result?.success) { console.error('❌ [DatabaseObjectsTab] Load default data failed:', result?.error?.message); throw new Error(result?.error?.message || uiText.errors.serverError); }
           console.log('✅ [DatabaseObjectsTab] Default data loaded successfully', result.data);
@@ -255,7 +255,7 @@ function DatabaseObjectsTab() {
         }}
         onCleanDefaultData={async () => {
           console.log('🧹 [DatabaseObjectsTab] Cleaning default data');
-          const res = await fetch(urls.database.loadDefaultData, { method: 'DELETE', credentials: 'include' });
+          const res = await fetch(urls.database.schemaSeed, { method: 'DELETE', credentials: 'include' });
           const result = await res.json();
           if (!result?.success) { console.error('❌ [DatabaseObjectsTab] Clean default data failed:', result?.error?.message); throw new Error(result?.error?.message || uiText.errors.serverError); }
           console.log('✅ [DatabaseObjectsTab] Default data cleaned successfully', result.data);
@@ -263,7 +263,7 @@ function DatabaseObjectsTab() {
         }}
         onWipeDatabase={async () => {
           console.log('💥 [DatabaseObjectsTab] Wiping database');
-          const res = await fetch(urls.database.wipe, { method: 'POST', credentials: 'include' });
+          const res = await fetch(urls.database.schema, { method: 'DELETE', credentials: 'include' });
           const result = await res.json();
           if (!result?.success) { console.error('❌ [DatabaseObjectsTab] Wipe database failed:', result?.error?.message); throw new Error(result?.error?.message || uiText.errors.serverError); }
           console.log('✅ [DatabaseObjectsTab] Database wiped successfully', result.data);
@@ -290,8 +290,8 @@ function LogSettingsTab() {
     console.log('🔄 [LogSettingsTab] Fetching log storage status');
     try {
       const [dbRes, configRes, statsRes] = await Promise.allSettled([
-        fetch(urls.database.schemaStatus, { credentials: 'include' }),
-        fetch(urls.logs.configStatus, { credentials: 'include' }),
+        fetch(urls.database.schema, { credentials: 'include' }),
+        fetch(urls.logs.settingsStatus, { credentials: 'include' }),
         fetch(urls.logs.stats, { credentials: 'include' }),
       ]);
 
@@ -348,8 +348,8 @@ function LogSettingsTab() {
     console.log(`🔀 [LogSettingsTab] Switching log mode: ${logMode} → ${newMode}`);
     setIsSwitching(true);
     try {
-      const res = await fetch(urls.logs.config, {
-        method: 'POST',
+      const res = await fetch(urls.logs.settings, {
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({ storage: newMode }),
@@ -458,7 +458,7 @@ function LogConfigTab() {
     console.log('💾 [LogConfigTab] Saving log configuration', newConfig);
     setIsSaving(true);
     try {
-      await fetch(urls.config.save, {
+      await fetch(urls.systemConfig.save, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -505,7 +505,7 @@ function AuthSettingsTab() {
     console.log('📋 [AuthSettingsTab] Tab accessed — checking database readiness for auth providers');
     const checkDb = async () => {
       try {
-        const response = await fetch(urls.database.schemaStatus, { credentials: 'include' });
+        const response = await fetch(urls.database.schema, { credentials: 'include' });
         const result = await response.json();
         if (result?.success && result?.data?.initialized && result?.data?.hasDefaultData) {
           setDbReady(true);
@@ -522,8 +522,8 @@ function AuthSettingsTab() {
 
   const handleSwitchProvider = useCallback(async () => {
     console.log(`🔀 [AuthSettingsTab] Switching auth provider: ${currentProvider} → ${selectedProvider}`);
-    const response = await fetch(urls.auth.config, {
-      method: 'POST',
+    const response = await fetch(urls.auth.provider, {
+      method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
       body: JSON.stringify({ provider: selectedProvider }),
@@ -690,7 +690,7 @@ function GeneralSettingsTab() {
     console.log('📋 [GeneralSettingsTab] Tab accessed — loading general settings from API');
     const load = async () => {
       try {
-        const res = await fetch(urls.generalSettings.get, { credentials: 'include' });
+        const res = await fetch(urls.settings.get, { credentials: 'include' });
         const json = await res.json();
         if (json.success) {
           setSettings(json.data);
@@ -706,8 +706,8 @@ function GeneralSettingsTab() {
 
   const handleSaveAction = useCallback(async () => {
     console.log('💾 [GeneralSettingsTab] Saving general settings', settings);
-    const res = await fetch(urls.generalSettings.save, {
-      method: 'POST',
+    const res = await fetch(urls.settings.save, {
+      method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
       body: JSON.stringify(settings),

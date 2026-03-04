@@ -438,7 +438,7 @@ export default function LogViewer({
                   return (
                     <th
                       key={col.id}
-                      style={{ width, minWidth: width, maxWidth: width }}
+                      style={{ minWidth: width }}
                       className="relative px-2 py-1.5 text-[11px] font-bold text-surface-600 uppercase tracking-wide select-none whitespace-nowrap"
                     >
                       <div
@@ -509,8 +509,8 @@ export default function LogViewer({
                       return (
                         <td
                           key={col.id}
-                          style={{ width, minWidth: width, maxWidth: width }}
-                          className="px-2 py-1.5 overflow-hidden"
+                          style={{ minWidth: width }}
+                          className="px-2 py-1.5 whitespace-nowrap"
                         >
                           {col.render(log)}
                         </td>

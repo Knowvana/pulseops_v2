@@ -98,7 +98,7 @@ export default function LogManager() {
 
   const fetchLogConfig = useCallback(async () => {
     try {
-      const res = await fetch(`${apiBase}${urls.logs.config}`, { credentials: 'include' });
+      const res = await fetch(`${apiBase}${urls.logs.settings}`, { credentials: 'include' });
       const json = await res.json();
       if (json.success) setLogConfig(json.data);
     } catch { /* keep null */ }
