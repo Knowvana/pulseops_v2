@@ -29,6 +29,24 @@ const defaults = JSON.parse(fs.readFileSync(appJsonPath, 'utf-8'));
 const dbDefaults = JSON.parse(fs.readFileSync(dbJsonPath, 'utf-8'));
 const urlsDefaults = JSON.parse(fs.readFileSync(urlsJsonPath, 'utf-8'));
 
+/**
+ * Re-read DatabaseConfig.json from disk and update config.db in place.
+ * Called after POST /database/save-config to pick up changes immediately.
+ */
+export function reloadDbConfig() {
+  const fresh = JSON.parse(fs.readFileSync(dbJsonPath, 'utf-8'));
+  config.db.host = process.env.DB_HOST || fresh.host;
+  config.db.port = parseInt(process.env.DB_PORT || fresh.port, 10);
+  config.db.name = process.env.DB_NAME || fresh.database;
+  config.db.user = process.env.DB_USER || fresh.user;
+  config.db.password = process.env.DB_PASSWORD || fresh.password;
+  config.db.schema = process.env.DB_SCHEMA || fresh.schema;
+  config.db.ssl = process.env.DB_SSL === 'true' || fresh.ssl || false;
+  config.db.poolSize = parseInt(process.env.DB_POOL_SIZE || fresh.poolSize, 10);
+  config.db.idleTimeoutMillis = parseInt(process.env.DB_IDLE_TIMEOUT || fresh.idleTimeoutMillis, 10);
+  config.db.connectionTimeoutMillis = parseInt(process.env.DB_CONN_TIMEOUT || fresh.connectionTimeoutMillis, 10);
+}
+
 export const config = {
   // Server (centralized in urls.json)
   port: parseInt(process.env.PORT || urlsDefaults.server.api.port, 10),

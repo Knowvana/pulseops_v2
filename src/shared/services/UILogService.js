@@ -31,6 +31,10 @@ const PUSH_INTERVAL_MS = 30000;
 // Pre-compiled regex for performance (avoid re-creation on every _addLog call)
 const EMOJI_REGEX = /[\u{1F300}-\u{1F9FF}\u{2600}-\u{27BF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{2702}-\u{27B0}]/gu;
 const SOURCE_REGEX = /\[([^\]]+)\]/;
+// Regex to extract file:line from stack frames — handles Vite/Webpack bundled paths
+// Matches patterns like: at FunctionName (http://localhost:1001/src/core/App.jsx?t=123:45:12)
+// or: at http://localhost:1001/src/core/App.jsx:45:12
+const STACK_FRAME_REGEX = /at\s+(?:([^\s(]+)\s+)?\(?(?:https?:\/\/[^/]+)?\/?(src\/[^?:]+)[^:]*:(\d+)/;
 
 // Messages to skip — React internals, Vite HMR, Chrome violations, DOM warnings
 const SKIP_PREFIXES = [
@@ -53,6 +57,9 @@ function toISTISO() {
   return TimezoneService.toTimezoneISO();
 }
 
+// Deduplication window: same message+level within this many ms = skip
+const DEDUP_WINDOW_MS = 1000;
+
 class UILogServiceClass {
   constructor() {
     this._logs = [];
@@ -67,6 +74,7 @@ class UILogServiceClass {
     this._notifyPending = false;
     this._sessionTxId = null;
     this._userEmail = null;
+    this._dedupMap = new Map(); // key: `${level}:${message}`, value: timestamp ms
   }
 
   _generateSessionTxId() {
@@ -123,12 +131,25 @@ class UILogServiceClass {
     this._originalFetch = window.fetch.bind(window);
 
     // Intercept console methods
+    // Strategy: warn/error always captured. log/info/debug only captured if
+    // message is tagged with [Component] bracket — eliminates render-cycle noise.
     const levels = ['log', 'info', 'warn', 'error', 'debug'];
     levels.forEach((level) => {
       console[level] = (...args) => {
-        this._originalConsole[level](...args);
+        // Extract caller info and prepend [File:Function] to console output
+        const caller = this._extractCaller();
+        if (caller) {
+          this._originalConsole[level](`[${caller}]`, ...args);
+        } else {
+          this._originalConsole[level](...args);
+        }
         const mappedLevel = level === 'log' ? 'info' : level;
-        this._addLog(mappedLevel, args);
+        // warn/error: always capture. log/info/debug: only if tagged with [Component]
+        const firstArg = typeof args[0] === 'string' ? args[0] : '';
+        const isTagged = firstArg.trimStart().startsWith('[');
+        if (mappedLevel === 'warn' || mappedLevel === 'error' || isTagged) {
+          this._addLog(mappedLevel, args);
+        }
       };
     });
 
@@ -159,7 +180,8 @@ class UILogServiceClass {
           status: response.status,
           duration,
           transactionId: this._sessionTxId,
-          timestamp: formatISTTime(),
+          timestamp: new Date().toISOString(),
+          displayTime: formatISTTime(),
         });
         return response;
       } catch (err) {
@@ -172,7 +194,8 @@ class UILogServiceClass {
           duration,
           error: err.message,
           transactionId: this._sessionTxId,
-          timestamp: formatISTTime(),
+          timestamp: new Date().toISOString(),
+          displayTime: formatISTTime(),
         });
         throw err;
       }
@@ -267,15 +290,15 @@ class UILogServiceClass {
         body: JSON.stringify({
           entries: batch.map((e) => ({
             level: e.level,
-            source: e.source || 'UI',
+            source: 'UI',
             module: e.module || 'Core',
             event: 'console',
-            component: e.source || 'Console',
+            fileName: e.fileName || null,
             message: e.message,
-            user: e.user || this._userEmail || null,
+            user: e.user || this._userEmail || 'Anonymous',
             transactionId: e.transactionId || null,
             result: null,
-            timestamp: e.isoTimestamp || new Date().toISOString(),
+            timestamp: e.timestamp || new Date().toISOString(),
           })),
         }),
       });
@@ -309,19 +332,24 @@ class UILogServiceClass {
     if (message.includes('[UILogService]')) return;
 
     const source = this._extractSource(message);
+    const caller = this._extractCaller();
 
     // Format in fixed log format: strip emojis, use structured format
     const cleanMessage = message.replace(EMOJI_REGEX, '').trim();
 
+    // Deduplication: skip if same level+message seen within window
+    if (this._isDuplicate(level, cleanMessage)) return;
+
     const entry = {
       level,
-      source,
+      source: 'UI',
       module: 'Core',
       message: cleanMessage,
-      user: this._userEmail || null,
+      user: this._userEmail || 'Anonymous',
+      fileName: caller || null,
       transactionId: this._sessionTxId || null,
-      timestamp: formatISTTime(),
-      isoTimestamp: toISTISO(),
+      timestamp: new Date().toISOString(),
+      displayTime: formatISTTime(),
     };
 
     // Use push + conditional trim instead of spread on every call
@@ -331,6 +359,23 @@ class UILogServiceClass {
     }
     this._pendingPush.push(entry);
     this._notify();
+  }
+
+  // ── Internal: Deduplication check ─────────────────────────────────────────
+  _isDuplicate(level, message) {
+    const key = `${level}:${message.slice(0, 80)}`;
+    const now = Date.now();
+    const lastSeen = this._dedupMap.get(key);
+    if (lastSeen && (now - lastSeen) < DEDUP_WINDOW_MS) return true;
+    this._dedupMap.set(key, now);
+    // Prune stale dedup entries to prevent memory growth
+    if (this._dedupMap.size > 300) {
+      const cutoff = now - DEDUP_WINDOW_MS * 2;
+      for (const [k, t] of this._dedupMap) {
+        if (t < cutoff) this._dedupMap.delete(k);
+      }
+    }
+    return false;
   }
 
   // ── Internal: Add API call ───────────────────────────────────────────────
@@ -361,6 +406,30 @@ class UILogServiceClass {
     const match = message.match(SOURCE_REGEX);
     if (match) return match[1];
     return 'Console';
+  }
+
+  // ── Internal: Extract caller FileName:FunctionName from stack trace ─────
+  _extractCaller() {
+    try {
+      const stack = new Error().stack || '';
+      const lines = stack.split('\n');
+      // Skip frames: Error, _extractCaller, _addLog, console[level] wrapper
+      for (let i = 4; i < lines.length; i++) {
+        const line = lines[i];
+        // Skip UILogService internal frames
+        if (line.includes('UILogService')) continue;
+        if (line.includes('node_modules')) continue;
+        const match = line.match(STACK_FRAME_REGEX);
+        if (match) {
+          const funcName = match[1] || 'anonymous';
+          const filePath = match[2] || '';
+          // Extract just the filename from path like src/core/App.jsx
+          const fileName = filePath.split('/').pop() || filePath;
+          return `${fileName}:${funcName}`;
+        }
+      }
+    } catch { /* ignore stack parse errors */ }
+    return null;
   }
 
   // ── Internal: Notify listeners (throttled to max ~4/sec) ─────────────────

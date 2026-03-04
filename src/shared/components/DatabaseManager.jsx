@@ -90,6 +90,7 @@ export default function DatabaseManager({
 
   const confirmText = uiText.admin.settings.databaseObjects.confirmations;
   const dbMessages = messages.database.confirmations;
+  const dbObjMessages = messages.dbObjects;
 
   const openModal = (type) => {
     console.log(`🔔 ${LOG_SRC} Modal opened — action: ${type}`, { database: dbConfig.database, schema: dbConfig.schema });
@@ -117,16 +118,37 @@ export default function DatabaseManager({
       </div>
 
       {/* Database Instance Status */}
-      {!dbStatus.exists ? (
+      {!dbStatus.connected && dbStatus.connectionError ? (
+        /* Connection Failed — show section title + error details, block all operations */
+        <div className="bg-gradient-to-r from-rose-50 via-red-50 to-rose-50 rounded-xl border border-rose-200 p-4">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-gradient-to-br from-rose-100 to-red-100 rounded-lg">
+                <Database size={16} className="text-rose-600" />
+              </div>
+              <h4 className="text-xs font-bold text-surface-700">{dbObjMessages.dbInstance}</h4>
+            </div>
+            <span className="text-xs font-bold text-rose-600">{dbObjMessages.connectionFailed}</span>
+          </div>
+          <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-rose-100/60 border border-rose-200">
+            <AlertTriangle size={14} className="text-rose-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-[11px] text-rose-700 leading-relaxed">{dbStatus.connectionError}</p>
+              <p className="text-[11px] text-rose-600 mt-1">{dbObjMessages.connectionFailedHint}</p>
+            </div>
+          </div>
+        </div>
+      ) : !dbStatus.connected || !dbStatus.exists ? (
+        /* Database not found — allow Create Database only if connection to server works */
         <div className="bg-gradient-to-r from-pink-50 via-rose-50 to-pink-50 rounded-xl border border-pink-200 p-4">
           <div className="flex items-start gap-3 mb-3">
             <div className="p-2 bg-gradient-to-br from-pink-100 to-rose-100 rounded-lg shrink-0">
               <AlertTriangle size={16} className="text-pink-600" />
             </div>
             <div>
-              <h4 className="text-xs font-bold text-pink-800 mb-1">Database Not Found</h4>
+              <h4 className="text-xs font-bold text-pink-800 mb-1">{dbObjMessages.dbNotFound}</h4>
               <p className="text-[11px] text-pink-700 leading-relaxed">
-                The database instance does not exist. Create it to continue.
+                {dbObjMessages.dbNotFoundHint}
               </p>
             </div>
           </div>
@@ -137,7 +159,7 @@ export default function DatabaseManager({
             onClick={() => openModal('createDb')}
             className="bg-pink-600 hover:bg-pink-700"
           >
-            Create Database
+            {dbObjMessages.createDatabase}
           </Button>
         </div>
       ) : (
@@ -148,11 +170,11 @@ export default function DatabaseManager({
                 <Database size={16} className="text-emerald-600" />
               </div>
               <div>
-                <h4 className="text-xs font-bold text-surface-700">Database Instance</h4>
-                <p className="text-[11px] text-surface-500">Database is ready and connected</p>
+                <h4 className="text-xs font-bold text-surface-700">{dbObjMessages.dbInstance}</h4>
+                <p className="text-[11px] text-surface-500">{dbObjMessages.dbReady}</p>
               </div>
             </div>
-            <span className="text-xs font-bold text-emerald-600">Exists</span>
+            <span className="text-xs font-bold text-emerald-600">{dbObjMessages.exists}</span>
           </div>
         </div>
       )}
@@ -194,7 +216,7 @@ export default function DatabaseManager({
               size="sm" 
               icon={<Database />} 
               onClick={() => openModal('initSchema')}
-              disabled={!dbStatus.exists}
+              disabled={!dbStatus.connected || !dbStatus.exists}
             >
               Initialize Schema
             </Button>
@@ -220,7 +242,7 @@ export default function DatabaseManager({
             size="sm"
             icon={<Download />}
             onClick={() => openModal('loadData')}
-            disabled={!dbStatus.schemaInitialized}
+            disabled={!dbStatus.connected || !dbStatus.schemaInitialized}
           >
             {dbStatus.hasDefaultData ? 'Reload Default Data' : 'Load Default Data'}
           </Button>
@@ -255,7 +277,7 @@ export default function DatabaseManager({
             size="sm" 
             icon={<Trash2 />} 
             onClick={() => openModal('wipeDb')}
-            disabled={!dbStatus.exists || !dbStatus.schemaInitialized}
+            disabled={!dbStatus.connected || !dbStatus.exists || !dbStatus.schemaInitialized}
           >
             Wipe Database
           </Button>
@@ -264,7 +286,7 @@ export default function DatabaseManager({
             size="sm" 
             icon={<Trash2 />} 
             onClick={() => openModal('deleteDb')}
-            disabled={!dbStatus.exists}
+            disabled={!dbStatus.connected || !dbStatus.exists}
           >
             Delete Database
           </Button>

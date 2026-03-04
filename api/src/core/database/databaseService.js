@@ -69,6 +69,17 @@ function getPool() {
 const schema = config.db.schema || 'pulseops';
 
 const DatabaseService = {
+  /**
+   * Reset the shared pool so next operation creates a fresh pool
+   * with updated config values. Called after save-config + reloadDbConfig.
+   */
+  async resetPool() {
+    if (pool) {
+      await pool.end().catch(() => {});
+      pool = null;
+    }
+  },
+
   // ── Database Creation / Deletion ──────────────────────────────────────────
 
   /**
@@ -169,10 +180,13 @@ const DatabaseService = {
     try {
       const result = await client.query('SELECT version()');
       const latency = Date.now() - start;
+      const versionString = result.rows[0]?.version || '';
+      const dbType = versionString.split(' ')[0] || 'Unknown';
       return {
         connected: true,
         latencyMs: latency,
-        dbVersion: result.rows[0]?.version || null,
+        dbVersion: versionString,
+        dbType,
         message: messages.success.dbConnected,
       };
     } finally {

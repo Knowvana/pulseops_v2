@@ -100,9 +100,10 @@ function LogEntryCard({ log }) {
           <div className="flex items-center justify-between gap-1">
             <div className="flex items-center gap-1">
               <span className={`text-[11px] font-bold uppercase ${cfg.color}`}>{log.level}</span>
-              <span className="text-[11px] text-surface-400">{log.source || log.module || 'UI'}</span>
+              <span className="text-[11px] text-surface-400">{log.source || 'UI'}</span>
+              {log.fileName && <span className="text-[10px] text-surface-400 font-mono">[{log.fileName}]</span>}
             </div>
-            <span className="text-[10px] text-surface-400 shrink-0">{log.timestamp}</span>
+            <span className="text-[10px] text-surface-400 shrink-0">{log.displayTime || log.timestamp}</span>
           </div>
           <p className="text-xs text-surface-700 mt-0.5 break-words leading-snug">{log.message}</p>
           {log.transactionId && (
@@ -126,7 +127,7 @@ function LogEntryCard({ log }) {
 function ApiCallCard({ call }) {
   const isSuccess = call.status >= 200 && call.status < 300;
   const callJson = {
-    time: call.timestamp,
+    time: call.displayTime || call.timestamp,
     method: call.method,
     url: call.url,
     status: call.status,

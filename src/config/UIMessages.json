@@ -48,6 +48,16 @@
       }
     }
   },
+  "dbObjects": {
+    "connectionFailed": "Connection Failed",
+    "connectionFailedHint": "Fix the database connection configuration in the Database Configuration tab and try again.",
+    "dbNotFound": "Database Not Found",
+    "dbNotFoundHint": "The database instance does not exist. Create it to continue.",
+    "createDatabase": "Create Database",
+    "dbInstance": "Database Instance",
+    "dbReady": "Database is ready and connected",
+    "exists": "Exists"
+  },
   "config": {
     "saved": "Configuration saved successfully.",
     "loaded": "Configuration loaded successfully."
@@ -62,7 +72,8 @@
     "configSaveFailed": "Failed to save configuration",
     "saveDescription": "save the database connection configuration",
     "saveTarget": "Backend PostgreSQL",
-    "statusLabel": "Status"
+    "statusLabel": "Status",
+    "validationEmpty": "Required fields cannot be empty"
   },
   "logs": {
     "fetchSuccess": "Logs loaded successfully.",

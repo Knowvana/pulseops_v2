@@ -70,14 +70,14 @@ function StatusBadge({ code }) {
 // ── UI Log Columns ───────────────────────────────────────────────────────────
 
 const UI_COLUMNS = [
-  { id: 'transactionId', label: gridText.transactionId, width: 170, sortable: true, render: (row) => <span className="text-[13px] font-mono text-surface-500 truncate">{row.transactionId || row.transaction_id || '—'}</span> },
   { id: 'timestamp', label: gridText.time, width: 170, sortable: true, render: (row) => <span className="text-[13px] text-surface-700">{formatIST(row.timestamp || row.created_at)}</span> },
+  { id: 'transactionId', label: gridText.transactionId, width: 170, sortable: true, render: (row) => <span className="text-[13px] font-mono text-surface-500 truncate">{row.transactionId || row.transaction_id || '—'}</span> },
   { id: 'level', label: gridText.logLevel, width: 85, sortable: true, render: (row) => <LevelBadge level={row.level || row.log_level} /> },
   { id: 'source', label: gridText.source, width: 65, sortable: true, render: (row) => <span className="text-[13px] font-medium text-surface-500">{row.source || 'UI'}</span> },
+  { id: 'fileName', label: gridText.fileName, width: 160, sortable: true, render: (row) => <span className="text-[13px] font-mono text-surface-500 truncate">{row.fileName || row.file_name || '—'}</span> },
   { id: 'event', label: gridText.event, width: 130, sortable: true, render: (row) => <span className="text-[13px] text-surface-700 truncate">{row.event || '—'}</span> },
-  { id: 'component', label: gridText.component, width: 130, sortable: true, render: (row) => <span className="text-[13px] text-surface-600 truncate">{row.component || '—'}</span> },
   { id: 'module', label: gridText.module, width: 85, sortable: true, render: (row) => <span className="text-[13px] text-surface-500">{row.module || row.log_module || 'Core'}</span> },
-  { id: 'user', label: gridText.user, width: 120, sortable: true, render: (row) => <span className="text-[13px] text-surface-600 truncate">{row.user || row.user_name || '—'}</span> },
+  { id: 'user', label: gridText.user, width: 120, sortable: true, render: (row) => <span className="text-[13px] text-surface-600 truncate">{row.user || row.user_name || 'Anonymous'}</span> },
   { id: 'message', label: gridText.message, width: 280, sortable: false, render: (row) => <span className="text-[13px] text-surface-700 truncate block">{row.message || '—'}</span> },
   { id: 'result', label: gridText.result, width: 110, sortable: false, render: (row) => <span className="text-[13px] text-surface-500 truncate">{row.result || '—'}</span> },
 ];
@@ -85,11 +85,12 @@ const UI_COLUMNS = [
 // ── API Log Columns ──────────────────────────────────────────────────────────
 
 const API_COLUMNS = [
-  { id: 'transactionId', label: gridText.transactionId, width: 170, sortable: true, render: (row) => <span className="text-[13px] font-mono text-surface-500 truncate">{row.transactionId || row.transaction_id || '—'}</span> },
   { id: 'timestamp', label: gridText.time, width: 170, sortable: true, render: (row) => <span className="text-[13px] text-surface-700">{formatIST(row.timestamp || row.created_at)}</span> },
+  { id: 'transactionId', label: gridText.transactionId, width: 170, sortable: true, render: (row) => <span className="text-[13px] font-mono text-surface-500 truncate">{row.transactionId || row.transaction_id || '—'}</span> },
   { id: 'level', label: gridText.logLevel, width: 85, sortable: true, render: (row) => <LevelBadge level={row.level || row.log_level} /> },
-  { id: 'user', label: gridText.user, width: 120, sortable: true, render: (row) => <span className="text-[13px] text-surface-600 truncate">{row.user || row.user_name || '—'}</span> },
+  { id: 'user', label: gridText.user, width: 120, sortable: true, render: (row) => <span className="text-[13px] text-surface-600 truncate">{row.user || row.user_name || 'Anonymous'}</span> },
   { id: 'source', label: gridText.source, width: 65, sortable: true, render: (row) => <span className="text-[13px] font-medium text-surface-500">{row.source || 'API'}</span> },
+  { id: 'fileName', label: gridText.fileName, width: 160, sortable: true, render: (row) => <span className="text-[13px] font-mono text-surface-500 truncate">{row.fileName || row.file_name || '—'}</span> },
   { id: 'method', label: gridText.method, width: 76, sortable: true, render: (row) => row.method ? <MethodBadge method={row.method} /> : <span className="text-[13px] text-surface-400">—</span> },
   { id: 'url', label: gridText.apiUrl, width: 240, sortable: true, render: (row) => <span className="text-[13px] font-mono text-surface-600 truncate block">{row.url || row.api_url || '—'}</span> },
   { id: 'statusCode', label: gridText.statusCode, width: 68, sortable: true, render: (row) => <StatusBadge code={row.statusCode || row.status_code} /> },
@@ -172,7 +173,8 @@ function LogDetailPanel({ log, logType, onClose }) {
         {renderField(detailText.timestamp, formatIST(log.timestamp || log.created_at))}
         {renderField(detailText.level, log.level || log.log_level)}
         {renderField(detailText.source, log.source)}
-        {renderField(detailText.user, log.user || log.user_name)}
+        {renderField(detailText.fileName, log.fileName || log.file_name)}
+        {renderField(detailText.user, log.user || log.user_name || 'Anonymous')}
         {renderField(detailText.module, log.module || log.log_module)}
 
         {isApi && (
@@ -187,7 +189,6 @@ function LogDetailPanel({ log, logType, onClose }) {
         {!isApi && (
           <>
             {renderField(detailText.event, log.event)}
-            {renderField(detailText.component, log.component)}
             {renderField(detailText.message, log.message)}
             {renderField(detailText.result, log.result)}
           </>
@@ -224,7 +225,6 @@ export default function LogViewer({
   const [pageSize, setPageSize] = useState(50);
   const [currentPage, setCurrentPage] = useState(1);
   const [columnWidths, setColumnWidths] = useState({});
-  const [txFilter, setTxFilter] = useState('');
   const [detailWidth, setDetailWidth] = useState(320);
   const gridRef = useRef(null);
   const resizingRef = useRef(null);
@@ -238,14 +238,19 @@ export default function LogViewer({
     setShowDetail(false);
   }, [logType, logs.length]);
 
-  // ── TX Filter (client-side by transaction ID) ─────────────────────────────
+  // ── Unified Search (client-side — searches message, transactionId, fileName, user, event) ─
   const filteredByTx = useMemo(() => {
-    if (!txFilter.trim()) return logs;
-    const q = txFilter.trim().toLowerCase();
+    if (!searchTerm.trim()) return logs;
+    const q = searchTerm.trim().toLowerCase();
     return logs.filter(log =>
-      (log.transactionId || log.transaction_id || '').toLowerCase().includes(q)
+      (log.transactionId || log.transaction_id || '').toLowerCase().includes(q) ||
+      (log.message || '').toLowerCase().includes(q) ||
+      (log.fileName || log.file_name || '').toLowerCase().includes(q) ||
+      (log.user || log.user_name || '').toLowerCase().includes(q) ||
+      (log.event || '').toLowerCase().includes(q) ||
+      (log.url || log.api_url || '').toLowerCase().includes(q)
     );
-  }, [logs, txFilter]);
+  }, [logs, searchTerm]);
 
   // ── Sorting ────────────────────────────────────────────────────────────────
   const sortedLogs = useMemo(() => {
@@ -367,7 +372,7 @@ export default function LogViewer({
               type="text"
               value={searchTerm}
               onChange={(e) => onSearchChange(e.target.value)}
-              placeholder="Search logs..."
+              placeholder="Search by message, Transaction ID, file, user..."
               className="w-full pl-8 pr-3 py-1.5 text-xs border border-surface-200 rounded-lg bg-white text-surface-700 placeholder:text-surface-400 focus:outline-none focus:ring-1 focus:ring-brand-300 focus:border-brand-300"
             />
           </div>
@@ -378,25 +383,8 @@ export default function LogViewer({
       <div className="flex flex-1 min-h-0 overflow-hidden">
         {/* Grid Area */}
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-          {/* Transaction ID Filter + Pagination */}
+          {/* Pagination */}
           <div className="flex items-center gap-2 px-3 py-1.5 border-b border-surface-100 bg-surface-50 flex-shrink-0">
-          <span className="text-xs font-semibold text-surface-600 whitespace-nowrap">TX ID:</span>
-          <input
-            type="text"
-            value={txFilter}
-            onChange={(e) => { setTxFilter(e.target.value); setCurrentPage(1); }}
-            placeholder="Filter by Transaction ID..."
-            className="w-64 text-xs font-mono border border-surface-200 rounded px-2 py-1 bg-white text-surface-700 placeholder:text-surface-400 focus:outline-none focus:ring-1 focus:ring-brand-300"
-          />
-          {txFilter && (
-            <button onClick={() => { setTxFilter(''); setCurrentPage(1); }} className="p-0.5 rounded hover:bg-surface-200 transition-colors">
-              <X size={12} className="text-surface-400" />
-            </button>
-          )}
-
-          {/* Gradient Separator */}
-          <div className="h-5 w-px bg-gradient-to-b from-transparent via-brand-400 to-transparent mx-1" />
-
           {/* Page Size */}
           <div className="flex items-center gap-1.5">
             <span className="text-xs text-surface-500">{paginationText.pageSize}:</span>

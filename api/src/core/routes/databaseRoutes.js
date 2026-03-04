@@ -35,6 +35,7 @@ import DatabaseService from '#core/database/databaseService.js';
 import { authenticate } from '#core/middleware/auth.js';
 import { messages, errors, saveJson, loadJson } from '#shared/loadJson.js';
 import { logger } from '#shared/logger.js';
+import { reloadDbConfig } from '#config';
 
 const router = Router();
 
@@ -90,10 +91,11 @@ router.get('/save-config', async (_req, res) => {
         defaultAdmin = { email: adminData.users[0].email };
       }
     } catch { /* no admin file yet */ }
+    const { password, ...safeConfig } = dbConfig;
     res.json({
       success: true,
       data: {
-        ...dbConfig,
+        ...safeConfig,
         tables: ['system_users', 'system_config', 'system_modules', 'system_logs'],
         defaultAdmin,
       },
@@ -108,7 +110,6 @@ router.get('/save-config', async (_req, res) => {
         database: '',
         schema: '',
         user: '',
-        password: '',
         tables: [],
         defaultAdmin: { email: '' },
       },
@@ -134,8 +135,11 @@ router.post('/save-config', async (req, res) => {
       connectionTimeoutMillis: 5000,
     };
     saveJson('DatabaseConfig.json', dbConfig);
+    reloadDbConfig();
+    await DatabaseService.resetPool();
     logger.info(messages.success.dbConfigSaved, { host, database });
-    res.json({ success: true, data: { message: messages.success.dbConfigSaved, config: dbConfig } });
+    const { password: _pw, ...safeConfig } = dbConfig;
+    res.json({ success: true, data: { message: messages.success.dbConfigSaved, config: safeConfig } });
   } catch (err) {
     logger.error(errors.errors.dbConfigSaveFailed, { error: err.message });
     res.status(500).json({ success: false, error: { message: errors.errors.dbConfigSaveFailed } });

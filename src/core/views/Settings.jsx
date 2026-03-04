@@ -67,7 +67,6 @@ function DatabaseConfigTab() {
               database: result.data.database || '',
               schema: result.data.schema || '',
               username: result.data.user || '',
-              password: result.data.password || '',
             });
             console.log('✅ [DatabaseConfigTab] Config loaded from API', { host: result.data.host, database: result.data.database });
           }
@@ -93,9 +92,13 @@ function DatabaseConfigTab() {
       if (result?.success) {
         const latency = result.data?.latencyMs || 0;
         const dbVersion = result.data?.dbVersion || '';
+        const dbType = result.data?.dbType || '';
         const versionShort = dbVersion ? dbVersion.split(',')[0].replace('PostgreSQL ', '') : '';
-        const metaText = versionShort ? `${connectionText.responseTime} ${latency}ms ${connectionText.metaSeparator} ${connectionText.version} ${versionShort}` : `${connectionText.responseTime} ${latency}ms`;
-        console.log('✅ [DatabaseConfigTab] Connection test successful', { latency, version: versionShort });
+        const parts = [`${connectionText.responseTime} ${latency}ms`];
+        if (dbType) parts.push(`${connectionText.dbType} ${dbType}`);
+        if (versionShort) parts.push(`${connectionText.version} ${versionShort}`);
+        const metaText = parts.join(` ${connectionText.metaSeparator} `);
+        console.log('✅ [DatabaseConfigTab] Connection test successful', { latency, dbType, version: versionShort });
         return {
           success: true,
           message: result.data?.message || connectionText.connected,
@@ -138,7 +141,6 @@ function DatabaseConfigTab() {
           onTest={handleTest}
           onSave={handleSave}
           initialConfig={savedConfig}
-          autoTest={true}
         />
       </div>
     </div>
@@ -154,9 +156,32 @@ function DatabaseObjectsTab() {
   const initRan = React.useRef(false);
 
   const checkStatus = useCallback(async () => {
-    console.log('🔄 [DatabaseObjectsTab] Checking database schema status');
+    console.log('🔄 [DatabaseObjectsTab] Checking database connection and schema status');
     setIsLoading(true);
     try {
+      // Step 1: Test actual DB connection with server config
+      const connResponse = await fetch(urls.database.testConnection, { credentials: 'include' });
+      const connResult = await connResponse.json();
+
+      if (!connResult?.success) {
+        // Connection failed — report the real error, don't allow any DB operations
+        const errMsg = connResult?.error?.message || connectionText.failed;
+        const errCode = connResult?.error?.code || 'CONNECTION_FAILED';
+        console.warn('⚠️ [DatabaseObjectsTab] Connection test failed:', errMsg, errCode);
+        setDbStatus({
+          connected: false,
+          exists: errCode !== 'DB_NOT_EXIST',
+          schemaInitialized: false,
+          hasDefaultData: false,
+          connectionError: errMsg,
+        });
+        setIsLoading(false);
+        return;
+      }
+
+      console.log('✅ [DatabaseObjectsTab] Connection test passed, checking schema status');
+
+      // Step 2: Connection succeeded — now check schema status
       const response = await fetch(urls.database.schemaStatus, { credentials: 'include' });
       const result = await response.json();
       if (result?.success && result?.data) {
@@ -165,16 +190,17 @@ function DatabaseObjectsTab() {
           exists: result.data.connected !== false,
           schemaInitialized: result.data.initialized !== false,
           hasDefaultData: result.data.hasDefaultData !== false,
+          connectionError: null,
         };
         setDbStatus(status);
         console.log('✅ [DatabaseObjectsTab] Schema status loaded', status);
       } else {
-        setDbStatus({ connected: true, exists: false, schemaInitialized: false, hasDefaultData: false });
+        setDbStatus({ connected: true, exists: true, schemaInitialized: false, hasDefaultData: false, connectionError: null });
         console.warn('⚠️ [DatabaseObjectsTab] Schema status returned no data');
       }
     } catch (err) {
-      setDbStatus({ connected: false, exists: false, schemaInitialized: false, hasDefaultData: false });
-      console.error('❌ [DatabaseObjectsTab] Failed to check schema status:', err.message);
+      setDbStatus({ connected: false, exists: false, schemaInitialized: false, hasDefaultData: false, connectionError: err.message });
+      console.error('❌ [DatabaseObjectsTab] Failed to check status:', err.message);
     } finally {
       setIsLoading(false);
     }

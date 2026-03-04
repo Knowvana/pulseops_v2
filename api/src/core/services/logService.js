@@ -194,7 +194,7 @@ async function readLogsFromDb(logType, filters = {}) {
     params.push(filters.level);
   }
   if (filters.search) {
-    conditions.push(`(message ILIKE $${paramIndex} OR component ILIKE $${paramIndex} OR event ILIKE $${paramIndex})`);
+    conditions.push(`(message ILIKE $${paramIndex} OR file_name ILIKE $${paramIndex} OR event ILIKE $${paramIndex})`);
     params.push(`%${filters.search}%`);
     paramIndex++;
   }
@@ -228,16 +228,16 @@ async function writeLogsToDb(logType, entries) {
   if (logType === 'ui') {
     for (const entry of entries) {
       await db.query(
-        `INSERT INTO ${table} (transaction_id, log_level, source, event, component, log_module, user_name, message, result, data, created_at)
+        `INSERT INTO ${table} (transaction_id, log_level, source, event, file_name, log_module, user_name, message, result, data, created_at)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
         [
           entry.transactionId || null,
           entry.level || 'info',
           entry.source || 'UI',
           entry.event || null,
-          entry.component || null,
+          entry.fileName || null,
           entry.module || 'Core',
-          entry.user || null,
+          entry.user || 'Anonymous',
           entry.message || '',
           entry.result || null,
           entry.data ? JSON.stringify(entry.data) : null,
@@ -254,7 +254,7 @@ async function writeLogsToDb(logType, entries) {
           entry.transactionId || null,
           entry.level || 'info',
           entry.source || 'API',
-          entry.user || null,
+          entry.user || 'Anonymous',
           entry.module || 'Core',
           entry.url || null,
           entry.method || null,
@@ -340,7 +340,7 @@ async function createLogTables() {
       log_level VARCHAR(10) NOT NULL DEFAULT 'info',
       source VARCHAR(20) DEFAULT 'UI',
       event VARCHAR(255),
-      component VARCHAR(255),
+      file_name VARCHAR(255),
       log_module VARCHAR(100) DEFAULT 'Core',
       user_name VARCHAR(255),
       message TEXT NOT NULL,
@@ -442,7 +442,7 @@ const LogService = {
       const term = filters.search.toLowerCase();
       logs = logs.filter(l =>
         (l.message && l.message.toLowerCase().includes(term)) ||
-        (l.component && l.component.toLowerCase().includes(term)) ||
+        (l.fileName && l.fileName.toLowerCase().includes(term)) ||
         (l.event && l.event.toLowerCase().includes(term)) ||
         (l.url && l.url.toLowerCase().includes(term))
       );

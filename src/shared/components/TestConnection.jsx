@@ -41,7 +41,7 @@
 // ConnectionStatus component to display test results.
 // ============================================================================
 import React, { useState, useEffect } from 'react';
-import { Database, RefreshCw, Save, Eye, EyeOff, CheckCircle2 } from 'lucide-react';
+import { Database, RefreshCw, Save, Eye, EyeOff, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { Button, ConfirmationModal } from '@shared';
 import ConnectionStatus from '@shared/components/ConnectionStatus';
 import TimezoneService from '@shared/services/timezoneService';
@@ -71,6 +71,22 @@ export default function TestConnection({
     return initial;
   });
 
+  // Sync config state when initialConfig arrives async from API
+  useEffect(() => {
+    const hasValues = Object.values(initialConfig).some(v => v !== '' && v !== undefined);
+    if (hasValues) {
+      setConfig(prev => {
+        const updated = { ...prev };
+        fields.forEach(field => {
+          if (initialConfig[field.name] !== undefined && initialConfig[field.name] !== '') {
+            updated[field.name] = initialConfig[field.name];
+          }
+        });
+        return updated;
+      });
+    }
+  }, [initialConfig]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const [connectionStatus, setConnectionStatus] = useState({
     type: title,
     status: 'neutral',
@@ -84,6 +100,7 @@ export default function TestConnection({
   const [showPasswords, setShowPasswords] = useState({});
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [saveMessage, setSaveMessage] = useState(null);
+  const [validationError, setValidationError] = useState(null);
 
   const handleFieldChange = (name, value) => {
     setConfig(prev => ({ ...prev, [name]: value }));
@@ -283,12 +300,31 @@ export default function TestConnection({
             variant="primary"
             size="sm"
             icon={<Save />}
-            onClick={() => setShowSaveModal(true)}
+            onClick={() => {
+              const emptyFields = fields.filter(f => !config[f.name]?.toString().trim());
+              if (emptyFields.length > 0) {
+                const names = emptyFields.map(f => f.label).join(', ');
+                setValidationError(`${connMessages.validationEmpty || 'Required fields cannot be empty'}: ${names}`);
+                console.warn(`⚠️ ${LOG_SRC} Save blocked — empty fields: ${names}`);
+                setTimeout(() => setValidationError(null), 5000);
+                return;
+              }
+              setValidationError(null);
+              setShowSaveModal(true);
+            }}
           >
             {connText.saveButton || 'Save Configuration'}
           </Button>
         )}
       </div>
+
+      {/* Validation Error */}
+      {validationError && (
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium bg-rose-50 border border-rose-200 text-rose-700">
+          <AlertTriangle size={14} />
+          {validationError}
+        </div>
+      )}
 
       {/* Save Success/Error Message — shown above Save button, not in ConnectionStatus */}
       {saveMessage && (
@@ -311,16 +347,18 @@ export default function TestConnection({
           actionDescription={connMessages.saveDescription}
           actionTarget={connMessages.saveTarget}
           actionDetails={
-            fields
-              .filter(f => f.type !== 'password')
-              .map(f => ({ label: f.label, value: config[f.name] || '' }))
+            fields.map(f => ({
+              label: f.label,
+              value: f.type === 'password' ? '••••••••' : (config[f.name] || ''),
+            }))
           }
           confirmLabel={connText.saveButton}
           action={handleSaveAction}
           onSuccess={handleSaveSuccess}
           variant="info"
           buildSummary={(data) => [
-            ...(fields.filter(f => f.type !== 'password' && f.name !== 'schema' && f.name !== 'username' && f.name !== 'port')
+            ...(fields
+              .filter(f => f.name !== 'password' && f.name !== 'schema' && f.name !== 'username' && f.name !== 'port')
               .map(f => ({ label: f.label, value: data?.[f.name] || config[f.name] || '' }))),
             { label: connMessages.statusLabel, value: connMessages.configSaved },
           ]}

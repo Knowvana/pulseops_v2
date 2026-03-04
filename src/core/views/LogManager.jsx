@@ -39,9 +39,10 @@ const logTypeText = viewText.logTypes;
 const apiBase = '';
 
 export default function LogManager() {
-  console.log('📋 [LogManager] Log Manager page accessed');
-  // ── StrictMode guard ────────────────────────────────────────────────────
-  const initRan = useRef(false);
+  // ── StrictMode-safe refs ─────────────────────────────────────────────────
+  const mountRan = useRef(false);    // Prevents double-mount fetch in React StrictMode
+  const filterInit = useRef(false);  // Skips initial render in filter-change effect
+  const statsInit = useRef(false);   // Skips initial render in stats-change effect
 
   // ── State ────────────────────────────────────────────────────────────────
   const [logType, setLogType] = useState('api');
@@ -61,22 +62,19 @@ export default function LogManager() {
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
-  // ── Fetch Logs ───────────────────────────────────────────────────────────
-  const fetchLogs = useCallback(async () => {
-    console.log(`🔄 [LogManager] Fetching ${logType} logs`, { levelFilter, search: debouncedSearch });
+  // ── Fetch functions (stable refs — read logType/filters from closure) ────
+  const fetchLogs = useCallback(async (type, level, search) => {
     setIsLoading(true);
     try {
       const params = new URLSearchParams();
-      if (levelFilter !== 'all') params.set('level', levelFilter);
-      if (debouncedSearch.trim()) params.set('search', debouncedSearch.trim());
+      if (level !== 'all') params.set('level', level);
+      if (search?.trim()) params.set('search', search.trim());
       params.set('limit', '500');
-
-      const endpoint = logType === 'ui' ? urls.logs.ui : urls.logs.api;
+      const endpoint = type === 'ui' ? urls.logs.ui : urls.logs.api;
       const res = await fetch(`${apiBase}${endpoint}?${params}`, { credentials: 'include' });
       const json = await res.json();
       if (json.success) {
         setLogs(json.data.logs || []);
-        console.log(`✅ [LogManager] Loaded ${json.data.logs?.length || 0} ${logType} log entries`);
       } else {
         setLogs([]);
         console.warn('⚠️ [LogManager] Logs fetch returned unsuccessful response');
@@ -87,23 +85,17 @@ export default function LogManager() {
     } finally {
       setIsLoading(false);
     }
-  }, [logType, levelFilter, debouncedSearch]);
+  }, []);
 
-  // ── Fetch Stats ──────────────────────────────────────────────────────────
-  const fetchStats = useCallback(async () => {
+  const fetchStats = useCallback(async (type) => {
     try {
-      const endpoint = logType === 'ui' ? urls.logs.uiStats : urls.logs.apiStats;
+      const endpoint = type === 'ui' ? urls.logs.uiStats : urls.logs.apiStats;
       const res = await fetch(`${apiBase}${endpoint}`, { credentials: 'include' });
       const json = await res.json();
-      if (json.success) {
-        setStats(json.data);
-      }
-    } catch {
-      // Keep existing stats on error
-    }
-  }, [logType]);
+      if (json.success) setStats(json.data);
+    } catch { /* keep existing stats on error */ }
+  }, []);
 
-  // ── Fetch log config (datasource details) ─────────────────────────────────
   const fetchLogConfig = useCallback(async () => {
     try {
       const res = await fetch(`${apiBase}${urls.logs.config}`, { credentials: 'include' });
@@ -112,26 +104,36 @@ export default function LogManager() {
     } catch { /* keep null */ }
   }, []);
 
-  // ── Auto-fetch on mount and when filters change ──────────────────────────
+  // ── Effect 1: Mount once (StrictMode-safe) — log access + initial fetch ──
   useEffect(() => {
-    if (!initRan.current) {
-      initRan.current = true;
-      fetchLogConfig();
-    }
-    fetchLogs();
-    fetchStats();
-  }, [fetchLogs, fetchStats, fetchLogConfig]);
+    if (mountRan.current) return;
+    mountRan.current = true;
+    console.log('📋 [LogManager] Log Manager page accessed');
+    fetchLogConfig();
+    fetchLogs('api', 'all', '');
+    fetchStats('api');
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Effect 2: Re-fetch logs only when filters or logType change ──────────
+  useEffect(() => {
+    if (!filterInit.current) { filterInit.current = true; return; }
+    fetchLogs(logType, levelFilter, debouncedSearch);
+  }, [logType, levelFilter, debouncedSearch, fetchLogs]);
+
+  // ── Effect 3: Re-fetch stats only when logType changes ───────────────────
+  useEffect(() => {
+    if (!statsInit.current) { statsInit.current = true; return; }
+    fetchStats(logType);
+  }, [logType, fetchStats]);
 
   // ── Refresh handler ──────────────────────────────────────────────────────
   const handleRefresh = useCallback(() => {
-    console.log('🔄 [LogManager] Refreshing logs and stats');
-    fetchLogs();
-    fetchStats();
-  }, [fetchLogs, fetchStats]);
+    fetchLogs(logType, levelFilter, debouncedSearch);
+    fetchStats(logType);
+  }, [logType, levelFilter, debouncedSearch, fetchLogs, fetchStats]);
 
   // ── Delete handler ─────────────────────────────────────────────────────
   const handleDelete = useCallback(async () => {
-    console.log(`🗑️ [LogManager] Deleting all ${logType} logs`);
     setIsDeleting(true);
     try {
       const endpoint = logType === 'ui' ? urls.logs.ui : urls.logs.api;
@@ -143,11 +145,9 @@ export default function LogManager() {
       if (json.success) {
         setLogs([]);
         setStats(prev => ({ ...prev, count: 0 }));
-        console.log(`✅ [LogManager] All ${logType} logs deleted successfully`);
       }
     } catch (err) {
       console.error('❌ [LogManager] Failed to delete logs:', err.message);
-      // Silently fail — stats will show current state on next refresh
     } finally {
       setIsDeleting(false);
       setShowDeleteConfirm(false);

@@ -81,7 +81,7 @@ export function requestLogger(req, res, next) {
           transactionId: req.requestId,
           level,
           source: 'API',
-          user: req.user?.email || null,
+          user: req.user?.email || 'Anonymous',
           module: 'Core',
           url: requestPath,
           method: req.method,
@@ -104,7 +104,7 @@ export function requestLogger(req, res, next) {
 // ── 3. General Rate Limiter: 100 req / 15 min ──────────────────────────────
 export const generalRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 100,
+  max: 1000,
   standardHeaders: true,
   legacyHeaders: false,
   message: {
@@ -116,7 +116,7 @@ export const generalRateLimiter = rateLimit({
 // ── 4. Auth Rate Limiter: 10 req / 15 min ──────────────────────────────────
 export const authRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 10,
+  max: 100,
   standardHeaders: true,
   legacyHeaders: false,
   message: {
