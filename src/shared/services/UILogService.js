@@ -1,438 +1,502 @@
 // ============================================================================
-// UILogService — PulseOps V2 Frontend Logging Service
+// UILogService — PulseOps V2 Frontend Logging
 //
-// PURPOSE: Captures frontend console output and fetch API calls in real-time.
-// Stores entries in memory for display in the RightLogsView panel, and
-// periodically pushes batches to the backend via POST /api/logs/ui.
+// PURPOSE: Enterprise-grade structured logging for the frontend application.
 //
 // FEATURES:
-//   - Intercepts console.log/info/warn/error/debug
-//   - Intercepts window.fetch to capture API calls (method, url, status, duration)
-//   - In-memory ring buffer (max entries configurable)
-//   - Periodic batch push to backend (configurable interval)
-//   - Subscribe/unsubscribe pattern for React components
+//   - Explicit API: debug(msg,ctx) / info(msg,ctx) / warn(msg,ctx) / error(msg,err?,ctx)
+//   - Fetch interceptor: full request + response body capture (sanitized, max 10KB)
+//   - Navigation tracker: logs route changes via history.pushState + popstate
+//   - Interaction tracker: button/link clicks via event delegation on document
+//   - Error tracker: window.onerror + unhandledrejection capture
+//   - Console intercept: ONLY warn + error (exceptional conditions, not render noise)
+//   - Caller extraction: fileName:functionName from Error stack trace
+//   - Ring buffer: 1000 UI log entries + 500 API call entries per browser session
+//   - Batch push: every 30s to POST /api/logs/ui (fire-and-forget, non-blocking)
+//   - Immediate flush: error-level entries pushed without waiting for the timer
+//   - Session-scoped ID: regenerated per page load, sent as X-Session-Id header
+//   - Subscriber pattern: React components subscribe for real-time monitor updates
 //
 // USAGE:
 //   import UILogService from '@shared/services/UILogService';
-//   UILogService.init();              // Call once at app start
-//   UILogService.subscribe(callback); // Listen for new entries
-//   UILogService.destroy();           // Cleanup on app unmount
+//   UILogService.init();                           // Once at app start
+//   UILogService.setUserEmail('user@email.com');   // After login
+//   UILogService.info('[Component] msg', { key }); // Explicit log
+//   UILogService.subscribe(({ logs, apiCalls }) => {}); // Sidebar monitor
 //
-// ARCHITECTURE: Singleton service. Does NOT depend on React. Listeners
-// are notified synchronously when new entries arrive.
+// ARCHITECTURE:
+//   Sidebar monitor  = session-scoped (in-memory ring buffer, current user only)
+//   Log Viewer page  = all users (reads from backend DB/file via API)
 // ============================================================================
 import urls from '@config/urls.json';
 import TimezoneService from '@shared/services/timezoneService';
 
-const MAX_LOG_ENTRIES = 500;
-const MAX_API_ENTRIES = 200;
-const PUSH_INTERVAL_MS = 30000;
+// ── Configuration ─────────────────────────────────────────────────────────────
+const MAX_UI_ENTRIES   = 1000;     // UI log ring buffer
+const MAX_API_ENTRIES  = 500;      // API call ring buffer
+const PUSH_INTERVAL_MS = 30_000;   // Batch push to backend every 30s
+const NOTIFY_DEBOUNCE  = 250;      // Sidebar refresh throttle (max 4/sec)
+const MAX_BODY_BYTES   = 10_000;   // Max req/res body to capture in bytes
 
-// Pre-compiled regex for performance (avoid re-creation on every _addLog call)
-const EMOJI_REGEX = /[\u{1F300}-\u{1F9FF}\u{2600}-\u{27BF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{2702}-\u{27B0}]/gu;
-const SOURCE_REGEX = /\[([^\]]+)\]/;
-// Regex to extract file:line from stack frames — handles Vite/Webpack bundled paths
-// Matches patterns like: at FunctionName (http://localhost:1001/src/core/App.jsx?t=123:45:12)
-// or: at http://localhost:1001/src/core/App.jsx:45:12
-const STACK_FRAME_REGEX = /at\s+(?:([^\s(]+)\s+)?\(?(?:https?:\/\/[^/]+)?\/?(src\/[^?:]+)[^:]*:(\d+)/;
+// ── Regex (pre-compiled) ──────────────────────────────────────────────────────
+// Strip emoji for clean log storage
+const EMOJI_RE = /[\u{1F300}-\u{1F9FF}\u{2600}-\u{27BF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{2702}-\u{27B0}]/gu;
 
-// Messages to skip — React internals, Vite HMR, Chrome violations, DOM warnings
-const SKIP_PREFIXES = [
-  'Download the React DevTools',
-  '[Violation]',
-  '[HMR]',
-  '[vite]',
-  '[DOM]',
-  'Password field is not contained',
-  'Warning: ',
-  'React does not recognize',
-  '%c',
+// Parse Vite/Webpack bundled stack frames:
+//   "at FuncName (http://host/src/path/File.jsx?t=123:45:6)"
+//   "at http://host/src/path/File.jsx:45:6"
+const FRAME_RE = /at\s+(?:([^\s(]+)\s+)?\(?(?:https?:\/\/[^/]+)?\/?(src\/[^?:]+)(?:\?[^:]*)?:(\d+)/;
+
+// Console noise to skip from the warn/error intercept
+const CONSOLE_NOISE = [
+  'Download the React DevTools', '[HMR]', '[vite]', '[Violation]',
+  '[DOM]', 'Warning: ', 'React does not recognize',
+  'Password field is not contained', '%c',
 ];
 
-function formatISTTime() {
-  return TimezoneService.formatCurrentTime();
-}
+// Internal frames to skip during caller extraction
+const SKIP_FRAMES = ['UILogService', 'node_modules', 'chunk-'];
 
-function toISTISO() {
-  return TimezoneService.toTimezoneISO();
-}
+// Unique entry counter — monotonically increasing across the session
+let _seq = 0;
+const nextId = (prefix) => `${prefix}-${(++_seq).toString(36)}`;
 
-// Deduplication window: same message+level within this many ms = skip
-const DEDUP_WINDOW_MS = 1000;
-
+// ── Service class ─────────────────────────────────────────────────────────────
 class UILogServiceClass {
   constructor() {
-    this._logs = [];
-    this._apiCalls = [];
-    this._listeners = new Set();
-    this._pushTimer = null;
-    this._initialized = false;
-    this._originalConsole = {};
-    this._originalFetch = null;
-    this._pendingPush = [];
+    this._uiLogs      = [];        // UI log ring buffer
+    this._apiCalls    = [];        // API call ring buffer
+    this._pending     = [];        // Queued for backend push
+    this._listeners   = new Set();
+    this._pushTimer   = null;
     this._notifyTimer = null;
     this._notifyPending = false;
-    this._sessionTxId = null;
-    this._userEmail = null;
-    this._dedupMap = new Map(); // key: `${level}:${message}`, value: timestamp ms
+    this._sessionId   = null;
+    this._userId      = null;
+    this._initialized = false;
+    // Saved originals for cleanup on destroy()
+    this._origConsole      = {};
+    this._origFetch        = null;
+    this._origPushState    = null;
+    this._origReplaceState = null;
+    this._navPopHandler    = null;
   }
 
-  _generateSessionTxId() {
-    return `ses-${Date.now().toString(36)}-${Math.random().toString(36).substr(2, 8)}`;
-  }
+  // ── Lifecycle ─────────────────────────────────────────────────────────────
 
-  /**
-   * Get the current session transaction ID
-   */
-  getSessionTxId() {
-    return this._sessionTxId;
-  }
-
-  /**
-   * Override session transaction ID (e.g. for API Explorer sessions)
-   */
-  setSessionTxId(txId) {
-    this._sessionTxId = txId;
-  }
-
-  /**
-   * Set the authenticated user email for log entries
-   */
-  setUserEmail(email) {
-    this._userEmail = email || null;
-  }
-
-  /**
-   * Get the current user email
-   */
-  getUserEmail() {
-    return this._userEmail;
-  }
-
-  // ── Init: Intercept console + fetch ──────────────────────────────────────
   init() {
-    if (this._initialized) {
-      // Already initialized - do not regenerate session ID or re-intercept
-      return;
-    }
+    if (this._initialized) return;
     this._initialized = true;
-
-    // Generate session-scoped transaction ID (one per browser session)
-    this._sessionTxId = this._generateSessionTxId();
-
-    // Save originals
-    this._originalConsole = {
-      log: console.log.bind(console),
-      info: console.info.bind(console),
-      warn: console.warn.bind(console),
-      error: console.error.bind(console),
-      debug: console.debug.bind(console),
-    };
-    this._originalFetch = window.fetch.bind(window);
-
-    // Intercept console methods
-    // Strategy: warn/error always captured. log/info/debug only captured if
-    // message is tagged with [Component] bracket — eliminates render-cycle noise.
-    const levels = ['log', 'info', 'warn', 'error', 'debug'];
-    levels.forEach((level) => {
-      console[level] = (...args) => {
-        // Extract caller info and prepend [File:Function] to console output
-        const caller = this._extractCaller();
-        if (caller) {
-          this._originalConsole[level](`[${caller}]`, ...args);
-        } else {
-          this._originalConsole[level](...args);
-        }
-        const mappedLevel = level === 'log' ? 'info' : level;
-        // warn/error: always capture. log/info/debug: only if tagged with [Component]
-        const firstArg = typeof args[0] === 'string' ? args[0] : '';
-        const isTagged = firstArg.trimStart().startsWith('[');
-        if (mappedLevel === 'warn' || mappedLevel === 'error' || isTagged) {
-          this._addLog(mappedLevel, args);
-        }
-      };
-    });
-
-    // Intercept fetch
-    window.fetch = async (...args) => {
-      const [input, init] = args;
-      const requestUrl = typeof input === 'string' ? input : input?.url || String(input);
-      const method = init?.method?.toUpperCase() || 'GET';
-      const start = performance.now();
-
-      // Send session transaction ID with every API request (except log push calls)
-      const isLogPush = requestUrl.includes('/api/logs/') && method === 'POST';
-      const augmentedInit = {
-        ...(init || {}),
-        headers: {
-          ...(init?.headers || {}),
-          ...(!isLogPush && this._sessionTxId ? { 'X-Transaction-Id': this._sessionTxId } : {}),
-        },
-      };
-
-      try {
-        const response = await this._originalFetch(input, augmentedInit);
-        const duration = Math.round(performance.now() - start);
-        this._addApiCall({
-          method,
-          url: this._shortenUrl(requestUrl),
-          fullUrl: requestUrl,
-          status: response.status,
-          duration,
-          transactionId: this._sessionTxId,
-          timestamp: new Date().toISOString(),
-          displayTime: formatISTTime(),
-        });
-        return response;
-      } catch (err) {
-        const duration = Math.round(performance.now() - start);
-        this._addApiCall({
-          method,
-          url: this._shortenUrl(requestUrl),
-          fullUrl: requestUrl,
-          status: 0,
-          duration,
-          error: err.message,
-          transactionId: this._sessionTxId,
-          timestamp: new Date().toISOString(),
-          displayTime: formatISTTime(),
-        });
-        throw err;
-      }
-    };
-
-    // Start periodic push
-    this._pushTimer = setInterval(() => this.pushToBackend(), PUSH_INTERVAL_MS);
+    this._sessionId = this._genSessionId();
+    this._interceptFetch();
+    this._interceptConsole();
+    this._trackNavigation();
+    this._trackInteractions();
+    this._trackErrors();
+    this._pushTimer = setInterval(() => this._pushToBackend(), PUSH_INTERVAL_MS);
   }
 
-  // ── Destroy: Restore originals ───────────────────────────────────────────
   destroy() {
     if (!this._initialized) return;
-
-    // Restore console
-    Object.keys(this._originalConsole).forEach((level) => {
-      console[level] = this._originalConsole[level];
-    });
-
-    // Restore fetch
-    if (this._originalFetch) {
-      window.fetch = this._originalFetch;
-    }
-
-    // Clear timers
-    if (this._pushTimer) {
-      clearInterval(this._pushTimer);
-      this._pushTimer = null;
-    }
-    if (this._notifyTimer) {
-      clearTimeout(this._notifyTimer);
-      this._notifyTimer = null;
-    }
-
+    Object.entries(this._origConsole).forEach(([k, v]) => { console[k] = v; });
+    if (this._origFetch)        window.fetch           = this._origFetch;
+    if (this._origPushState)    history.pushState      = this._origPushState;
+    if (this._origReplaceState) history.replaceState   = this._origReplaceState;
+    if (this._navPopHandler)    window.removeEventListener('popstate', this._navPopHandler);
+    clearInterval(this._pushTimer);
+    clearTimeout(this._notifyTimer);
     this._initialized = false;
   }
 
-  // ── Subscribe / Unsubscribe ──────────────────────────────────────────────
+  // ── Public: Identity ──────────────────────────────────────────────────────
+
+  /** Call after successful login with the user's email */
+  setUserEmail(email) { this._userId = email || null; }
+  getUserEmail()      { return this._userId; }
+  getSessionId()      { return this._sessionId; }
+
+  // Backward-compat aliases
+  getSessionTxId()   { return this._sessionId; }
+  setSessionTxId()   { /* sessions are auto-generated; no-op */ }
+
+  // ── Public: Explicit Logging API ──────────────────────────────────────────
+
+  /**
+   * DEBUG — verbose diagnostic information.
+   * @param {string} message  Prefix with [Component] for clarity, e.g. '[Settings] loading'
+   * @param {object} [context]  Optional structured key/value data
+   */
+  debug(message, context) {
+    this._addUiEntry('debug', message, context, 'app');
+  }
+
+  /**
+   * INFO — normal operational events (page accessed, data loaded, action completed).
+   */
+  info(message, context) {
+    this._addUiEntry('info', message, context, 'app');
+  }
+
+  /**
+   * WARN — unexpected but recoverable conditions.
+   */
+  warn(message, context) {
+    this._addUiEntry('warn', message, context, 'app');
+  }
+
+  /**
+   * ERROR — failures requiring attention. Triggers an immediate backend push.
+   * @param {string} message
+   * @param {Error|object} [errOrCtx]  Pass an Error object or additional context object
+   * @param {object} [context]          Extra context when errOrCtx is an Error
+   */
+  error(message, errOrCtx, context) {
+    const ctx = (errOrCtx instanceof Error)
+      ? { ...context, errorMessage: errOrCtx.message, stack: errOrCtx.stack?.split('\n').slice(0, 4).join(' | ') }
+      : { ...errOrCtx, ...context };
+    this._addUiEntry('error', message, ctx || undefined, 'app');
+    this._flushNow();
+  }
+
+  // ── Public: Data access ───────────────────────────────────────────────────
+
+  getLogs()     { return this._uiLogs; }
+  getApiCalls() { return this._apiCalls; }
+
   subscribe(callback) {
     this._listeners.add(callback);
     return () => this._listeners.delete(callback);
   }
 
-  // ── Getters ──────────────────────────────────────────────────────────────
-  getLogs() { return this._logs; }
-  getApiCalls() { return this._apiCalls; }
+  clearLogs()     { this._uiLogs   = []; this._notify(); }
+  clearApiCalls() { this._apiCalls = []; this._notify(); }
 
-  // ── Clear ────────────────────────────────────────────────────────────────
-  clearLogs() {
-    this._logs = [];
-    this._notify();
-  }
+  // ── Instrumentation: Fetch interceptor ───────────────────────────────────
 
-  clearApiCalls() {
-    this._apiCalls = [];
-    this._notify();
-  }
+  _interceptFetch() {
+    this._origFetch = window.fetch.bind(window);
 
-  // ── Manual log entry ─────────────────────────────────────────────────────
-  log(level, source, message, data) {
-    const entry = {
-      level: level || 'info',
-      source: source || 'UI',
-      module: 'Core',
-      message: typeof message === 'string' ? message : JSON.stringify(message),
-      data: data || null,
-      user: this._userEmail || null,
-      transactionId: this._sessionTxId || null,
-      timestamp: formatISTTime(),
-      isoTimestamp: toISTISO(),
+    window.fetch = async (...args) => {
+      const [input, init] = args;
+      const rawUrl = typeof input === 'string' ? input : (input?.url || String(input));
+      const method = (init?.method || 'GET').toUpperCase();
+      const isLogPush = rawUrl.includes('/api/logs/') && method === 'POST';
+
+      // Capture request body synchronously before the request fires
+      const requestBody = this._captureRequestBody(init?.body);
+
+      // Attach session ID to every request header (except log-push to avoid recursion)
+      const augInit = {
+        ...(init || {}),
+        headers: {
+          ...(init?.headers || {}),
+          ...(!isLogPush && this._sessionId ? { 'X-Session-Id': this._sessionId } : {}),
+        },
+      };
+
+      const t0 = performance.now();
+      try {
+        const response = await this._origFetch(input, augInit);
+        const duration = Math.round(performance.now() - t0);
+
+        if (!isLogPush) {
+          // Clone the response stream and capture body asynchronously (non-blocking)
+          const cloned = response.clone();
+          this._captureResponseBody(cloned)
+            .then(responseBody => {
+              this._addApiEntry({ method, url: this._shortUrl(rawUrl), status: response.status, duration, requestBody, responseBody, error: null });
+            })
+            .catch(() => {
+              this._addApiEntry({ method, url: this._shortUrl(rawUrl), status: response.status, duration, requestBody, responseBody: null, error: null });
+            });
+        }
+        return response;
+      } catch (err) {
+        const duration = Math.round(performance.now() - t0);
+        if (!isLogPush) {
+          this._addApiEntry({ method, url: this._shortUrl(rawUrl), status: 0, duration, requestBody, responseBody: null, error: err.message });
+        }
+        throw err;
+      }
     };
-    this._logs = [...this._logs.slice(-(MAX_LOG_ENTRIES - 1)), entry];
-    this._pendingPush.push(entry);
-    this._notify();
   }
 
-  // ── Push to backend ──────────────────────────────────────────────────────
-  async pushToBackend() {
-    if (this._pendingPush.length === 0) return;
-    const batch = [...this._pendingPush];
-    this._pendingPush = [];
+  // ── Instrumentation: Console (warn + error only) ──────────────────────────
 
-    try {
-      // urls.logs.ui = '/api/logs/ui' - already a full relative path
-      // Vite proxy forwards /api/* to backend. Do NOT prepend server url (causes CORS).
-      const endpoint = urls.logs.ui;
-      // Use original fetch to avoid recursion
-      const fetcher = this._originalFetch || window.fetch;
-      await fetcher(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          entries: batch.map((e) => ({
-            level: e.level,
-            source: 'UI',
-            module: e.module || 'Core',
-            event: 'console',
-            fileName: e.fileName || null,
-            message: e.message,
-            user: e.user || this._userEmail || 'Anonymous',
-            transactionId: e.transactionId || null,
-            result: null,
-            timestamp: e.timestamp || new Date().toISOString(),
-          })),
-        }),
-      });
-    } catch {
-      // Re-queue on failure (avoid infinite growth)
-      if (this._pendingPush.length < MAX_LOG_ENTRIES) {
-        this._pendingPush = [...batch, ...this._pendingPush];
-      }
-    }
+  _interceptConsole() {
+    ['log', 'info', 'warn', 'error', 'debug'].forEach(level => {
+      this._origConsole[level] = console[level].bind(console);
+      console[level] = (...args) => {
+        // Always pass through to browser DevTools
+        this._origConsole[level](...args);
+
+        // Only capture warn and error from console — these are exceptional conditions.
+        // info/debug/log are too noisy from React render cycles.
+        const mapped = level === 'log' ? 'info' : level;
+        if (mapped !== 'warn' && mapped !== 'error') return;
+
+        const firstArg = typeof args[0] === 'string' ? args[0] : '';
+        if (CONSOLE_NOISE.some(n => firstArg.startsWith(n))) return;
+
+        const msg = this._argsToString(args).replace(EMOJI_RE, '').trim();
+        if (!msg || msg.includes('UILogService')) return;
+
+        // Extra skip = 1: Error > _extractCaller > _addUiEntry > console-override > actual caller
+        const caller = this._extractCaller(1);
+        this._addUiEntryRaw(mapped, msg, undefined, 'app', caller);
+      };
+    });
   }
 
-  // ── Internal: Add console log ────────────────────────────────────────────
-  _addLog(level, args) {
-    // Fast early-exit: skip if first arg matches known noise prefixes
-    const firstArg = args[0];
-    if (typeof firstArg === 'string') {
-      if (firstArg.includes('[UILogService]')) return;
-      for (let i = 0; i < SKIP_PREFIXES.length; i++) {
-        if (firstArg.startsWith(SKIP_PREFIXES[i])) return;
-      }
-    }
+  // ── Instrumentation: Navigation tracker ──────────────────────────────────
 
-    const message = args
-      .map((a) => {
-        if (typeof a === 'string') return a;
-        try { return JSON.stringify(a); } catch { return String(a); }
-      })
-      .join(' ');
+  _trackNavigation() {
+    this._origPushState    = history.pushState.bind(history);
+    this._origReplaceState = history.replaceState.bind(history);
 
-    // Second pass skip for joined messages
-    if (message.includes('[UILogService]')) return;
+    const self = this;
+    history.pushState = function (...a) {
+      self._origPushState(...a);
+      self._logNav(a[2]);
+    };
+    // replaceState fires on initial React Router setup — log it once but not on every replace
+    history.replaceState = function (...a) {
+      self._origReplaceState(...a);
+    };
 
-    const source = this._extractSource(message);
-    const caller = this._extractCaller();
+    this._navPopHandler = () => self._logNav(window.location.pathname);
+    window.addEventListener('popstate', this._navPopHandler);
 
-    // Format in fixed log format: strip emojis, use structured format
-    const cleanMessage = message.replace(EMOJI_REGEX, '').trim();
+    // Log initial page load
+    this._addUiEntryRaw('info',
+      `[Navigation] App loaded → ${window.location.pathname}`,
+      { path: window.location.pathname }, 'navigation',
+      { file: 'UILogService.js', func: 'init' });
+  }
 
-    // Deduplication: skip if same level+message seen within window
-    if (this._isDuplicate(level, cleanMessage)) return;
+  _logNav(url) {
+    const path = typeof url === 'string'
+      ? url.replace(/^https?:\/\/[^/]+/, '')
+      : window.location.pathname;
+    this._addUiEntryRaw('info',
+      `[Navigation] → ${path}`,
+      { path }, 'navigation',
+      { file: 'UILogService.js', func: 'navigation' });
+  }
 
+  // ── Instrumentation: User interaction tracker ─────────────────────────────
+
+  _trackInteractions() {
+    document.addEventListener('click', (e) => {
+      const target = e.target.closest('button, a[href], [role="button"], [data-log]');
+      if (!target) return;
+
+      const text = (
+        target.getAttribute('aria-label') ||
+        target.textContent ||
+        target.getAttribute('title') || ''
+      ).replace(/\s+/g, ' ').trim().slice(0, 100);
+
+      if (!text) return;
+
+      const tag  = target.tagName.toLowerCase();
+      const href = target.getAttribute('href');
+      const ctx  = href ? { tag, href } : { tag };
+
+      this._addUiEntryRaw('debug',
+        `[Interaction] ${tag === 'a' ? 'Link' : 'Button'}: ${text}`,
+        ctx, 'interaction',
+        { file: 'UILogService.js', func: 'interaction' });
+    }, { capture: true, passive: true });
+  }
+
+  // ── Instrumentation: Global error tracker ────────────────────────────────
+
+  _trackErrors() {
+    window.addEventListener('unhandledrejection', (e) => {
+      const msg   = e.reason?.message || String(e.reason) || 'Unhandled Promise Rejection';
+      const stack = e.reason?.stack?.split('\n').slice(0, 3).join(' | ');
+      this._addUiEntryRaw('error',
+        `[UnhandledRejection] ${msg}`,
+        stack ? { stack } : undefined, 'error',
+        { file: 'UILogService.js', func: 'unhandledRejection' });
+      this._flushNow();
+    });
+
+    window.addEventListener('error', (e) => {
+      if (!e.message || e.message === 'Script error.') return;
+      this._addUiEntryRaw('error',
+        `[WindowError] ${e.message}`,
+        { file: e.filename, line: e.lineno }, 'error',
+        { file: 'UILogService.js', func: 'windowError' });
+      this._flushNow();
+    });
+  }
+
+  // ── Internal: Create UI log entry ─────────────────────────────────────────
+
+  /** Used by explicit public API (debug/info/warn/error) — extracts caller from stack */
+  _addUiEntry(level, message, context, type) {
+    const caller = this._extractCaller(0);
+    const clean  = (typeof message === 'string' ? message : this._argsToString([message]))
+      .replace(EMOJI_RE, '').trim();
+    this._addUiEntryRaw(level, clean, context, type, caller);
+  }
+
+  /** Core entry creation — all instrumentation paths converge here */
+  _addUiEntryRaw(level, message, context, type, caller) {
     const entry = {
+      id:           nextId('log'),
+      timestamp:    new Date().toISOString(),
+      displayTime:  TimezoneService.formatCurrentTime(),
+      sessionId:    this._sessionId,
+      userId:       this._userId || 'Anonymous',
       level,
-      source: 'UI',
-      module: 'Core',
-      message: cleanMessage,
-      user: this._userEmail || 'Anonymous',
-      fileName: caller || null,
-      transactionId: this._sessionTxId || null,
-      timestamp: new Date().toISOString(),
-      displayTime: formatISTTime(),
+      type:         type || 'app',
+      source:       'UI',
+      message,
+      context:      context || undefined,
+      fileName:     caller?.file  || null,
+      functionName: caller?.func  || null,
+      pageUrl:      typeof window !== 'undefined' ? window.location.pathname : null,
     };
 
-    // Use push + conditional trim instead of spread on every call
-    this._logs.push(entry);
-    if (this._logs.length > MAX_LOG_ENTRIES) {
-      this._logs = this._logs.slice(-MAX_LOG_ENTRIES);
+    this._uiLogs.push(entry);
+    if (this._uiLogs.length > MAX_UI_ENTRIES) {
+      this._uiLogs = this._uiLogs.slice(-MAX_UI_ENTRIES);
     }
-    this._pendingPush.push(entry);
+    this._pending.push(entry);
     this._notify();
   }
 
-  // ── Internal: Deduplication check ─────────────────────────────────────────
-  _isDuplicate(level, message) {
-    const key = `${level}:${message.slice(0, 80)}`;
-    const now = Date.now();
-    const lastSeen = this._dedupMap.get(key);
-    if (lastSeen && (now - lastSeen) < DEDUP_WINDOW_MS) return true;
-    this._dedupMap.set(key, now);
-    // Prune stale dedup entries to prevent memory growth
-    if (this._dedupMap.size > 300) {
-      const cutoff = now - DEDUP_WINDOW_MS * 2;
-      for (const [k, t] of this._dedupMap) {
-        if (t < cutoff) this._dedupMap.delete(k);
-      }
-    }
-    return false;
-  }
+  // ── Internal: Create API call entry ──────────────────────────────────────
 
-  // ── Internal: Add API call ───────────────────────────────────────────────
-  _addApiCall(entry) {
-    // Skip log push calls to avoid recursion
-    if (entry.fullUrl?.includes('/api/logs/ui') && entry.method === 'POST') return;
+  _addApiEntry({ method, url, status, duration, requestBody, responseBody, error }) {
+    const entry = {
+      id:           nextId('api'),
+      timestamp:    new Date().toISOString(),
+      displayTime:  TimezoneService.formatCurrentTime(),
+      sessionId:    this._sessionId,
+      userId:       this._userId || 'Anonymous',
+      method,
+      url,
+      status,
+      duration,
+      requestBody:  requestBody  || null,
+      responseBody: responseBody || null,
+      error:        error        || null,
+    };
 
-    this._apiCalls.push({ ...entry, transactionId: this._sessionTxId });
+    this._apiCalls.push(entry);
     if (this._apiCalls.length > MAX_API_ENTRIES) {
       this._apiCalls = this._apiCalls.slice(-MAX_API_ENTRIES);
     }
     this._notify();
   }
 
-  // ── Internal: Shorten URL for display ────────────────────────────────────
-  _shortenUrl(url) {
+  // ── Internal: Body capture ────────────────────────────────────────────────
+
+  _captureRequestBody(body) {
+    if (!body) return null;
     try {
-      const u = new URL(url, window.location.origin);
-      return u.pathname + (u.search ? u.search.slice(0, 30) : '');
-    } catch {
-      return url.length > 60 ? url.slice(0, 60) + '...' : url;
-    }
+      let parsed;
+      if (typeof body === 'string') {
+        try { parsed = JSON.parse(body); } catch { return body.length > 500 ? '[large text body]' : body; }
+      } else if (body instanceof FormData)      { return '[FormData]'; }
+      else if (body instanceof URLSearchParams) { parsed = Object.fromEntries(body); }
+      else if (body instanceof ArrayBuffer || ArrayBuffer.isView(body)) { return '[Binary]'; }
+      else { return null; }
+
+      if (parsed && typeof parsed === 'object') {
+        const safe = { ...parsed };
+        ['password', 'password_hash', 'token', 'secret', 'authorization'].forEach(k => {
+          if (safe[k] !== undefined) safe[k] = '***';
+        });
+        return safe;
+      }
+      return parsed;
+    } catch { return null; }
   }
 
-  // ── Internal: Extract source from message ────────────────────────────────
-  _extractSource(message) {
-    // Match patterns like [Frontend], [Auth], [PlatformDashboard], etc.
-    const match = message.match(SOURCE_REGEX);
-    if (match) return match[1];
-    return 'Console';
+  async _captureResponseBody(response) {
+    try {
+      const ct = response.headers?.get('content-type') || '';
+      if (!ct.includes('application/json')) return null;
+      const text = await response.text();
+      if (text.length > MAX_BODY_BYTES) return { _note: `[truncated — ${text.length} bytes]` };
+      return JSON.parse(text);
+    } catch { return null; }
   }
 
-  // ── Internal: Extract caller FileName:FunctionName from stack trace ─────
-  _extractCaller() {
+  // ── Internal: Stack trace caller extraction ───────────────────────────────
+
+  /**
+   * Walk the call stack to find the first frame outside this service.
+   * @param {number} extraSkip  Additional frames to skip beyond the 4-frame base
+   *   Base stack: [0] Error, [1] _extractCaller, [2] _addUiEntry, [3] public method, [4] actual caller
+   */
+  _extractCaller(extraSkip = 0) {
     try {
-      const stack = new Error().stack || '';
-      const lines = stack.split('\n');
-      // Skip frames: Error, _extractCaller, _addLog, console[level] wrapper
-      for (let i = 4; i < lines.length; i++) {
+      const lines = (new Error().stack || '').split('\n');
+      const start = 4 + extraSkip;
+      for (let i = start; i < Math.min(lines.length, start + 10); i++) {
         const line = lines[i];
-        // Skip UILogService internal frames
-        if (line.includes('UILogService')) continue;
-        if (line.includes('node_modules')) continue;
-        const match = line.match(STACK_FRAME_REGEX);
-        if (match) {
-          const funcName = match[1] || 'anonymous';
-          const filePath = match[2] || '';
-          // Extract just the filename from path like src/core/App.jsx
-          const fileName = filePath.split('/').pop() || filePath;
-          return `${fileName}:${funcName}`;
+        if (!line) continue;
+        if (SKIP_FRAMES.some(f => line.includes(f))) continue;
+        const m = line.match(FRAME_RE);
+        if (m) {
+          const func = (m[1] || 'anonymous')
+            .replace(/^Object\./, '').replace(/^Array\./, '')
+            .split('.').pop();
+          const file = (m[2] || '').split('/').pop() || m[2];
+          return { file, func };
         }
       }
-    } catch { /* ignore stack parse errors */ }
+    } catch { /* ignore */ }
     return null;
   }
 
-  // ── Internal: Notify listeners (throttled to max ~4/sec) ─────────────────
+  // ── Internal: Backend push ────────────────────────────────────────────────
+
+  async _pushToBackend() {
+    if (this._pending.length === 0) return;
+    const batch = this._pending.splice(0); // Drain atomically
+    try {
+      const fetcher = this._origFetch || window.fetch;
+      await fetcher(urls.logs.ui, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          entries: batch.map(e => ({
+            transactionId: e.sessionId,
+            level:         e.level,
+            source:        'UI',
+            event:         e.type,
+            fileName:      e.fileName ? `${e.fileName}:${e.functionName || 'anonymous'}` : null,
+            module:        'Core',
+            message:       e.message,
+            user:          e.userId || 'Anonymous',
+            data:          e.context ?? null,
+            timestamp:     e.timestamp,
+          })),
+        }),
+      });
+    } catch {
+      // Re-queue on network failure — prepend so retried entries stay in order
+      if (this._pending.length < MAX_UI_ENTRIES) {
+        this._pending.unshift(...batch);
+      }
+    }
+  }
+
+  /** Push immediately (used for error-level entries) — non-blocking */
+  _flushNow() {
+    Promise.resolve().then(() => this._pushToBackend()).catch(() => {});
+  }
+
+  // ── Internal: Subscriber notification (debounced) ─────────────────────────
+
   _notify() {
     this._notifyPending = true;
     if (this._notifyTimer) return;
@@ -440,11 +504,31 @@ class UILogServiceClass {
       this._notifyTimer = null;
       if (!this._notifyPending) return;
       this._notifyPending = false;
-      const snapshot = { logs: this._logs, apiCalls: this._apiCalls };
-      this._listeners.forEach((cb) => {
-        try { cb(snapshot); } catch { /* ignore listener errors */ }
-      });
-    }, 250);
+      const snap = { logs: this._uiLogs, apiCalls: this._apiCalls };
+      this._listeners.forEach(cb => { try { cb(snap); } catch { /* ignore */ } });
+    }, NOTIFY_DEBOUNCE);
+  }
+
+  // ── Internal: Utilities ───────────────────────────────────────────────────
+
+  _argsToString(args) {
+    return args.map(a => {
+      if (typeof a === 'string') return a;
+      try { return JSON.stringify(a); } catch { return String(a); }
+    }).join(' ');
+  }
+
+  _shortUrl(url) {
+    try {
+      const u = new URL(url, window.location.origin);
+      return u.pathname + (u.search ? u.search.slice(0, 60) : '');
+    } catch {
+      return url.length > 80 ? url.slice(0, 80) + '\u2026' : url;
+    }
+  }
+
+  _genSessionId() {
+    return `ses-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
   }
 }
 

@@ -194,6 +194,12 @@ function LogDetailPanel({ log, logType, onClose }) {
           </>
         )}
 
+        {!isApi && (log.data || log.context) && (
+          <div className="pt-1 space-y-2">
+            {renderJsonBlock(detailText.context, log.data || log.context)}
+          </div>
+        )}
+
         {isApi && (
           <div className="space-y-3 pt-1">
             {renderJsonBlock(detailText.requestBody, log.requestBody || log.request_body)}

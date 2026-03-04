@@ -15,10 +15,10 @@
 //   - @config/uiElementsText.json → UI labels
 //   - lucide-react            → Icons
 // ============================================================================
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   X, ScrollText, Globe, Trash2, ChevronDown, ChevronRight, Copy, Check,
-  Bug, Info, AlertTriangle, AlertCircle
+  Bug, Info, AlertTriangle, AlertCircle, Navigation, MousePointer, Layers
 } from 'lucide-react';
 import uiText from '@config/uiElementsText.json';
 
@@ -27,10 +27,17 @@ const logText = panelText.logs;
 const apiText = panelText.apiCalls;
 
 const LOG_LEVEL_CONFIG = {
-  debug: { icon: Bug, color: 'text-surface-400', bg: 'bg-surface-50', border: 'border-surface-200', dot: 'bg-surface-400' },
-  info: { icon: Info, color: 'text-blue-500', bg: 'bg-blue-50/50', border: 'border-blue-100', dot: 'bg-blue-500' },
-  warn: { icon: AlertTriangle, color: 'text-amber-500', bg: 'bg-amber-50/50', border: 'border-amber-100', dot: 'bg-amber-500' },
-  error: { icon: AlertCircle, color: 'text-rose-500', bg: 'bg-rose-50/50', border: 'border-rose-100', dot: 'bg-rose-500' },
+  debug: { icon: Bug,           color: 'text-surface-400', bg: 'bg-surface-50',    border: 'border-surface-200', dot: 'bg-surface-400' },
+  info:  { icon: Info,          color: 'text-blue-500',    bg: 'bg-blue-50/50',    border: 'border-blue-100',    dot: 'bg-blue-500' },
+  warn:  { icon: AlertTriangle, color: 'text-amber-500',   bg: 'bg-amber-50/50',   border: 'border-amber-100',   dot: 'bg-amber-500' },
+  error: { icon: AlertCircle,   color: 'text-rose-500',    bg: 'bg-rose-50/50',    border: 'border-rose-100',    dot: 'bg-rose-500' },
+};
+
+const LOG_TYPE_CONFIG = {
+  navigation:  { icon: Navigation,   label: 'NAV',    color: 'text-violet-500 bg-violet-50' },
+  interaction: { icon: MousePointer, label: 'CLICK',  color: 'text-teal-600 bg-teal-50' },
+  error:       { icon: AlertCircle,  label: 'ERROR',  color: 'text-rose-600 bg-rose-50' },
+  app:         { icon: null,         label: null,     color: '' },
 };
 
 const STATUS_COLOR = (s) =>
@@ -74,23 +81,14 @@ function JsonDetail({ data, label }) {
   );
 }
 
-// ── Log Entry Card Component ───────────────────────────────────────────────
-// Font sizes:
-//   - Level badge (INFO/WARN/etc): text-[11px]
-//   - Source label: text-[11px]
-//   - Timestamp: text-[10px]
-//   - Message text: text-xs (12px)
-//   - Transaction ID: text-[9px]
+// ── Log Entry Card Component ──────────────────────────────────────────────────
 function LogEntryCard({ log }) {
-  const cfg = LOG_LEVEL_CONFIG[log.level] || LOG_LEVEL_CONFIG.debug;
-  const logJson = {
-    time: log.timestamp,
-    level: log.level,
-    txId: log.transactionId || undefined,
-    source: log.source || log.module || 'UI',
-    message: log.message,
-    ...(log.data ? { data: log.data } : {}),
-  };
+  const cfg     = LOG_LEVEL_CONFIG[log.level] || LOG_LEVEL_CONFIG.debug;
+  const typeCfg = LOG_TYPE_CONFIG[log.type]   || LOG_TYPE_CONFIG.app;
+
+  const callerLabel = log.fileName
+    ? (log.functionName ? `${log.fileName}:${log.functionName}` : log.fileName)
+    : null;
 
   return (
     <div className={`rounded-md border ${cfg.border} ${cfg.bg} px-2 py-1.5`}>
@@ -98,92 +96,101 @@ function LogEntryCard({ log }) {
         <div className={`w-1.5 h-1.5 rounded-full mt-1 shrink-0 ${cfg.dot}`} />
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between gap-1">
-            <div className="flex items-center gap-1">
-              <span className={`text-[11px] font-bold uppercase ${cfg.color}`}>{log.level}</span>
-              <span className="text-[11px] text-surface-400">{log.source || 'UI'}</span>
-              {log.fileName && <span className="text-[10px] text-surface-400 font-mono">[{log.fileName}]</span>}
+            <div className="flex items-center gap-1 flex-wrap">
+              <span className={`text-[10px] font-bold uppercase px-1 rounded ${cfg.color}`}>{log.level}</span>
+              {typeCfg.label && (
+                <span className={`text-[9px] font-semibold uppercase px-1 rounded ${typeCfg.color}`}>{typeCfg.label}</span>
+              )}
+              {callerLabel && (
+                <span className="text-[9px] text-surface-400 font-mono truncate max-w-[120px]" title={callerLabel}>{callerLabel}</span>
+              )}
             </div>
-            <span className="text-[10px] text-surface-400 shrink-0">{log.displayTime || log.timestamp}</span>
+            <span className="text-[9px] text-surface-400 shrink-0 whitespace-nowrap">{log.displayTime || log.timestamp}</span>
           </div>
           <p className="text-xs text-surface-700 mt-0.5 break-words leading-snug">{log.message}</p>
-          {log.transactionId && (
+          {log.sessionId && (
             <span className="inline-block mt-0.5 text-[9px] font-mono text-surface-400 bg-surface-100 px-1 rounded">
-              TX: {log.transactionId}
+              SID: {log.sessionId}
             </span>
           )}
-          <JsonDetail data={logJson} label="View JSON" />
+          {log.context && <JsonDetail data={log.context} label="Context" />}
         </div>
       </div>
     </div>
   );
 }
 
-// ── API Call Card Component ────────────────────────────────────────────────
-// Font sizes:
-//   - Method badge (GET/POST/etc): text-[11px]
-//   - URL: text-xs (12px)
-//   - Status code: text-xs (12px)
-//   - Duration/TX/Error: text-[9px]
+// ── API Call Card Component ───────────────────────────────────────────────────
 function ApiCallCard({ call }) {
   const isSuccess = call.status >= 200 && call.status < 300;
-  const callJson = {
-    time: call.displayTime || call.timestamp,
-    method: call.method,
-    url: call.url,
-    status: call.status,
-    duration: call.duration ? `${call.duration}ms` : undefined,
-    txId: call.transactionId || undefined,
-    ...(call.error ? { error: call.error } : {}),
-  };
+  const isError   = call.status === 0 || call.status >= 400;
 
   return (
-    <div className={`rounded-md border px-2 py-1.5 ${isSuccess ? 'border-emerald-100 bg-emerald-50/30' : 'border-rose-100 bg-rose-50/30'}`}>
+    <div className={`rounded-md border px-2 py-1.5 ${
+      isError ? 'border-rose-100 bg-rose-50/30' : 'border-emerald-100 bg-emerald-50/30'
+    }`}>
       <div className="flex items-center justify-between gap-1">
         <div className="flex items-center gap-1.5 min-w-0">
-          <span className={`text-[11px] font-bold px-1 py-0.5 rounded ${
-            isSuccess ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
+          <span className={`text-[10px] font-bold px-1 py-0.5 rounded shrink-0 ${
+            isError ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'
           }`}>{call.method}</span>
-          <span className="text-xs text-surface-600 truncate">{call.url}</span>
+          <span className="text-xs text-surface-600 truncate" title={call.url}>{call.url}</span>
         </div>
-        <span className={`text-xs font-bold shrink-0 ${STATUS_COLOR(call.status)}`}>{call.status || '—'}</span>
+        <div className="flex items-center gap-1 shrink-0">
+          <span className={`text-xs font-bold ${STATUS_COLOR(call.status)}`}>{call.status || '—'}</span>
+          {call.duration != null && <span className="text-[9px] text-surface-400">{call.duration}ms</span>}
+        </div>
       </div>
-      <div className="flex items-center gap-2 mt-0.5">
-        {call.duration && <span className="text-[9px] text-surface-400">{call.duration}ms</span>}
-        {call.transactionId && (
-          <span className="text-[9px] font-mono text-surface-400 bg-surface-100 px-1 rounded">
-            TX: {call.transactionId}
+      {call.error && (
+        <p className="text-[9px] text-rose-500 mt-0.5 truncate">{call.error}</p>
+      )}
+      <div className="flex items-center gap-1 mt-0.5">
+        {call.sessionId && (
+          <span className="text-[9px] font-mono text-surface-400 bg-surface-100 px-1 rounded truncate max-w-[140px]">
+            SID: {call.sessionId}
           </span>
         )}
-        {call.error && <span className="text-[9px] text-rose-500 truncate">{call.error}</span>}
+        <span className="text-[9px] text-surface-400 shrink-0">{call.displayTime || call.timestamp}</span>
       </div>
-      <JsonDetail data={callJson} label="View JSON" />
+      {call.requestBody  && <JsonDetail data={call.requestBody}  label="Request Body" />}
+      {call.responseBody && <JsonDetail data={call.responseBody} label="Response Body" />}
     </div>
   );
 }
 
 export default function RightLogsView({ isOpen, onClose, logs = [], apiCalls = [], onClearLogs, onClearApiCalls }) {
-  const [activeTab, setActiveTab] = useState('logs');
-  const [logFilter, setLogFilter] = useState('all');
-  const [copied, setCopied] = useState(false);
-  const logsEndRef = useRef(null);
+  const [activeTab, setActiveTab]   = useState('activity');
+  const [logFilter, setLogFilter]   = useState('all');
+  const [copied, setCopied]         = useState(false);
+  const scrollEndRef = useRef(null);
 
-  const filteredLogs = logFilter === 'all'
-    ? logs
-    : logs.filter(log => log.level === logFilter);
+  const filteredLogs = logFilter === 'all' ? logs : logs.filter(l => l.level === logFilter);
+
+  // Combined activity feed: merge UI logs + API calls, sorted by timestamp desc → show newest last
+  const activityFeed = useMemo(() => {
+    const items = [
+      ...logs.map(l => ({ ...l, _kind: 'log' })),
+      ...apiCalls.map(c => ({ ...c, _kind: 'api' })),
+    ];
+    items.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+    return items;
+  }, [logs, apiCalls]);
 
   useEffect(() => {
-    if (isOpen && logsEndRef.current) {
-      logsEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    if (isOpen && scrollEndRef.current) {
+      scrollEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [filteredLogs.length, isOpen]);
+  }, [activityFeed.length, filteredLogs.length, isOpen, activeTab]);
 
   const handleCopyAll = () => {
-    const data = activeTab === 'logs' ? filteredLogs : apiCalls;
-    navigator.clipboard.writeText(JSON.stringify(data, null, 2)).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    }).catch(() => {});
+    const data = activeTab === 'logs' ? filteredLogs : activeTab === 'api' ? apiCalls : activityFeed;
+    navigator.clipboard.writeText(JSON.stringify(data, null, 2))
+      .then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); })
+      .catch(() => {});
   };
+
+  const sessionId = logs[0]?.sessionId || apiCalls[0]?.sessionId;
+  const totalItems = logs.length + apiCalls.length;
 
   return (
     <div
@@ -191,103 +198,124 @@ export default function RightLogsView({ isOpen, onClose, logs = [], apiCalls = [
         isOpen ? 'w-[var(--right-panel-width)]' : 'w-0 border-l-0'
       }`}
     >
-      {/* Header - Tab labels and counts */}
-      {/* Font sizes: Tab labels = text-xs (12px), Count badges = text-[9px] */}
+      {/* ── Header ── */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-surface-200 flex-shrink-0">
         <div className="flex items-center gap-1">
           <button
+            onClick={() => setActiveTab('activity')}
+            className={`px-2 py-1 rounded-lg text-xs font-semibold transition-all ${
+              activeTab === 'activity' ? 'bg-brand-50 text-brand-700' : 'text-surface-400 hover:text-surface-600 hover:bg-surface-50'
+            }`}
+          >
+            <div className="flex items-center gap-1">
+              <Layers size={12} />
+              Activity
+              {totalItems > 0 && (
+                <span className="px-1 py-0 rounded-full text-[9px] bg-brand-100 text-brand-600">{totalItems}</span>
+              )}
+            </div>
+          </button>
+          <button
             onClick={() => setActiveTab('logs')}
-            className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
-              activeTab === 'logs'
-                ? 'bg-brand-50 text-brand-700'
-                : 'text-surface-400 hover:text-surface-600 hover:bg-surface-50'
+            className={`px-2 py-1 rounded-lg text-xs font-semibold transition-all ${
+              activeTab === 'logs' ? 'bg-brand-50 text-brand-700' : 'text-surface-400 hover:text-surface-600 hover:bg-surface-50'
             }`}
           >
             <div className="flex items-center gap-1">
               <ScrollText size={12} />
               {panelText.tabs.systemLogs}
-              {filteredLogs.length > 0 && (
-                <span className="ml-0.5 px-1 py-0 rounded-full text-[9px] bg-brand-100 text-brand-600">{filteredLogs.length}</span>
+              {logs.length > 0 && (
+                <span className="px-1 py-0 rounded-full text-[9px] bg-brand-100 text-brand-600">{logs.length}</span>
               )}
             </div>
           </button>
           <button
             onClick={() => setActiveTab('api')}
-            className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
-              activeTab === 'api'
-                ? 'bg-brand-50 text-brand-700'
-                : 'text-surface-400 hover:text-surface-600 hover:bg-surface-50'
+            className={`px-2 py-1 rounded-lg text-xs font-semibold transition-all ${
+              activeTab === 'api' ? 'bg-brand-50 text-brand-700' : 'text-surface-400 hover:text-surface-600 hover:bg-surface-50'
             }`}
           >
             <div className="flex items-center gap-1">
               <Globe size={12} />
               {panelText.tabs.apiCalls}
               {apiCalls.length > 0 && (
-                <span className="ml-0.5 px-1 py-0 rounded-full text-[9px] bg-brand-100 text-brand-600">{apiCalls.length}</span>
+                <span className="px-1 py-0 rounded-full text-[9px] bg-brand-100 text-brand-600">{apiCalls.length}</span>
               )}
             </div>
           </button>
         </div>
         <div className="flex items-center gap-1">
-          <button
-            onClick={handleCopyAll}
-            title="Copy all as JSON"
-            className="p-1 rounded text-surface-400 hover:text-brand-600 hover:bg-brand-50 transition-colors"
-          >
+          <button onClick={handleCopyAll} title="Copy as JSON"
+            className="p-1 rounded text-surface-400 hover:text-brand-600 hover:bg-brand-50 transition-colors">
             {copied ? <Check size={12} className="text-emerald-500" /> : <Copy size={12} />}
           </button>
-          <button
-            onClick={onClose}
-            className="p-1 rounded-lg text-surface-400 hover:text-surface-600 hover:bg-surface-100 transition-colors"
-          >
+          <button onClick={onClose}
+            className="p-1 rounded-lg text-surface-400 hover:text-surface-600 hover:bg-surface-100 transition-colors">
             <X size={13} />
           </button>
         </div>
       </div>
 
-      {/* Log Filter Bar (only for logs tab) */}
-      {/* Font size: Filter buttons (ALL/DEBUG/INFO/WARN/ERROR) = text-xs (12px) */}
+      {/* ── Session info strip ── */}
+      {sessionId && (
+        <div className="px-3 py-1 bg-surface-50 border-b border-surface-100 flex-shrink-0">
+          <span className="text-[9px] font-mono text-surface-400">Session: {sessionId}</span>
+        </div>
+      )}
+
+      {/* ── Filter bar (logs tab) ── */}
       {activeTab === 'logs' && (
         <div className="flex items-center gap-0.5 px-2 py-1.5 border-b border-surface-100 bg-surface-50 flex-shrink-0">
-          {FILTER_OPTIONS.map((filter) => (
-            <button
-              key={filter.id}
-              onClick={() => setLogFilter(filter.id)}
+          {FILTER_OPTIONS.map((f) => (
+            <button key={f.id} onClick={() => setLogFilter(f.id)}
               className={`px-1.5 py-0.5 rounded text-xs font-bold uppercase transition-all ${
-                logFilter === filter.id
-                  ? 'bg-brand-100 text-brand-700'
-                  : 'text-surface-400 hover:text-surface-600 hover:bg-surface-100'
-              }`}
-            >
-              {filter.label}
+                logFilter === f.id ? 'bg-brand-100 text-brand-700' : 'text-surface-400 hover:text-surface-600 hover:bg-surface-100'
+              }`}>
+              {f.label}
             </button>
           ))}
           <div className="flex-1" />
-          <button
-            onClick={onClearLogs}
-            title={logText.clearTooltip}
-            className="p-0.5 rounded text-surface-400 hover:text-rose-500 hover:bg-rose-50 transition-colors"
-          >
+          <button onClick={onClearLogs} title={logText.clearTooltip}
+            className="p-0.5 rounded text-surface-400 hover:text-rose-500 hover:bg-rose-50 transition-colors">
             <Trash2 size={11} />
           </button>
         </div>
       )}
 
-      {/* API Calls action bar */}
+      {/* ── API action bar ── */}
       {activeTab === 'api' && apiCalls.length > 0 && (
         <div className="flex items-center justify-end px-2 py-1.5 border-b border-surface-100 bg-surface-50 flex-shrink-0">
-          <button
-            onClick={onClearApiCalls}
-            title="Clear API calls"
-            className="p-0.5 rounded text-surface-400 hover:text-rose-500 hover:bg-rose-50 transition-colors"
-          >
+          <button onClick={onClearApiCalls} title="Clear API calls"
+            className="p-0.5 rounded text-surface-400 hover:text-rose-500 hover:bg-rose-50 transition-colors">
             <Trash2 size={11} />
           </button>
         </div>
       )}
 
-      {/* Content — single scrollable area */}
+      {/* ── Content ── */}
       <div className="flex-1 overflow-y-auto p-2 space-y-1">
+
+        {/* Activity feed — merged logs + API calls by time */}
+        {activeTab === 'activity' && (
+          <>
+            {activityFeed.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <Layers size={28} className="text-surface-300 mb-2" />
+                <p className="text-xs font-medium text-surface-500">No activity yet</p>
+                <p className="text-[10px] text-surface-400 mt-1">UI logs and API calls appear here</p>
+              </div>
+            ) : (
+              activityFeed.map((item) =>
+                item._kind === 'api'
+                  ? <ApiCallCard  key={item.id} call={item} />
+                  : <LogEntryCard key={item.id} log={item} />
+              )
+            )}
+            <div ref={scrollEndRef} />
+          </>
+        )}
+
+        {/* UI logs only */}
         {activeTab === 'logs' && (
           <>
             {filteredLogs.length === 0 ? (
@@ -297,12 +325,13 @@ export default function RightLogsView({ isOpen, onClose, logs = [], apiCalls = [
                 <p className="text-[10px] text-surface-400 mt-1">{logText.emptyHint}</p>
               </div>
             ) : (
-              filteredLogs.map((log, idx) => <LogEntryCard key={idx} log={log} />)
+              filteredLogs.map((log) => <LogEntryCard key={log.id || log.timestamp} log={log} />)
             )}
-            <div ref={logsEndRef} />
+            <div ref={scrollEndRef} />
           </>
         )}
 
+        {/* API calls only */}
         {activeTab === 'api' && (
           <>
             {apiCalls.length === 0 ? (
@@ -312,7 +341,7 @@ export default function RightLogsView({ isOpen, onClose, logs = [], apiCalls = [
                 <p className="text-[10px] text-surface-400 mt-1">{apiText.emptyHint}</p>
               </div>
             ) : (
-              apiCalls.map((call, idx) => <ApiCallCard key={idx} call={call} />)
+              apiCalls.map((call) => <ApiCallCard key={call.id || call.timestamp} call={call} />)
             )}
           </>
         )}

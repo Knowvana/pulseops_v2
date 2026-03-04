@@ -90,7 +90,7 @@ export function requestLogger(req, res, next) {
           requestBody: safeBody,
           responseBody: data,
           error: data?.error?.message || null,
-          timestamp: new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }),
+          timestamp: new Date().toISOString(),
         });
       }).catch(() => {});
     }
