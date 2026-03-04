@@ -15,10 +15,10 @@
 //   - @config/uiElementsText.json → UI labels
 //   - lucide-react            → Icons
 // ============================================================================
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   X, ScrollText, Globe, Trash2, ChevronDown, ChevronRight, Copy, Check,
-  Bug, Info, AlertTriangle, AlertCircle, Navigation, MousePointer, Layers
+  Bug, Info, AlertTriangle, AlertCircle, Navigation, MousePointer
 } from 'lucide-react';
 import uiText from '@config/uiElementsText.json';
 
@@ -44,10 +44,10 @@ const STATUS_COLOR = (s) =>
   s >= 500 ? 'text-rose-600' : s >= 400 ? 'text-amber-600' : s >= 200 ? 'text-emerald-600' : 'text-surface-400';
 
 const FILTER_OPTIONS = [
-  { id: 'all', label: logText.filterAll },
+  { id: 'all',   label: logText.filterAll },
   { id: 'debug', label: logText.filterDebug },
-  { id: 'info', label: logText.filterInfo },
-  { id: 'warn', label: logText.filterWarn },
+  { id: 'info',  label: logText.filterInfo },
+  { id: 'warn',  label: logText.filterWarn },
   { id: 'error', label: logText.filterError },
 ];
 
@@ -158,39 +158,35 @@ function ApiCallCard({ call }) {
   );
 }
 
-export default function RightLogsView({ isOpen, onClose, logs = [], apiCalls = [], onClearLogs, onClearApiCalls }) {
-  const [activeTab, setActiveTab]   = useState('activity');
-  const [logFilter, setLogFilter]   = useState('all');
-  const [copied, setCopied]         = useState(false);
+export default function RightLogsView({ isOpen, onClose, logs = [], apiCalls = [], onDeleteAllLogs, totalCount }) {
+  const [activeTab, setActiveTab] = useState('logs');
+  const [logFilter, setLogFilter] = useState('all');
+  const [copied, setCopied]       = useState(false);
+  const [deleting, setDeleting]   = useState(false);
   const scrollEndRef = useRef(null);
 
   const filteredLogs = logFilter === 'all' ? logs : logs.filter(l => l.level === logFilter);
-
-  // Combined activity feed: merge UI logs + API calls, sorted by timestamp desc → show newest last
-  const activityFeed = useMemo(() => {
-    const items = [
-      ...logs.map(l => ({ ...l, _kind: 'log' })),
-      ...apiCalls.map(c => ({ ...c, _kind: 'api' })),
-    ];
-    items.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-    return items;
-  }, [logs, apiCalls]);
 
   useEffect(() => {
     if (isOpen && scrollEndRef.current) {
       scrollEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [activityFeed.length, filteredLogs.length, isOpen, activeTab]);
+  }, [filteredLogs.length, apiCalls.length, isOpen, activeTab]);
 
   const handleCopyAll = () => {
-    const data = activeTab === 'logs' ? filteredLogs : activeTab === 'api' ? apiCalls : activityFeed;
+    const data = activeTab === 'logs' ? filteredLogs : apiCalls;
     navigator.clipboard.writeText(JSON.stringify(data, null, 2))
       .then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); })
       .catch(() => {});
   };
 
+  const handleDeleteAll = async () => {
+    setDeleting(true);
+    await onDeleteAllLogs?.();
+    setDeleting(false);
+  };
+
   const sessionId = logs[0]?.sessionId || apiCalls[0]?.sessionId;
-  const totalItems = logs.length + apiCalls.length;
 
   return (
     <div
@@ -201,20 +197,6 @@ export default function RightLogsView({ isOpen, onClose, logs = [], apiCalls = [
       {/* ── Header ── */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-surface-200 flex-shrink-0">
         <div className="flex items-center gap-1">
-          <button
-            onClick={() => setActiveTab('activity')}
-            className={`px-2 py-1 rounded-lg text-xs font-semibold transition-all ${
-              activeTab === 'activity' ? 'bg-brand-50 text-brand-700' : 'text-surface-400 hover:text-surface-600 hover:bg-surface-50'
-            }`}
-          >
-            <div className="flex items-center gap-1">
-              <Layers size={12} />
-              Activity
-              {totalItems > 0 && (
-                <span className="px-1 py-0 rounded-full text-[9px] bg-brand-100 text-brand-600">{totalItems}</span>
-              )}
-            </div>
-          </button>
           <button
             onClick={() => setActiveTab('logs')}
             className={`px-2 py-1 rounded-lg text-xs font-semibold transition-all ${
@@ -249,6 +231,14 @@ export default function RightLogsView({ isOpen, onClose, logs = [], apiCalls = [
             className="p-1 rounded text-surface-400 hover:text-brand-600 hover:bg-brand-50 transition-colors">
             {copied ? <Check size={12} className="text-emerald-500" /> : <Copy size={12} />}
           </button>
+          <button
+            onClick={handleDeleteAll}
+            disabled={deleting}
+            title="Delete all logs"
+            className="p-1 rounded text-surface-400 hover:text-rose-500 hover:bg-rose-50 transition-colors disabled:opacity-50"
+          >
+            <Trash2 size={12} />
+          </button>
           <button onClick={onClose}
             className="p-1 rounded-lg text-surface-400 hover:text-surface-600 hover:bg-surface-100 transition-colors">
             <X size={13} />
@@ -256,12 +246,17 @@ export default function RightLogsView({ isOpen, onClose, logs = [], apiCalls = [
         </div>
       </div>
 
-      {/* ── Session info strip ── */}
-      {sessionId && (
-        <div className="px-3 py-1 bg-surface-50 border-b border-surface-100 flex-shrink-0">
-          <span className="text-[9px] font-mono text-surface-400">Session: {sessionId}</span>
-        </div>
-      )}
+      {/* ── Session + backend total count strip ── */}
+      <div className="px-3 py-1 bg-surface-50 border-b border-surface-100 flex-shrink-0 flex items-center justify-between">
+        {sessionId
+          ? <span className="text-[9px] font-mono text-surface-400">Session: {sessionId}</span>
+          : <span />}
+        {totalCount !== null && (
+          <span className="text-[9px] text-surface-400">
+            {totalCount.toLocaleString()} total log{totalCount !== 1 ? 's' : ''} stored
+          </span>
+        )}
+      </div>
 
       {/* ── Filter bar (logs tab) ── */}
       {activeTab === 'logs' && (
@@ -274,46 +269,11 @@ export default function RightLogsView({ isOpen, onClose, logs = [], apiCalls = [
               {f.label}
             </button>
           ))}
-          <div className="flex-1" />
-          <button onClick={onClearLogs} title={logText.clearTooltip}
-            className="p-0.5 rounded text-surface-400 hover:text-rose-500 hover:bg-rose-50 transition-colors">
-            <Trash2 size={11} />
-          </button>
-        </div>
-      )}
-
-      {/* ── API action bar ── */}
-      {activeTab === 'api' && apiCalls.length > 0 && (
-        <div className="flex items-center justify-end px-2 py-1.5 border-b border-surface-100 bg-surface-50 flex-shrink-0">
-          <button onClick={onClearApiCalls} title="Clear API calls"
-            className="p-0.5 rounded text-surface-400 hover:text-rose-500 hover:bg-rose-50 transition-colors">
-            <Trash2 size={11} />
-          </button>
         </div>
       )}
 
       {/* ── Content ── */}
       <div className="flex-1 overflow-y-auto p-2 space-y-1">
-
-        {/* Activity feed — merged logs + API calls by time */}
-        {activeTab === 'activity' && (
-          <>
-            {activityFeed.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12 text-center">
-                <Layers size={28} className="text-surface-300 mb-2" />
-                <p className="text-xs font-medium text-surface-500">No activity yet</p>
-                <p className="text-[10px] text-surface-400 mt-1">UI logs and API calls appear here</p>
-              </div>
-            ) : (
-              activityFeed.map((item) =>
-                item._kind === 'api'
-                  ? <ApiCallCard  key={item.id} call={item} />
-                  : <LogEntryCard key={item.id} log={item} />
-              )
-            )}
-            <div ref={scrollEndRef} />
-          </>
-        )}
 
         {/* UI logs only */}
         {activeTab === 'logs' && (

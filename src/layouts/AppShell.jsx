@@ -31,6 +31,7 @@ import TopMenu from '@layouts/TopMenu';
 import LeftSideNavBar from '@layouts/LeftSideNavBar';
 import RightLogsView from '@layouts/RightLogsView';
 import { UILogService } from '@shared';
+import urls from '@config/urls.json';
 
 export default function AppShell({
   appName,
@@ -58,6 +59,7 @@ export default function AppShell({
   const [isRightPanelOpen, setIsRightPanelOpen] = useState(false);
   const [uiLogs, setUiLogs] = useState([]);
   const [apiCalls, setApiCalls] = useState([]);
+  const [totalLogCount, setTotalLogCount] = useState(null);
 
   // Subscribe to UILogService for updates (service already initialized in main.jsx)
   useEffect(() => {
@@ -68,8 +70,28 @@ export default function AppShell({
     return unsub;
   }, []);
 
-  const handleClearLogs = useCallback(() => UILogService.clearLogs(), []);
-  const handleClearApiCalls = useCallback(() => UILogService.clearApiCalls(), []);
+  // Fetch total log count from backend whenever panel opens
+  useEffect(() => {
+    if (!isRightPanelOpen) return;
+    fetch(urls.logs.stats, { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        if (d?.success && d?.data) {
+          const total = (d.data.ui?.count || 0) + (d.data.api?.count || 0);
+          setTotalLogCount(total);
+        }
+      })
+      .catch(() => {});
+  }, [isRightPanelOpen]);
+
+  const handleDeleteAllLogs = useCallback(async () => {
+    try {
+      await fetch(urls.logs.deleteAll, { method: 'DELETE', credentials: 'include' });
+    } catch { /* ignore network errors */ }
+    UILogService.clearLogs();
+    UILogService.clearApiCalls();
+    setTotalLogCount(0);
+  }, []);
 
   return (
     <div className="h-screen flex flex-col bg-surface-50 font-sans text-surface-800 overflow-hidden">
@@ -110,8 +132,8 @@ export default function AppShell({
           onClose={() => setIsRightPanelOpen(false)}
           logs={uiLogs}
           apiCalls={apiCalls}
-          onClearLogs={handleClearLogs}
-          onClearApiCalls={handleClearApiCalls}
+          onDeleteAllLogs={handleDeleteAllLogs}
+          totalCount={totalLogCount}
         />
       </div>
     </div>

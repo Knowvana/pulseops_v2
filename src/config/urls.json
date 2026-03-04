@@ -42,6 +42,7 @@
   },
   "logs": {
     "stats": "/api/logs/stats",
+    "deleteAll": "/api/logs",
     "settings": "/api/logs/settings",
     "settingsStatus": "/api/logs/settings/status",
     "settingsTables": "/api/logs/settings/tables",

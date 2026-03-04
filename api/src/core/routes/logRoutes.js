@@ -149,6 +149,20 @@ router.post('/:type', async (req, res) => {
   }
 });
 
+// ── DELETE /logs — Delete ALL logs (both UI and API) ─────────────────────────
+router.delete('/', async (_req, res) => {
+  try {
+    const [ui, api] = await Promise.all([
+      LogService.deleteLogs('ui'),
+      LogService.deleteLogs('api'),
+    ]);
+    res.json({ success: true, data: { ui, api } });
+  } catch (err) {
+    logger.error('Failed to delete all logs', { error: err.message });
+    res.status(500).json({ success: false, error: { message: err.message } });
+  }
+});
+
 // ── DELETE /logs/:type — Delete all logs for a type ──────────────────────────
 router.delete('/:type', async (req, res) => {
   try {
