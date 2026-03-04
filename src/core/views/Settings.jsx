@@ -24,10 +24,12 @@ import {
   Settings as SettingsIcon, Database, Layers, FileText, ScrollText,
   Shield, Globe, AlertTriangle, RefreshCw, Check, Save, Globe2
 } from 'lucide-react';
-import { ConfigLayout, TestConnection, DatabaseManager, LoggingConfig, Button, ConfirmationModal, ConnectionStatus, TimezoneService } from '@shared';
+import { ConfigLayout, TestConnection, DatabaseManager, LoggingConfig, Button, ConfirmationModal, ConnectionStatus, TimezoneService, createLogger } from '@shared';
 import uiText from '@config/uiElementsText.json';
 import uiMessages from '@config/UIMessages.json';
 import urls from '@config/urls.json';
+
+const log = createLogger('Settings.jsx');
 
 const viewText = uiText.coreViews.settings;
 const tabText = viewText.tabs;
@@ -54,7 +56,7 @@ function DatabaseConfigTab() {
   useEffect(() => {
     if (initRan.current) return;
     initRan.current = true;
-    console.log('📋 [DatabaseConfigTab] Tab accessed — loading saved configuration from API');
+    log.info('DatabaseConfigTab', 'Tab accessed — loading saved configuration from API');
     const loadConfig = async () => {
       try {
         const response = await fetch(urls.database.config, { credentials: 'include' });
@@ -68,18 +70,18 @@ function DatabaseConfigTab() {
               schema: result.data.schema || '',
               username: result.data.user || '',
             });
-            console.log('✅ [DatabaseConfigTab] Config loaded from API', { host: result.data.host, database: result.data.database });
+            log.info('DatabaseConfigTab', 'Config loaded from API', { host: result.data.host, database: result.data.database });
           }
         }
       } catch (err) {
-        console.error('❌ [DatabaseConfigTab] Failed to load saved config:', err.message);
+        log.error('DatabaseConfigTab', 'Failed to load saved config', { message: err.message });
       }
     };
     loadConfig();
   }, []);
 
   const handleTest = useCallback(async (config) => {
-    console.log('🔌 [DatabaseConfigTab] Testing connection', { host: config.host, port: config.port, database: config.database });
+    log.info('DatabaseConfigTab:handleTest', 'Testing connection', { host: config.host, port: config.port, database: config.database });
     try {
       const response = await fetch(urls.database.testConfig, {
         method: 'POST',
@@ -98,7 +100,7 @@ function DatabaseConfigTab() {
         if (dbType) parts.push(`${connectionText.dbType} ${dbType}`);
         if (versionShort) parts.push(`${connectionText.version} ${versionShort}`);
         const metaText = parts.join(` ${connectionText.metaSeparator} `);
-        console.log('✅ [DatabaseConfigTab] Connection test successful', { latency, dbType, version: versionShort });
+        log.info('DatabaseConfigTab:handleTest', 'Connection test successful', { latency, dbType, version: versionShort });
         return {
           success: true,
           message: result.data?.message || connectionText.connected,
@@ -106,16 +108,16 @@ function DatabaseConfigTab() {
         };
       }
 
-      console.warn('⚠️ [DatabaseConfigTab] Connection test failed:', result?.error?.message);
+      log.warn('DatabaseConfigTab:handleTest', 'Connection test failed', { message: result?.error?.message });
       return { success: false, message: result?.error?.message || connectionText.failed };
     } catch (err) {
-      console.error('❌ [DatabaseConfigTab] Connection test error:', err.message);
+      log.error('DatabaseConfigTab:handleTest', 'Connection test error', { message: err.message });
       return { success: false, message: err.message || connectionText.failed };
     }
   }, []);
 
   const handleSave = useCallback(async (config) => {
-    console.log('💾 [DatabaseConfigTab] Saving configuration', { host: config.host, database: config.database });
+    log.info('DatabaseConfigTab:handleSave', 'Saving configuration', { host: config.host, database: config.database });
     const response = await fetch(urls.database.config, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -124,10 +126,10 @@ function DatabaseConfigTab() {
     });
     const result = await response.json();
     if (!result?.success) {
-      console.error('❌ [DatabaseConfigTab] Save failed:', result?.error?.message);
+      log.error('DatabaseConfigTab:handleSave', 'Save failed', { message: result?.error?.message });
       throw new Error(result?.error?.message || uiText.errors.serverError);
     }
-    console.log('✅ [DatabaseConfigTab] Configuration saved successfully');
+    log.info('DatabaseConfigTab:handleSave', 'Configuration saved successfully');
   }, []);
 
   return (
@@ -156,7 +158,7 @@ function DatabaseObjectsTab() {
   const initRan = React.useRef(false);
 
   const checkStatus = useCallback(async () => {
-    console.log('🔄 [DatabaseObjectsTab] Checking database connection and schema status');
+    log.info('DatabaseObjectsTab:checkStatus', 'Checking database connection and schema status');
     setIsLoading(true);
     try {
       // Step 1: Test actual DB connection with server config
@@ -167,7 +169,7 @@ function DatabaseObjectsTab() {
         // Connection failed — report the real error, don't allow any DB operations
         const errMsg = connResult?.error?.message || connectionText.failed;
         const errCode = connResult?.error?.code || 'CONNECTION_FAILED';
-        console.warn('⚠️ [DatabaseObjectsTab] Connection test failed:', errMsg, errCode);
+        log.warn('DatabaseObjectsTab:checkStatus', `Connection test failed: ${errMsg}`, { code: errCode });
         setDbStatus({
           connected: false,
           exists: errCode !== 'DB_NOT_EXIST',
@@ -179,7 +181,7 @@ function DatabaseObjectsTab() {
         return;
       }
 
-      console.log('✅ [DatabaseObjectsTab] Connection test passed, checking schema status');
+      log.info('DatabaseObjectsTab:checkStatus', 'Connection test passed — checking schema status');
 
       // Step 2: Connection succeeded — now check schema status
       const response = await fetch(urls.database.schema, { credentials: 'include' });
@@ -193,14 +195,14 @@ function DatabaseObjectsTab() {
           connectionError: null,
         };
         setDbStatus(status);
-        console.log('✅ [DatabaseObjectsTab] Schema status loaded', status);
+        log.info('DatabaseObjectsTab:checkStatus', 'Schema status loaded', status);
       } else {
         setDbStatus({ connected: true, exists: true, schemaInitialized: false, hasDefaultData: false, connectionError: null });
-        console.warn('⚠️ [DatabaseObjectsTab] Schema status returned no data');
+        log.warn('DatabaseObjectsTab:checkStatus', 'Schema status returned no data');
       }
     } catch (err) {
       setDbStatus({ connected: false, exists: false, schemaInitialized: false, hasDefaultData: false, connectionError: err.message });
-      console.error('❌ [DatabaseObjectsTab] Failed to check status:', err.message);
+      log.error('DatabaseObjectsTab:checkStatus', 'Failed to check status', { message: err.message });
     } finally {
       setIsLoading(false);
     }
@@ -209,7 +211,7 @@ function DatabaseObjectsTab() {
   useEffect(() => {
     if (!initRan.current) {
       initRan.current = true;
-      console.log('📋 [DatabaseObjectsTab] Tab accessed — loading database objects status');
+      log.info('DatabaseObjectsTab', 'Tab accessed — loading database objects status');
       checkStatus();
     }
   }, [checkStatus]);
@@ -222,51 +224,51 @@ function DatabaseObjectsTab() {
       </div>
       <DatabaseManager
         onCreateDatabase={async () => {
-          console.log('🏗️ [DatabaseObjectsTab] Creating database');
+          log.info('DatabaseObjectsTab', 'Creating database');
           const res = await fetch(urls.database.instance, { method: 'POST', credentials: 'include' });
           const result = await res.json();
-          if (!result?.success) { console.error('❌ [DatabaseObjectsTab] Create database failed:', result?.error?.message); throw new Error(result?.error?.message || uiText.errors.serverError); }
-          console.log('✅ [DatabaseObjectsTab] Database created successfully', result.data);
+          if (!result?.success) { log.error('DatabaseObjectsTab', 'Create database failed', { message: result?.error?.message }); throw new Error(result?.error?.message || uiText.errors.serverError); }
+          log.info('DatabaseObjectsTab', 'Database created successfully', result.data);
           return result.data;
         }}
         onDeleteDatabase={async () => {
-          console.log('🗑️ [DatabaseObjectsTab] Deleting database');
+          log.info('DatabaseObjectsTab', 'Deleting database');
           const res = await fetch(urls.database.instance, { method: 'DELETE', credentials: 'include' });
           const result = await res.json();
-          if (!result?.success) { console.error('❌ [DatabaseObjectsTab] Delete database failed:', result?.error?.message); throw new Error(result?.error?.message || uiText.errors.serverError); }
-          console.log('✅ [DatabaseObjectsTab] Database deleted successfully', result.data);
+          if (!result?.success) { log.error('DatabaseObjectsTab', 'Delete database failed', { message: result?.error?.message }); throw new Error(result?.error?.message || uiText.errors.serverError); }
+          log.info('DatabaseObjectsTab', 'Database deleted successfully', result.data);
           return result.data;
         }}
         onInitializeSchema={async () => {
-          console.log('📐 [DatabaseObjectsTab] Initializing schema');
+          log.info('DatabaseObjectsTab', 'Initializing schema');
           const res = await fetch(urls.database.schema, { method: 'POST', credentials: 'include' });
           const result = await res.json();
-          if (!result?.success) { console.error('❌ [DatabaseObjectsTab] Schema init failed:', result?.error?.message); throw new Error(result?.error?.message || uiText.errors.serverError); }
-          console.log('✅ [DatabaseObjectsTab] Schema initialized successfully', result.data);
+          if (!result?.success) { log.error('DatabaseObjectsTab', 'Schema init failed', { message: result?.error?.message }); throw new Error(result?.error?.message || uiText.errors.serverError); }
+          log.info('DatabaseObjectsTab', 'Schema initialized successfully', result.data);
           return result.data;
         }}
         onLoadDefaultData={async () => {
-          console.log('📥 [DatabaseObjectsTab] Loading default data');
+          log.info('DatabaseObjectsTab', 'Loading default data');
           const res = await fetch(urls.database.schemaSeed, { method: 'POST', credentials: 'include' });
           const result = await res.json();
-          if (!result?.success) { console.error('❌ [DatabaseObjectsTab] Load default data failed:', result?.error?.message); throw new Error(result?.error?.message || uiText.errors.serverError); }
-          console.log('✅ [DatabaseObjectsTab] Default data loaded successfully', result.data);
+          if (!result?.success) { log.error('DatabaseObjectsTab', 'Load default data failed', { message: result?.error?.message }); throw new Error(result?.error?.message || uiText.errors.serverError); }
+          log.info('DatabaseObjectsTab', 'Default data loaded successfully', result.data);
           return result.data;
         }}
         onCleanDefaultData={async () => {
-          console.log('🧹 [DatabaseObjectsTab] Cleaning default data');
+          log.info('DatabaseObjectsTab', 'Cleaning default data');
           const res = await fetch(urls.database.schemaSeed, { method: 'DELETE', credentials: 'include' });
           const result = await res.json();
-          if (!result?.success) { console.error('❌ [DatabaseObjectsTab] Clean default data failed:', result?.error?.message); throw new Error(result?.error?.message || uiText.errors.serverError); }
-          console.log('✅ [DatabaseObjectsTab] Default data cleaned successfully', result.data);
+          if (!result?.success) { log.error('DatabaseObjectsTab', 'Clean default data failed', { message: result?.error?.message }); throw new Error(result?.error?.message || uiText.errors.serverError); }
+          log.info('DatabaseObjectsTab', 'Default data cleaned successfully', result.data);
           return result.data;
         }}
         onWipeDatabase={async () => {
-          console.log('💥 [DatabaseObjectsTab] Wiping database');
+          log.info('DatabaseObjectsTab', 'Wiping database');
           const res = await fetch(urls.database.schema, { method: 'DELETE', credentials: 'include' });
           const result = await res.json();
-          if (!result?.success) { console.error('❌ [DatabaseObjectsTab] Wipe database failed:', result?.error?.message); throw new Error(result?.error?.message || uiText.errors.serverError); }
-          console.log('✅ [DatabaseObjectsTab] Database wiped successfully', result.data);
+          if (!result?.success) { log.error('DatabaseObjectsTab', 'Wipe database failed', { message: result?.error?.message }); throw new Error(result?.error?.message || uiText.errors.serverError); }
+          log.info('DatabaseObjectsTab', 'Database wiped successfully', result.data);
           return result.data;
         }}
         onRefreshStatus={checkStatus}
@@ -287,7 +289,7 @@ function LogSettingsTab() {
   const initRan = React.useRef(false);
 
   const fetchStatus = useCallback(async () => {
-    console.log('🔄 [LogSettingsTab] Fetching log storage status');
+    log.info('LogSettingsTab:fetchStatus', 'Fetching log storage status');
     try {
       const [dbRes, configRes, statsRes] = await Promise.allSettled([
         fetch(urls.database.schema, { credentials: 'include' }),
@@ -304,7 +306,7 @@ function LogSettingsTab() {
         const configResult = await configRes.value.json();
         if (configResult?.success && configResult?.data) {
           setLogMode(configResult.data.storage || 'file');
-          console.log('✅ [LogSettingsTab] Log mode loaded:', configResult.data.storage || 'file');
+          log.info('LogSettingsTab:fetchStatus', `Log mode loaded: ${configResult.data.storage || 'file'}`);
         }
       }
 
@@ -323,13 +325,13 @@ function LogSettingsTab() {
             meta,
             lastTested: timeString,
           });
-          console.log('✅ [LogSettingsTab] Stats loaded', { uiCount: d.ui?.count, apiCount: d.api?.count, totalCount });
+          log.info('LogSettingsTab:fetchStatus', 'Stats loaded', { uiCount: d.ui?.count, apiCount: d.api?.count, totalCount });
         }
       } else {
         setLogStatus({ status: 'success', message: logMode === 'file' ? logText.fileActive : logText.dbActive, meta: null, lastTested: timeString });
       }
     } catch (err) {
-      console.error('❌ [LogSettingsTab] Failed to fetch status:', err.message);
+      log.error('LogSettingsTab:fetchStatus', 'Failed to fetch status', { message: err.message });
       setLogStatus({ status: 'error', message: connectionText.failed, meta: null, lastTested: TimezoneService.formatCurrentTime() });
     }
   }, []);
@@ -337,7 +339,7 @@ function LogSettingsTab() {
   useEffect(() => {
     if (!initRan.current) {
       initRan.current = true;
-      console.log('📋 [LogSettingsTab] Tab accessed — loading log settings');
+      log.info('LogSettingsTab', 'Tab accessed — loading log settings');
       fetchStatus();
     }
   }, [fetchStatus]);
@@ -345,7 +347,7 @@ function LogSettingsTab() {
   const handleSwitch = useCallback(async (newMode) => {
     if (newMode === logMode) return;
     if (newMode === 'database' && !dbReady) return;
-    console.log(`🔀 [LogSettingsTab] Switching log mode: ${logMode} → ${newMode}`);
+    log.info('LogSettingsTab:handleSwitch', `Switching log mode: ${logMode} → ${newMode}`);
     setIsSwitching(true);
     try {
       const res = await fetch(urls.logs.settings, {
@@ -357,13 +359,13 @@ function LogSettingsTab() {
       const result = await res.json();
       if (result?.success) {
         setLogMode(newMode);
-        console.log(`✅ [LogSettingsTab] Log mode switched to: ${newMode}`);
+        log.info('LogSettingsTab:handleSwitch', `Log mode switched to: ${newMode}`);
         await fetchStatus();
       } else {
-        console.error('❌ [LogSettingsTab] Switch failed:', result?.error?.message);
+        log.error('LogSettingsTab:handleSwitch', 'Switch failed', { message: result?.error?.message });
       }
     } catch (err) {
-      console.error('❌ [LogSettingsTab] Switch error:', err.message);
+      log.error('LogSettingsTab:handleSwitch', 'Switch error', { message: err.message });
     } finally {
       setIsSwitching(false);
     }
@@ -452,10 +454,10 @@ function LogSettingsTab() {
 function LogConfigTab() {
   const [isSaving, setIsSaving] = useState(false);
 
-  console.log('📋 [LogConfigTab] Tab accessed — rendering log configuration');
+  log.debug('LogConfigTab', 'Tab accessed — rendering log configuration');
 
   const handleSave = useCallback(async (newConfig) => {
-    console.log('💾 [LogConfigTab] Saving log configuration', newConfig);
+    log.info('LogConfigTab:handleSave', 'Saving log configuration', newConfig);
     setIsSaving(true);
     try {
       await fetch(urls.systemConfig.save, {
@@ -464,9 +466,9 @@ function LogConfigTab() {
         credentials: 'include',
         body: JSON.stringify({ key: 'logging', value: newConfig }),
       });
-      console.log('✅ [LogConfigTab] Log configuration saved successfully');
+      log.info('LogConfigTab:handleSave', 'Log configuration saved successfully');
     } catch (err) {
-      console.error('❌ [LogConfigTab] Save failed:', err.message);
+      log.error('LogConfigTab:handleSave', 'Save failed', { message: err.message });
     } finally {
       setIsSaving(false);
     }
@@ -502,26 +504,26 @@ function AuthSettingsTab() {
   useEffect(() => {
     if (initRan.current) return;
     initRan.current = true;
-    console.log('📋 [AuthSettingsTab] Tab accessed — checking database readiness for auth providers');
+    log.info('AuthSettingsTab', 'Tab accessed — checking database readiness for auth providers');
     const checkDb = async () => {
       try {
         const response = await fetch(urls.database.schema, { credentials: 'include' });
         const result = await response.json();
         if (result?.success && result?.data?.initialized && result?.data?.hasDefaultData) {
           setDbReady(true);
-          console.log('✅ [AuthSettingsTab] Database is ready for auth provider switching');
+          log.info('AuthSettingsTab', 'Database is ready for auth provider switching');
         } else {
-          console.log('ℹ️ [AuthSettingsTab] Database not ready for auth provider switching');
+          log.info('AuthSettingsTab', 'Database not ready for auth provider switching');
         }
       } catch (err) {
-        console.warn('⚠️ [AuthSettingsTab] Database check failed:', err.message);
+        log.warn('AuthSettingsTab', 'Database check failed', { message: err.message });
       }
     };
     checkDb();
   }, []);
 
   const handleSwitchProvider = useCallback(async () => {
-    console.log(`🔀 [AuthSettingsTab] Switching auth provider: ${currentProvider} → ${selectedProvider}`);
+    log.info('AuthSettingsTab:handleSwitchProvider', `Switching auth provider: ${currentProvider} → ${selectedProvider}`);
     const response = await fetch(urls.auth.provider, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -530,15 +532,15 @@ function AuthSettingsTab() {
     });
     const result = await response.json();
     if (!result?.success) {
-      console.error('❌ [AuthSettingsTab] Provider switch failed:', result?.error?.message);
+      log.error('AuthSettingsTab:handleSwitchProvider', 'Provider switch failed', { message: result?.error?.message });
       throw new Error(result?.error?.message || uiText.errors.serverError);
     }
-    console.log(`✅ [AuthSettingsTab] Auth provider switched to: ${selectedProvider}`);
+    log.info('AuthSettingsTab:handleSwitchProvider', `Auth provider switched to: ${selectedProvider}`);
     return { provider: selectedProvider, previous: currentProvider };
   }, [selectedProvider, currentProvider]);
 
   const handleSwitchSuccess = useCallback((result) => {
-    console.log('✅ [AuthSettingsTab] Provider switch confirmed:', result.provider);
+    log.info('AuthSettingsTab:handleSwitchSuccess', `Provider switch confirmed: ${result.provider}`);
     setCurrentProvider(result.provider);
   }, []);
 
@@ -687,17 +689,17 @@ function GeneralSettingsTab() {
   useEffect(() => {
     if (initRan.current) return;
     initRan.current = true;
-    console.log('📋 [GeneralSettingsTab] Tab accessed — loading general settings from API');
+    log.info('GeneralSettingsTab', 'Tab accessed — loading general settings from API');
     const load = async () => {
       try {
         const res = await fetch(urls.settings.get, { credentials: 'include' });
         const json = await res.json();
         if (json.success) {
           setSettings(json.data);
-          console.log('✅ [GeneralSettingsTab] Settings loaded from API', json.data);
+          log.info('GeneralSettingsTab', 'Settings loaded from API', json.data);
         }
       } catch (err) {
-        console.error('❌ [GeneralSettingsTab] Failed to load settings:', err.message);
+        log.error('GeneralSettingsTab', 'Failed to load settings', { message: err.message });
       }
       setIsLoading(false);
     };
@@ -705,7 +707,7 @@ function GeneralSettingsTab() {
   }, []);
 
   const handleSaveAction = useCallback(async () => {
-    console.log('💾 [GeneralSettingsTab] Saving general settings', settings);
+    log.info('GeneralSettingsTab:handleSaveAction', 'Saving general settings', settings);
     const res = await fetch(urls.settings.save, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -714,10 +716,10 @@ function GeneralSettingsTab() {
     });
     const json = await res.json();
     if (!json.success) {
-      console.error('❌ [GeneralSettingsTab] Save failed:', json?.error?.message);
+      log.error('GeneralSettingsTab:handleSaveAction', 'Save failed', { message: json?.error?.message });
       throw new Error(json?.error?.message || gsMessages.saveFailed);
     }
-    console.log('✅ [GeneralSettingsTab] Settings saved successfully');
+    log.info('GeneralSettingsTab:handleSaveAction', 'Settings saved successfully');
     return { timezone: settings.timezone, dateFormat: settings.dateFormat, timeFormat: settings.timeFormat };
   }, [settings]);
 

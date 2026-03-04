@@ -16,12 +16,14 @@
 // ============================================================================
 import React from 'react';
 import { Package } from 'lucide-react';
+import { createLogger } from '@shared';
 import uiText from '@config/uiElementsText.json';
 
 const viewText = uiText.coreViews.moduleManager;
+const log = createLogger('ModuleManager.jsx');
 
 export default function ModuleManager() {
-  console.log('📋 [ModuleManager] Module Manager page accessed');
+  log.debug('render', 'Module Manager page accessed');
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Page Header */}

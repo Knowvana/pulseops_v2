@@ -37,9 +37,11 @@ import {
 } from 'lucide-react';
 import { AppShell } from '@layouts';
 import { getAllManifests, getManifestById, loadModuleManifests } from '@modules/moduleRegistry';
-import { ConfigLayout, PageLoader } from '@shared';
+import { ConfigLayout, PageLoader, createLogger } from '@shared';
 import appConfig from '@config/app.json';
 import uiText from '@config/uiElementsText.json';
+
+const log = createLogger('PlatformDashboard.jsx');
 
 // Lazy-load heavy views for faster navigation (code-split per view)
 const AdminDashboard = React.lazy(() => import('@core/views/AdminDashboard'));
@@ -85,18 +87,16 @@ export default function PlatformDashboard({ user, onLogout }) {
   const [dbModules, setDbModules] = useState([]);
   const [modulesLoading, setModulesLoading] = useState(true);
 
-  console.log('📋 [PlatformDashboard] Dashboard rendered', { activeModule: activeModuleId, activeView, user: user?.email });
+  log.debug('render', `Dashboard rendered — module: ${activeModuleId}, view: ${activeView}`);
 
   // ── Fetch enabled modules from database + load manifests ──────────────────
   const fetchModules = useCallback(async () => {
-    console.log('🔄 [PlatformDashboard] Fetching enabled modules');
+    log.debug('fetchModules', 'Fetching enabled modules');
     setModulesLoading(true);
     try {
-      // TODO: Replace with ApiClient.get(urls.modules) when backend is ready
-      // For now, no add-on modules — only core Admin
       setDbModules([]);
     } catch (err) {
-      console.warn('⚠️ [PlatformDashboard] Failed to fetch modules:', err.message);
+      log.warn('fetchModules', 'Failed to fetch modules', { message: err.message });
     } finally {
       setModulesLoading(false);
     }
@@ -145,7 +145,7 @@ export default function PlatformDashboard({ user, onLogout }) {
 
   // ── Module switching ──────────────────────────────────────────────────────
   const handleSwitchModule = useCallback((moduleId) => {
-    console.log(`🔀 [PlatformDashboard] Switching module: ${activeModuleId} → ${moduleId}`);
+    log.info('handleSwitchModule', `Switching module: ${activeModuleId} → ${moduleId}`);
     if (moduleId === CORE_ADMIN.id) {
       navigate(`/${CORE_ADMIN.id}/${CORE_ADMIN.defaultView}`);
     } else {
@@ -157,7 +157,7 @@ export default function PlatformDashboard({ user, onLogout }) {
 
   // ── SideNav item selection ────────────────────────────────────────────────
   const handleSideNavSelect = useCallback((viewId) => {
-    console.log(`📄 [PlatformDashboard] Navigating to view: ${viewId} (module: ${activeModuleId})`);
+    log.info('handleSideNavSelect', `Navigating to view: ${viewId} (module: ${activeModuleId})`);
     if (activeModuleId) {
       navigate(`/${activeModuleId}/${viewId}`);
     }

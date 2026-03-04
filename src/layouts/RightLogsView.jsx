@@ -51,6 +51,13 @@ const FILTER_OPTIONS = [
   { id: 'error', label: logText.filterError },
 ];
 
+// Font scale: 0=small, 1=medium(default), 2=large
+const FONT_SCALES = [
+  { ts: 'text-[10px]', label: 'text-[10px]', meta: 'text-[9px]',  caller: 'text-[9px]',  msg: 'text-xs',  url: 'text-xs',  status: 'text-xs'  },
+  { ts: 'text-xs',     label: 'text-xs',     meta: 'text-[10px]', caller: 'text-[10px]', msg: 'text-sm',  url: 'text-sm',  status: 'text-sm'  },
+  { ts: 'text-sm',     label: 'text-sm',     meta: 'text-xs',     caller: 'text-xs',     msg: 'text-base',url: 'text-base',status: 'text-base'},
+];
+
 // ── JSON Detail Collapsible Component ──────────────────────────────────────
 // Font sizes: Button label = text-[10px], JSON content = text-xs (12px)
 // Height: max-h-64 (16rem / 256px)
@@ -82,76 +89,78 @@ function JsonDetail({ data, label }) {
 }
 
 // ── Log Entry Card Component ──────────────────────────────────────────────────
-function LogEntryCard({ log }) {
+function LogEntryCard({ log, scale = 1 }) {
   const cfg     = LOG_LEVEL_CONFIG[log.level] || LOG_LEVEL_CONFIG.debug;
   const typeCfg = LOG_TYPE_CONFIG[log.type]   || LOG_TYPE_CONFIG.app;
+  const FS      = FONT_SCALES[scale] || FONT_SCALES[1];
 
   const callerLabel = log.fileName
     ? (log.functionName ? `${log.fileName}:${log.functionName}` : log.fileName)
     : null;
 
   return (
-    <div className={`rounded-md border ${cfg.border} ${cfg.bg} px-2 py-1.5`}>
-      <div className="flex items-start gap-1.5">
-        <div className={`w-1.5 h-1.5 rounded-full mt-1 shrink-0 ${cfg.dot}`} />
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center justify-between gap-1">
-            <div className="flex items-center gap-1 flex-wrap">
-              <span className={`text-[10px] font-bold uppercase px-1 rounded ${cfg.color}`}>{log.level}</span>
-              {typeCfg.label && (
-                <span className={`text-[9px] font-semibold uppercase px-1 rounded ${typeCfg.color}`}>{typeCfg.label}</span>
-              )}
-              {callerLabel && (
-                <span className="text-[9px] text-surface-400 font-mono truncate max-w-[120px]" title={callerLabel}>{callerLabel}</span>
-              )}
-            </div>
-            <span className="text-[9px] text-surface-400 shrink-0 whitespace-nowrap">{log.displayTime || log.timestamp}</span>
-          </div>
-          <p className="text-xs text-surface-700 mt-0.5 break-words leading-snug">{log.message}</p>
-          {log.sessionId && (
-            <span className="inline-block mt-0.5 text-[9px] font-mono text-surface-400 bg-surface-100 px-1 rounded">
-              SID: {log.sessionId}
-            </span>
-          )}
-          {log.context && <JsonDetail data={log.context} label="Context" />}
-        </div>
+    <div className={`rounded-md border ${cfg.border} ${cfg.bg} px-2.5 py-2`}>
+      {/* Line 1: Timestamp — always first and prominent */}
+      <div className={`${FS.ts} font-mono font-semibold text-surface-500 mb-1`}>
+        {log.displayTime || log.timestamp}
       </div>
+      {/* Line 2: Level badge + type badge + caller label */}
+      <div className="flex items-center gap-1 flex-wrap mb-1">
+        <span className={`${FS.label} font-bold uppercase px-1.5 py-0.5 rounded ${cfg.color}`}>{log.level}</span>
+        {typeCfg.label && (
+          <span className={`${FS.meta} font-semibold uppercase px-1.5 py-0.5 rounded ${typeCfg.color}`}>{typeCfg.label}</span>
+        )}
+        {callerLabel && (
+          <span className={`${FS.caller} text-surface-400 font-mono break-all`}>{callerLabel}</span>
+        )}
+      </div>
+      {/* Line 3: Message */}
+      <p className={`${FS.msg} text-surface-700 break-words leading-snug`}>{log.message}</p>
+      {log.sessionId && (
+        <span className={`inline-block mt-1 ${FS.meta} font-mono text-surface-400 bg-surface-100 px-1.5 rounded`}>
+          SID: {log.sessionId}
+        </span>
+      )}
+      {log.context && <JsonDetail data={log.context} label="Context" />}
     </div>
   );
 }
 
 // ── API Call Card Component ───────────────────────────────────────────────────
-function ApiCallCard({ call }) {
+function ApiCallCard({ call, scale = 1 }) {
   const isSuccess = call.status >= 200 && call.status < 300;
   const isError   = call.status === 0 || call.status >= 400;
+  const FS        = FONT_SCALES[scale] || FONT_SCALES[1];
 
   return (
-    <div className={`rounded-md border px-2 py-1.5 ${
+    <div className={`rounded-md border px-2.5 py-2 ${
       isError ? 'border-rose-100 bg-rose-50/30' : 'border-emerald-100 bg-emerald-50/30'
     }`}>
+      {/* Line 1: Timestamp — always first and prominent */}
+      <div className={`${FS.ts} font-mono font-semibold text-surface-500 mb-1`}>
+        {call.displayTime || call.timestamp}
+      </div>
+      {/* Line 2: Method + URL + Status */}
       <div className="flex items-center justify-between gap-1">
         <div className="flex items-center gap-1.5 min-w-0">
-          <span className={`text-[10px] font-bold px-1 py-0.5 rounded shrink-0 ${
+          <span className={`${FS.label} font-bold px-1.5 py-0.5 rounded shrink-0 ${
             isError ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'
           }`}>{call.method}</span>
-          <span className="text-xs text-surface-600 truncate" title={call.url}>{call.url}</span>
+          <span className={`${FS.url} text-surface-600 break-all`}>{call.url}</span>
         </div>
         <div className="flex items-center gap-1 shrink-0">
-          <span className={`text-xs font-bold ${STATUS_COLOR(call.status)}`}>{call.status || '—'}</span>
-          {call.duration != null && <span className="text-[9px] text-surface-400">{call.duration}ms</span>}
+          <span className={`${FS.status} font-bold ${STATUS_COLOR(call.status)}`}>{call.status || '—'}</span>
+          {call.duration != null && <span className={`${FS.meta} text-surface-400`}>{call.duration}ms</span>}
         </div>
       </div>
       {call.error && (
-        <p className="text-[9px] text-rose-500 mt-0.5 truncate">{call.error}</p>
+        <p className={`${FS.meta} text-rose-500 mt-1 break-all`}>{call.error}</p>
       )}
-      <div className="flex items-center gap-1 mt-0.5">
-        {call.sessionId && (
-          <span className="text-[9px] font-mono text-surface-400 bg-surface-100 px-1 rounded truncate max-w-[140px]">
-            SID: {call.sessionId}
-          </span>
-        )}
-        <span className="text-[9px] text-surface-400 shrink-0">{call.displayTime || call.timestamp}</span>
-      </div>
+      {call.sessionId && (
+        <span className={`inline-block mt-1 ${FS.meta} font-mono text-surface-400 bg-surface-100 px-1.5 rounded break-all`}>
+          SID: {call.sessionId}
+        </span>
+      )}
       {call.requestBody  && <JsonDetail data={call.requestBody}  label="Request Body" />}
       {call.responseBody && <JsonDetail data={call.responseBody} label="Response Body" />}
     </div>
@@ -163,6 +172,7 @@ export default function RightLogsView({ isOpen, onClose, logs = [], apiCalls = [
   const [logFilter, setLogFilter] = useState('all');
   const [copied, setCopied]       = useState(false);
   const [deleting, setDeleting]   = useState(false);
+  const [fontScale, setFontScale] = useState(1);
   const scrollEndRef = useRef(null);
 
   const filteredLogs = logFilter === 'all' ? logs : logs.filter(l => l.level === logFilter);
@@ -227,6 +237,18 @@ export default function RightLogsView({ isOpen, onClose, logs = [], apiCalls = [
           </button>
         </div>
         <div className="flex items-center gap-1">
+          <button
+            onClick={() => setFontScale(s => Math.max(0, s - 1))}
+            title="Decrease font size"
+            disabled={fontScale === 0}
+            className="px-1 py-0.5 rounded text-[10px] font-bold text-surface-400 hover:text-brand-600 hover:bg-brand-50 transition-colors disabled:opacity-30"
+          >A-</button>
+          <button
+            onClick={() => setFontScale(s => Math.min(2, s + 1))}
+            title="Increase font size"
+            disabled={fontScale === 2}
+            className="px-1 py-0.5 rounded text-[10px] font-bold text-surface-400 hover:text-brand-600 hover:bg-brand-50 transition-colors disabled:opacity-30"
+          >A+</button>
           <button onClick={handleCopyAll} title="Copy as JSON"
             className="p-1 rounded text-surface-400 hover:text-brand-600 hover:bg-brand-50 transition-colors">
             {copied ? <Check size={12} className="text-emerald-500" /> : <Copy size={12} />}
@@ -285,7 +307,7 @@ export default function RightLogsView({ isOpen, onClose, logs = [], apiCalls = [
                 <p className="text-[10px] text-surface-400 mt-1">{logText.emptyHint}</p>
               </div>
             ) : (
-              filteredLogs.map((log) => <LogEntryCard key={log.id || log.timestamp} log={log} />)
+              filteredLogs.map((log) => <LogEntryCard key={log.id || log.timestamp} log={log} scale={fontScale} />)
             )}
             <div ref={scrollEndRef} />
           </>
@@ -301,7 +323,7 @@ export default function RightLogsView({ isOpen, onClose, logs = [], apiCalls = [
                 <p className="text-[10px] text-surface-400 mt-1">{apiText.emptyHint}</p>
               </div>
             ) : (
-              apiCalls.map((call) => <ApiCallCard key={call.id || call.timestamp} call={call} />)
+              apiCalls.map((call) => <ApiCallCard key={call.id || call.timestamp} call={call} scale={fontScale} />)
             )}
           </>
         )}

@@ -16,12 +16,14 @@
 // ============================================================================
 import React from 'react';
 import { LayoutDashboard, Database, Activity, Package, Shield, Server } from 'lucide-react';
+import { createLogger } from '@shared';
 import uiText from '@config/uiElementsText.json';
 
 const viewText = uiText.coreViews.dashboard;
+const log = createLogger('AdminDashboard.jsx');
 
 export default function AdminDashboard() {
-  console.log('📋 [AdminDashboard] Dashboard page accessed');
+  log.debug('render', 'Dashboard page accessed');
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Page Header */}

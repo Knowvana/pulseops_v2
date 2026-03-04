@@ -34,12 +34,12 @@
 // ============================================================================
 import React, { useState, useEffect } from 'react';
 import { Database, RefreshCw, AlertTriangle, CheckCircle2, Download, Trash2 } from 'lucide-react';
-import { Button, ConfirmationModal } from '@shared';
+import { Button, ConfirmationModal, createLogger } from '@shared';
 import uiText from '@config/uiElementsText.json';
 import messages from '@config/UIMessages.json';
 import urls from '@config/urls.json';
 
-const LOG_SRC = '[DatabaseManager]';
+const log = createLogger('DatabaseManager.jsx');
 
 export default function DatabaseManager({
   onCreateDatabase,
@@ -59,7 +59,7 @@ export default function DatabaseManager({
   useEffect(() => {
     if (initRan.current) return;
     initRan.current = true;
-    console.log(`📋 ${LOG_SRC} Page accessed — loading database configuration from API`);
+    log.info('mount', 'Page accessed — loading database configuration from API');
     const fetchDbConfig = async () => {
       try {
         const response = await fetch(urls.database.config, { credentials: 'include' });
@@ -72,17 +72,13 @@ export default function DatabaseManager({
               tables: result.data.tables || [],
               defaultAdmin: result.data.defaultAdmin || { email: '' },
             });
-            console.log(`✅ ${LOG_SRC} Database config loaded from API`, {
-              database: result.data.database,
-              schema: result.data.schema,
-              tables: result.data.tables?.length || 0,
-            });
+            log.info('mount', 'Database config loaded from API', { database: result.data.database, schema: result.data.schema, tables: result.data.tables?.length || 0 });
           }
         } else {
-          console.warn(`⚠️ ${LOG_SRC} Failed to fetch DB config — HTTP ${response.status}`);
+          log.warn('mount', `Failed to fetch DB config — HTTP ${response.status}`);
         }
       } catch (error) {
-        console.error(`❌ ${LOG_SRC} Failed to fetch database config:`, error.message);
+        log.error('mount', 'Failed to fetch database config', { message: error.message });
       }
     };
     fetchDbConfig();
@@ -93,18 +89,18 @@ export default function DatabaseManager({
   const dbObjMessages = messages.dbObjects;
 
   const openModal = (type) => {
-    console.log(`🔔 ${LOG_SRC} Modal opened — action: ${type}`, { database: dbConfig.database, schema: dbConfig.schema });
+    log.info('openModal', `Modal opened — action: ${type}`, { database: dbConfig.database, schema: dbConfig.schema });
     setModalState({ type, open: true });
   };
   const closeModal = () => {
-    console.log(`🔕 ${LOG_SRC} Modal closed — action: ${modalState.type}`);
+    log.debug('closeModal', `Modal closed — action: ${modalState.type}`);
     setModalState({ type: null, open: false });
   };
 
   const handleSuccess = async () => {
-    console.log(`✅ ${LOG_SRC} Operation completed successfully — action: ${modalState.type}`);
+    log.info('handleSuccess', `Operation completed — action: ${modalState.type}`);
     closeModal();
-    console.log(`🔄 ${LOG_SRC} Refreshing database status after successful operation`);
+    log.debug('handleSuccess', 'Refreshing database status after successful operation');
     await onRefreshStatus?.();
   };
 

@@ -27,10 +27,12 @@
 // ============================================================================
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { ScrollText } from 'lucide-react';
-import { LogViewer, LogStats, ConfirmationModal } from '@shared';
+import { LogViewer, LogStats, ConfirmationModal, createLogger } from '@shared';
 import uiText from '@config/uiElementsText.json';
 import uiMessages from '@config/UIMessages.json';
 import urls from '@config/urls.json';
+
+const log = createLogger('LogManager.jsx');
 
 const viewText = uiText.coreViews.logs;
 const logTypeText = viewText.logTypes;
@@ -77,22 +79,29 @@ export default function LogManager() {
         setLogs(json.data.logs || []);
       } else {
         setLogs([]);
-        console.warn('⚠️ [LogManager] Logs fetch returned unsuccessful response');
+        log.warn('fetchLogs', 'Logs fetch returned unsuccessful response');
       }
     } catch (err) {
       setLogs([]);
-      console.error('❌ [LogManager] Failed to fetch logs:', err.message);
+      log.error('fetchLogs', 'Failed to fetch logs', { message: err.message });
     } finally {
       setIsLoading(false);
     }
   }, []);
 
-  const fetchStats = useCallback(async (type) => {
+  const fetchStats = useCallback(async () => {
     try {
-      const endpoint = type === 'ui' ? urls.logs.uiStats : urls.logs.apiStats;
-      const res = await fetch(`${apiBase}${endpoint}`, { credentials: 'include' });
+      const res = await fetch(`${apiBase}${urls.logs.stats}`, { credentials: 'include' });
       const json = await res.json();
-      if (json.success) setStats(json.data);
+      if (json.success && json.data) {
+        const d = json.data;
+        const total = (d.ui?.count || 0) + (d.api?.count || 0);
+        setStats({
+          storage: d.ui?.storage || d.api?.storage || 'file',
+          count: total,
+          lastSync: d.ui?.lastEntry || d.api?.lastEntry || d.ui?.lastModified || d.api?.lastModified || null,
+        });
+      }
     } catch { /* keep existing stats on error */ }
   }, []);
 
@@ -108,10 +117,10 @@ export default function LogManager() {
   useEffect(() => {
     if (mountRan.current) return;
     mountRan.current = true;
-    console.log('📋 [LogManager] Log Manager page accessed');
+    log.info('mount', 'Log Manager page accessed');
     fetchLogConfig();
     fetchLogs('api', 'all', '');
-    fetchStats('api');
+    fetchStats();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Effect 2: Re-fetch logs only when filters or logType change ──────────
@@ -120,16 +129,16 @@ export default function LogManager() {
     fetchLogs(logType, levelFilter, debouncedSearch);
   }, [logType, levelFilter, debouncedSearch, fetchLogs]);
 
-  // ── Effect 3: Re-fetch stats only when logType changes ───────────────────
+  // ── Effect 3: Re-fetch stats when logType changes ──────────────────────
   useEffect(() => {
     if (!statsInit.current) { statsInit.current = true; return; }
-    fetchStats(logType);
+    fetchStats();
   }, [logType, fetchStats]);
 
   // ── Refresh handler ──────────────────────────────────────────────────────
   const handleRefresh = useCallback(() => {
     fetchLogs(logType, levelFilter, debouncedSearch);
-    fetchStats(logType);
+    fetchStats();
   }, [logType, levelFilter, debouncedSearch, fetchLogs, fetchStats]);
 
   // ── Delete handler ─────────────────────────────────────────────────────
@@ -144,10 +153,10 @@ export default function LogManager() {
       const json = await res.json();
       if (json.success) {
         setLogs([]);
-        setStats(prev => ({ ...prev, count: 0 }));
+        fetchStats();
       }
     } catch (err) {
-      console.error('❌ [LogManager] Failed to delete logs:', err.message);
+      log.error('handleDelete', 'Failed to delete logs', { message: err.message });
     } finally {
       setIsDeleting(false);
       setShowDeleteConfirm(false);
