@@ -86,7 +86,13 @@ export default function AppShell({
 
   const handleDeleteAllLogs = useCallback(async () => {
     try {
-      await fetch(urls.logs.deleteAll, { method: 'DELETE', credentials: 'include' });
+      const res = await fetch(urls.logs.deleteAll, { method: 'DELETE', credentials: 'include' });
+      if (res.status === 404) {
+        await Promise.all([
+          fetch(urls.logs.ui,  { method: 'DELETE', credentials: 'include' }),
+          fetch(urls.logs.api, { method: 'DELETE', credentials: 'include' }),
+        ]);
+      }
     } catch { /* ignore network errors */ }
     UILogService.clearLogs();
     UILogService.clearApiCalls();

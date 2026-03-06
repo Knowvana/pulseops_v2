@@ -34,6 +34,7 @@ export default function LogStats({
   onRefresh,
   onDelete,
   isLoading = false,
+  isRefreshing = false,
   compact = false,
 }) {
   const isFile = storage === 'file';
@@ -91,11 +92,11 @@ export default function LogStats({
       {onRefresh && (
         <button
           onClick={onRefresh}
-          disabled={isLoading}
+          disabled={isLoading || isRefreshing}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-brand-600 bg-brand-50 border border-brand-200 hover:bg-brand-100 transition-colors disabled:opacity-50"
         >
-          <RefreshCw size={13} className={isLoading ? 'animate-spin' : ''} />
-          {statsText.refreshNow}
+          <RefreshCw size={13} className={isRefreshing ? 'animate-spin' : ''} />
+          {isRefreshing ? 'Refreshing…' : statsText.refreshNow}
         </button>
       )}
 
@@ -103,7 +104,7 @@ export default function LogStats({
       {onDelete && (
         <button
           onClick={onDelete}
-          disabled={isLoading}
+          disabled={isLoading || isRefreshing}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-danger-600 bg-danger-50 border border-danger-200 hover:bg-danger-100 transition-colors disabled:opacity-50"
         >
           <Trash2 size={13} />

@@ -19,7 +19,6 @@ import TimezoneService from '@shared/services/timezoneService';
 const logText = uiText.coreViews.logs;
 const gridText = logText.grid;
 const detailText = logText.detail;
-const filterText = logText.filters;
 const paginationText = logText.pagination;
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -72,6 +71,8 @@ function StatusBadge({ code }) {
 const UI_COLUMNS = [
   { id: 'timestamp', label: gridText.time, width: 170, sortable: true, render: (row) => <span className="text-[13px] text-surface-700">{formatIST(row.timestamp || row.created_at)}</span> },
   { id: 'transactionId', label: gridText.transactionId, width: 170, sortable: true, render: (row) => <span className="text-[13px] font-mono text-surface-500 truncate">{row.transactionId || row.transaction_id || '—'}</span> },
+  { id: 'sessionId', label: gridText.sessionId, width: 185, sortable: true, render: (row) => <span className="text-[13px] font-mono text-teal-600 truncate">{row.sessionId || row.session_id || '—'}</span> },
+  { id: 'correlationId', label: gridText.correlationId, width: 170, sortable: true, render: (row) => <span className="text-[13px] font-mono text-violet-500 truncate">{row.correlationId || row.correlation_id || '—'}</span> },
   { id: 'level', label: gridText.logLevel, width: 85, sortable: true, render: (row) => <LevelBadge level={row.level || row.log_level} /> },
   { id: 'source', label: gridText.source, width: 65, sortable: true, render: (row) => <span className="text-[13px] font-medium text-surface-500">{row.source || 'UI'}</span> },
   { id: 'fileName', label: gridText.fileName, width: 160, sortable: true, render: (row) => <span className="text-[13px] font-mono text-surface-500 truncate">{row.fileName || row.file_name || '—'}</span> },
@@ -87,6 +88,8 @@ const UI_COLUMNS = [
 const API_COLUMNS = [
   { id: 'timestamp', label: gridText.time, width: 170, sortable: true, render: (row) => <span className="text-[13px] text-surface-700">{formatIST(row.timestamp || row.created_at)}</span> },
   { id: 'transactionId', label: gridText.transactionId, width: 170, sortable: true, render: (row) => <span className="text-[13px] font-mono text-surface-500 truncate">{row.transactionId || row.transaction_id || '—'}</span> },
+  { id: 'sessionId', label: gridText.sessionId, width: 185, sortable: true, render: (row) => <span className="text-[13px] font-mono text-teal-600 truncate">{row.sessionId || row.session_id || '—'}</span> },
+  { id: 'correlationId', label: gridText.correlationId, width: 170, sortable: true, render: (row) => <span className="text-[13px] font-mono text-violet-500 truncate">{row.correlationId || row.correlation_id || '—'}</span> },
   { id: 'level', label: gridText.logLevel, width: 85, sortable: true, render: (row) => <LevelBadge level={row.level || row.log_level} /> },
   { id: 'user', label: gridText.user, width: 120, sortable: true, render: (row) => <span className="text-[13px] text-surface-600 truncate">{row.user || row.user_name || 'Anonymous'}</span> },
   { id: 'source', label: gridText.source, width: 65, sortable: true, render: (row) => <span className="text-[13px] font-medium text-surface-500">{row.source || 'API'}</span> },
@@ -170,6 +173,8 @@ function LogDetailPanel({ log, logType, onClose }) {
       {/* Single scrollable area — fields + JSON blocks together */}
       <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
         {renderField(detailText.transactionId, log.transactionId || log.transaction_id)}
+        {renderField(detailText.sessionId, log.sessionId || log.session_id)}
+        {renderField(detailText.correlationId, log.correlationId || log.correlation_id)}
         {renderField(detailText.timestamp, formatIST(log.timestamp || log.created_at))}
         {renderField(detailText.level, log.level || log.log_level)}
         {renderField(detailText.source, log.source)}
@@ -237,12 +242,12 @@ export default function LogViewer({
 
   const columns = logType === 'ui' ? UI_COLUMNS : API_COLUMNS;
 
-  // Reset page when logs change
+  // Reset page when logs or search change
   useEffect(() => {
     setCurrentPage(1);
     setSelectedLog(null);
     setShowDetail(false);
-  }, [logType, logs.length]);
+  }, [logType, logs.length, searchTerm]);
 
   // ── Unified Search (client-side — searches message, transactionId, fileName, user, event) ─
   const filteredByTx = useMemo(() => {
@@ -250,6 +255,8 @@ export default function LogViewer({
     const q = searchTerm.trim().toLowerCase();
     return logs.filter(log =>
       (log.transactionId || log.transaction_id || '').toLowerCase().includes(q) ||
+      (log.sessionId || log.session_id || '').toLowerCase().includes(q) ||
+      (log.correlationId || log.correlation_id || '').toLowerCase().includes(q) ||
       (log.message || '').toLowerCase().includes(q) ||
       (log.fileName || log.file_name || '').toLowerCase().includes(q) ||
       (log.user || log.user_name || '').toLowerCase().includes(q) ||
@@ -378,7 +385,7 @@ export default function LogViewer({
               type="text"
               value={searchTerm}
               onChange={(e) => onSearchChange(e.target.value)}
-              placeholder="Search by message, Transaction ID, file, user..."
+              placeholder="Search by message, Transaction ID, Session ID, Correlation ID, file, user..."
               className="w-full pl-8 pr-3 py-1.5 text-xs border border-surface-200 rounded-lg bg-white text-surface-700 placeholder:text-surface-400 focus:outline-none focus:ring-1 focus:ring-brand-300 focus:border-brand-300"
             />
           </div>
@@ -391,6 +398,12 @@ export default function LogViewer({
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
           {/* Pagination */}
           <div className="flex items-center gap-2 px-3 py-1.5 border-b border-surface-100 bg-surface-50 flex-shrink-0">
+          {/* Filtered count indicator */}
+          {searchTerm.trim() && (
+            <span className="text-xs font-medium text-violet-600 bg-violet-50 border border-violet-200 px-2 py-0.5 rounded-full">
+              {sortedLogs.length} of {logs.length} match
+            </span>
+          )}
           {/* Page Size */}
           <div className="flex items-center gap-1.5">
             <span className="text-xs text-surface-500">{paginationText.pageSize}:</span>
