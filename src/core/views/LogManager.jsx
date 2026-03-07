@@ -43,8 +43,7 @@ const apiBase = '';
 export default function LogManager() {
   // ── StrictMode-safe refs ─────────────────────────────────────────────────
   const mountRan = useRef(false);    // Prevents double-mount fetch in React StrictMode
-  const filterInit = useRef(false);  // Skips initial render in filter-change effect
-  const statsInit = useRef(false);   // Skips initial render in stats-change effect
+  const ready = useRef(false);       // True after initial fetch completes — gates Effects 2+
 
   // ── State ────────────────────────────────────────────────────────────────
   const [logType, setLogType] = useState('api');
@@ -55,22 +54,17 @@ export default function LogManager() {
   const [searchTerm, setSearchTerm] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [logConfig, setLogConfig] = useState(null);
+  // Search is pure client-side — LogViewer filters in-memory via useMemo.
+  // No debounce or server-side search needed; eliminates per-keystroke API calls.
 
-  // ── Search debounce ──────────────────────────────────────────────────────
-  useEffect(() => {
-    const timer = setTimeout(() => setDebouncedSearch(searchTerm), 400);
-    return () => clearTimeout(timer);
-  }, [searchTerm]);
-
-  // ── Fetch functions (stable refs — read logType/filters from closure) ────
-  const fetchLogs = useCallback(async (type, level, search) => {
+  // ── Fetch functions (stable refs) ──────────────────────────────────────────
+  const fetchLogs = useCallback(async (type, level) => {
     setIsLoading(true);
     try {
       const params = new URLSearchParams();
       if (level !== 'all') params.set('level', level);
-      if (search?.trim()) params.set('search', search.trim());
       params.set('limit', '500');
       const endpoint = type === 'ui' ? urls.logs.ui : urls.logs.api;
       const res = await fetch(`${apiBase}${endpoint}?${params}`, { credentials: 'include' });
@@ -119,49 +113,86 @@ export default function LogManager() {
     mountRan.current = true;
     log.info('mount', 'Log Manager page accessed');
     fetchLogConfig();
-    fetchLogs('api', 'all', '');
+    fetchLogs('api', 'all');
     fetchStats();
+    // Mark ready after a tick so Effects 2+ skip the initial render cycle
+    queueMicrotask(() => { ready.current = true; });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Effect 2: Re-fetch logs only when filters or logType change ──────────
+  // ── Effect 2: Re-fetch logs + stats when level filter or logType change ──
+  // Search is NOT a dependency — it is handled client-side in LogViewer.
   useEffect(() => {
-    if (!filterInit.current) { filterInit.current = true; return; }
-    fetchLogs(logType, levelFilter, debouncedSearch);
-  }, [logType, levelFilter, debouncedSearch, fetchLogs]);
-
-  // ── Effect 3: Re-fetch stats when logType changes ──────────────────────
-  useEffect(() => {
-    if (!statsInit.current) { statsInit.current = true; return; }
+    if (!ready.current) return;
+    fetchLogs(logType, levelFilter);
     fetchStats();
-  }, [logType, fetchStats]);
+  }, [logType, levelFilter, fetchLogs, fetchStats]);
 
-  // ── Refresh handler ──────────────────────────────────────────────────────
-  const handleRefresh = useCallback(() => {
-    fetchLogs(logType, levelFilter, debouncedSearch);
-    fetchStats();
-  }, [logType, levelFilter, debouncedSearch, fetchLogs, fetchStats]);
+  // ── Refresh handler (async — returns promise for loading spinner) ────────
+  const handleRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    setSearchTerm('');             // Clear search to get full fresh dataset
+    try {
+      await Promise.all([
+        fetchLogs(logType, levelFilter),
+        fetchStats(),
+        fetchLogConfig(),
+      ]);
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [logType, levelFilter, fetchLogs, fetchStats, fetchLogConfig]);
 
   // ── Delete handler ─────────────────────────────────────────────────────
   const handleDelete = useCallback(async () => {
     setIsDeleting(true);
     try {
-      const endpoint = logType === 'ui' ? urls.logs.ui : urls.logs.api;
-      const res = await fetch(`${apiBase}${endpoint}`, {
+      const res = await fetch(`${apiBase}${urls.logs.deleteAll}`, {
         method: 'DELETE',
         credentials: 'include',
       });
-      const json = await res.json();
-      if (json.success) {
-        setLogs([]);
-        fetchStats();
+
+      let uiDeleted = 0;
+      let apiDeleted = 0;
+
+      // Backward-compat: older API builds may not implement DELETE /logs
+      if (res.status === 404) {
+        const [uiRes, apiRes] = await Promise.all([
+          fetch(`${apiBase}${urls.logs.ui}`, { method: 'DELETE', credentials: 'include' }),
+          fetch(`${apiBase}${urls.logs.api}`, { method: 'DELETE', credentials: 'include' }),
+        ]);
+
+        const uiJson = await uiRes.json();
+        const apiJson = await apiRes.json();
+        if (!uiJson.success || !apiJson.success) {
+          throw new Error(uiJson?.error?.message || apiJson?.error?.message || uiMessages?.logs?.deleteFailed || 'Failed to delete logs');
+        }
+
+        uiDeleted = uiJson?.data?.deleted ?? 0;
+        apiDeleted = apiJson?.data?.deleted ?? 0;
+      } else {
+        const json = await res.json();
+        if (!json.success) {
+          throw new Error(json?.error?.message || uiMessages?.logs?.deleteFailed || 'Failed to delete logs');
+        }
+
+        uiDeleted = json?.data?.ui?.deleted ?? 0;
+        apiDeleted = json?.data?.api?.deleted ?? 0;
       }
+
+      const totalDeleted = uiDeleted + apiDeleted;
+
+      setLogs([]);
+      fetchStats();
+      fetchLogs(logType, levelFilter);
+      return { uiDeleted, apiDeleted, totalDeleted };
     } catch (err) {
       log.error('handleDelete', 'Failed to delete logs', { message: err.message });
+      throw err;
     } finally {
       setIsDeleting(false);
       setShowDeleteConfirm(false);
     }
-  }, [logType]);
+  }, [logType, levelFilter, fetchLogs, fetchStats]);
 
   // ── Render ─────────────────────────────────────────────────────────────
   return (
@@ -186,6 +217,7 @@ export default function LogManager() {
           onRefresh={handleRefresh}
           onDelete={() => setShowDeleteConfirm(true)}
           isLoading={isLoading}
+          isRefreshing={isRefreshing}
         />
       </div>
 
@@ -206,13 +238,12 @@ export default function LogManager() {
       {(() => {
         const isFile = stats.storage === 'file';
         const dsType = isFile ? 'JSON File' : 'Database';
-        const dsName = isFile
-          ? (logType === 'ui'
-            ? (logConfig?.file?.uiLogsPath || 'logs/ui-logs.json')
-            : (logConfig?.file?.apiLogsPath || 'logs/api-logs.json'))
-          : (logType === 'ui'
-            ? (logConfig?.database?.uiLogsTable || 'system_ui_logs')
-            : (logConfig?.database?.apiLogsTable || 'system_api_logs'));
+        const dsUiName = isFile
+          ? (logConfig?.file?.uiLogsPath || 'logs/ui-logs.json')
+          : (logConfig?.database?.uiLogsTable || 'system_ui_logs');
+        const dsApiName = isFile
+          ? (logConfig?.file?.apiLogsPath || 'logs/api-logs.json')
+          : (logConfig?.database?.apiLogsTable || 'system_api_logs');
         const entryCount = stats.count || 0;
 
         return (
@@ -220,20 +251,25 @@ export default function LogManager() {
             isOpen={showDeleteConfirm}
             onClose={() => setShowDeleteConfirm(false)}
             title={viewText.stats.deleteConfirmTitle}
-            actionDescription={`delete all ${logType === 'ui' ? logTypeText.ui : logTypeText.api} permanently`}
+            actionDescription={`delete all ${logTypeText.ui} and ${logTypeText.api} permanently`}
             actionTarget="Log Datasource"
             actionDetails={[
-              { label: 'DataSource', value: `${dsType} (${dsName})` },
+              { label: 'DataSource (UI)', value: `${dsType} (${dsUiName})` },
+              { label: 'DataSource (API)', value: `${dsType} (${dsApiName})` },
               { label: 'Entries to be Deleted', value: String(entryCount) },
             ]}
             confirmLabel={viewText.stats.deleteButton}
             action={handleDelete}
-            onSuccess={() => { fetchLogs(); fetchStats(); }}
+            onSuccess={() => {
+              fetchLogs(logType, levelFilter);
+              fetchStats();
+            }}
             variant="danger"
             buildSummary={(result) => [
-              { label: 'Log Type', value: logType === 'ui' ? logTypeText.ui : logTypeText.api },
-              { label: 'DataSource', value: `${dsType} (${dsName})` },
-              { label: 'Entries Deleted', value: String(result?.deleted ?? entryCount) },
+              { label: 'Log Type', value: `${logTypeText.ui} + ${logTypeText.api}` },
+              { label: 'DataSource (UI)', value: `${dsType} (${dsUiName})` },
+              { label: 'DataSource (API)', value: `${dsType} (${dsApiName})` },
+              { label: 'Entries Deleted', value: String(result?.totalDeleted ?? entryCount) },
               { label: 'Status', value: 'All logs deleted successfully' },
             ]}
           />

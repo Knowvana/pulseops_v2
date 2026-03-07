@@ -50,7 +50,9 @@ export const helmetMiddleware = helmet({
 
 // ── 2. Request ID: UUID per request ─────────────────────────────────────────
 export function requestIdMiddleware(req, _res, next) {
-  req.requestId = req.headers['x-transaction-id'] || crypto.randomUUID();
+  req.requestId     = req.headers['x-transaction-id'] || crypto.randomUUID();
+  req.sessionId     = req.headers['x-session-id']     || null;
+  req.correlationId = req.headers['x-correlation-id'] || null;
   next();
 }
 
@@ -94,6 +96,8 @@ export function requestLogger(req, res, next) {
       import('#core/services/logService.js').then(mod => {
         mod.default.writeApiLog({
           transactionId: req.requestId,
+          sessionId: req.sessionId || null,
+          correlationId: req.correlationId || null,
           level,
           source: 'API',
           user: userEmail,

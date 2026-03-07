@@ -218,9 +218,14 @@ function DatabaseObjectsTab() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div>
-        <h3 className="text-base font-bold text-surface-800 mb-1">{tabText.dbObjects}</h3>
-        <p className="text-sm text-surface-400">{viewText.subtitle}</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-base font-bold text-surface-800 mb-1">{tabText.dbObjects}</h3>
+          <p className="text-sm text-surface-400">{viewText.subtitle}</p>
+        </div>
+        <Button variant="primary" size="sm" icon={<RefreshCw />} onClick={checkStatus} isLoading={isLoading}>
+          Refresh All
+        </Button>
       </div>
       <DatabaseManager
         onCreateDatabase={async () => {

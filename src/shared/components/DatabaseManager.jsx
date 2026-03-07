@@ -106,13 +106,6 @@ export default function DatabaseManager({
 
   return (
     <div className="space-y-6">
-      {/* Top Refresh Button — refreshes all sections */}
-      <div className="flex items-center justify-end">
-        <Button variant="secondary" size="sm" icon={<RefreshCw />} onClick={onRefreshStatus} isLoading={isLoading}>
-          Refresh All
-        </Button>
-      </div>
-
       {/* Database Instance Status */}
       {!dbStatus.connected && dbStatus.connectionError ? (
         /* Connection Failed — show section title + error details, block all operations */

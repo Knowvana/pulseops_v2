@@ -118,11 +118,19 @@ function LogEntryCard({ log, scale = 1 }) {
       </div>
       {/* Line 3: Message */}
       <p className={`${FS.msg} text-surface-700 break-words leading-snug`}>{log.message}</p>
-      {log.sessionId && (
-        <span className={`inline-block mt-1 ${FS.meta} font-mono text-surface-400 bg-surface-100 px-1.5 rounded`}>
-          SID: {log.sessionId}
-        </span>
-      )}
+      {/* Tracking IDs */}
+      <div className="flex flex-wrap gap-1 mt-1">
+        {log.sessionId && (
+          <span className={`inline-block ${FS.meta} font-mono text-teal-600 bg-teal-50 px-1.5 rounded border border-teal-100`}>
+            SID: {log.sessionId}
+          </span>
+        )}
+        {log.correlationId && (
+          <span className={`inline-block ${FS.meta} font-mono text-violet-500 bg-violet-50 px-1.5 rounded border border-violet-100`}>
+            COR: {log.correlationId}
+          </span>
+        )}
+      </div>
       {log.context && <JsonDetail data={log.context} label="Context" />}
     </div>
   );
@@ -158,11 +166,19 @@ function ApiCallCard({ call, scale = 1 }) {
       {call.error && (
         <p className={`${FS.meta} text-rose-500 mt-1 break-all`}>{call.error}</p>
       )}
-      {call.sessionId && (
-        <span className={`inline-block mt-1 ${FS.meta} font-mono text-surface-400 bg-surface-100 px-1.5 rounded break-all`}>
-          SID: {call.sessionId}
-        </span>
-      )}
+      {/* Tracking IDs */}
+      <div className="flex flex-wrap gap-1 mt-1">
+        {call.sessionId && (
+          <span className={`inline-block ${FS.meta} font-mono text-teal-600 bg-teal-50 px-1.5 rounded border border-teal-100 break-all`}>
+            SID: {call.sessionId}
+          </span>
+        )}
+        {call.correlationId && (
+          <span className={`inline-block ${FS.meta} font-mono text-violet-500 bg-violet-50 px-1.5 rounded border border-violet-100 break-all`}>
+            COR: {call.correlationId}
+          </span>
+        )}
+      </div>
       {call.requestBody  && <JsonDetail data={call.requestBody}  label="Request Body" />}
       {call.responseBody && <JsonDetail data={call.responseBody} label="Response Body" />}
     </div>

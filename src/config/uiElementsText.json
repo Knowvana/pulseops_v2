@@ -118,6 +118,8 @@
       },
       "grid": {
         "transactionId": "Transaction ID",
+        "sessionId": "Session ID",
+        "correlationId": "Correlation ID",
         "time": "Time (IST)",
         "logLevel": "Level",
         "source": "Source",
@@ -151,6 +153,8 @@
         "source": "Source",
         "level": "Level",
         "transactionId": "Transaction ID",
+        "sessionId": "Session ID",
+        "correlationId": "Correlation ID",
         "context": "Context Data",
         "noSelection": "Select a log entry to view details"
       },

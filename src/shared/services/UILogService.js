@@ -57,9 +57,8 @@ const CONSOLE_NOISE = [
 // Internal frames to skip during caller extraction
 const SKIP_FRAMES = ['UILogService', 'node_modules', 'chunk-'];
 
-// Unique entry counter — monotonically increasing across the session
-let _seq = 0;
-const nextId = (prefix) => `${prefix}-${(++_seq).toString(36)}`;
+// Generate industry-grade unique transaction IDs using crypto.randomUUID()
+const nextId = (prefix) => `${prefix}-${crypto.randomUUID()}`;
 
 // ── Service class ─────────────────────────────────────────────────────────────
 class UILogServiceClass {
@@ -80,6 +79,8 @@ class UILogServiceClass {
     this._origPushState    = null;
     this._origReplaceState = null;
     this._navPopHandler    = null;
+    this._correlationId    = null;   // Active correlation ID linking UI click → API calls
+    this._correlationTimer = null;   // Auto-clear timer for correlationId
   }
 
   // ── Lifecycle ─────────────────────────────────────────────────────────────
@@ -118,6 +119,19 @@ class UILogServiceClass {
   // Backward-compat aliases
   getSessionTxId()   { return this._sessionId; }
   setSessionTxId()   { /* sessions are auto-generated; no-op */ }
+  getCorrelationId() { return this._correlationId; }
+
+  /**
+   * Generate a new correlationId that links a UI interaction to the API calls
+   * it triggers. Auto-clears after 2 seconds (typical SPA fetch round-trip).
+   * @returns {string} The generated correlationId
+   */
+  _setCorrelation() {
+    clearTimeout(this._correlationTimer);
+    this._correlationId = `cor-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    this._correlationTimer = setTimeout(() => { this._correlationId = null; }, 2000);
+    return this._correlationId;
+  }
 
   // ── Public: Explicit Logging API ──────────────────────────────────────────
 
@@ -185,12 +199,14 @@ class UILogServiceClass {
       // Capture request body synchronously before the request fires
       const requestBody = this._captureRequestBody(init?.body);
 
-      // Attach session ID to every request header (except log-push to avoid recursion)
+      // Attach session + correlation IDs to every request header (except log-push to avoid recursion)
+      const correlationId = this._correlationId;
       const augInit = {
         ...(init || {}),
         headers: {
           ...(init?.headers || {}),
-          ...(!isLogPush && this._sessionId ? { 'X-Session-Id': this._sessionId } : {}),
+          ...(!isLogPush && this._sessionId    ? { 'X-Session-Id': this._sessionId }       : {}),
+          ...(!isLogPush && correlationId      ? { 'X-Correlation-Id': correlationId }     : {}),
         },
       };
 
@@ -204,17 +220,17 @@ class UILogServiceClass {
           const cloned = response.clone();
           this._captureResponseBody(cloned)
             .then(responseBody => {
-              this._addApiEntry({ method, url: this._shortUrl(rawUrl), status: response.status, duration, requestBody, responseBody, error: null });
+              this._addApiEntry({ method, url: this._shortUrl(rawUrl), status: response.status, duration, requestBody, responseBody, error: null, correlationId });
             })
             .catch(() => {
-              this._addApiEntry({ method, url: this._shortUrl(rawUrl), status: response.status, duration, requestBody, responseBody: null, error: null });
+              this._addApiEntry({ method, url: this._shortUrl(rawUrl), status: response.status, duration, requestBody, responseBody: null, error: null, correlationId });
             });
         }
         return response;
       } catch (err) {
         const duration = Math.round(performance.now() - t0);
         if (!isLogPush) {
-          this._addApiEntry({ method, url: this._shortUrl(rawUrl), status: 0, duration, requestBody, responseBody: null, error: err.message });
+          this._addApiEntry({ method, url: this._shortUrl(rawUrl), status: 0, duration, requestBody, responseBody: null, error: err.message, correlationId });
         }
         throw err;
       }
@@ -294,7 +310,10 @@ class UILogServiceClass {
       const tag       = target.tagName.toLowerCase();
       const ariaLabel = target.getAttribute('aria-label');
       const title     = target.getAttribute('title');
-      const rawText   = (ariaLabel || target.textContent || title || '').replace(/\s+/g, ' ').trim().slice(0, 100);
+      // Use aria-label or title first; fall back to direct text nodes only
+      // (excludes badge/counter spans that pollute textContent, e.g. "UI Logs3")
+      const directText = ariaLabel || title || this._getDirectText(target);
+      const rawText   = (directText || '').replace(/\s+/g, ' ').trim().slice(0, 100);
       const dataLog   = target.getAttribute('data-log');
 
       if (!rawText && !dataLog) return;
@@ -314,6 +333,10 @@ class UILogServiceClass {
         ...(rawText                             && { text:     rawText }),
         page: window.location.pathname,
       };
+
+      // Generate a correlationId so API calls triggered by this click can be traced back
+      const correlationId = this._setCorrelation();
+      ctx.correlationId = correlationId;
 
       const label = tag === 'a' ? 'Link' : tag === 'input' ? 'Input' : tag === 'select' ? 'Select' : 'Button';
       this._addUiEntryRaw('debug',
@@ -363,6 +386,7 @@ class UILogServiceClass {
       timestamp:    new Date().toISOString(),
       displayTime:  TimezoneService.formatCurrentTime(),
       sessionId:    this._sessionId,
+      correlationId: this._correlationId || null,
       userId:       this._userId || 'Anonymous',
       level,
       type:         type || 'app',
@@ -384,12 +408,13 @@ class UILogServiceClass {
 
   // ── Internal: Create API call entry ──────────────────────────────────────
 
-  _addApiEntry({ method, url, status, duration, requestBody, responseBody, error }) {
+  _addApiEntry({ method, url, status, duration, requestBody, responseBody, error, correlationId }) {
     const entry = {
       id:           nextId('api'),
       timestamp:    new Date().toISOString(),
       displayTime:  TimezoneService.formatCurrentTime(),
       sessionId:    this._sessionId,
+      correlationId: correlationId || null,
       userId:       this._userId || 'Anonymous',
       method,
       url,
@@ -482,16 +507,18 @@ class UILogServiceClass {
         credentials: 'include',
         body: JSON.stringify({
           entries: batch.map(e => ({
-            transactionId: e.sessionId,
-            level:         e.level,
-            source:        'UI',
-            event:         e.type,
-            fileName:      e.fileName ? `${e.fileName}:${e.functionName || 'anonymous'}` : null,
-            module:        'Core',
-            message:       e.message,
-            user:          e.userId || 'Anonymous',
-            data:          e.context ?? null,
-            timestamp:     e.timestamp,
+            transactionId:  e.id,
+            sessionId:      e.sessionId,
+            correlationId:  e.correlationId || null,
+            level:          e.level,
+            source:         'UI',
+            event:          e.type,
+            fileName:       e.fileName ? `${e.fileName}:${e.functionName || 'anonymous'}` : null,
+            module:         'Core',
+            message:        e.message,
+            user:           e.userId || 'Anonymous',
+            data:           e.context ?? null,
+            timestamp:      e.timestamp,
           })),
         }),
       });
@@ -529,6 +556,27 @@ class UILogServiceClass {
       if (typeof a === 'string') return a;
       try { return JSON.stringify(a); } catch { return String(a); }
     }).join(' ');
+  }
+
+  /** Extract only direct text-node content from an element (skips child elements like badges/avatars) */
+  _getDirectText(el) {
+    let text = '';
+    // Walk children; collect TEXT_NODE content, recurse into child elements
+    // but skip decorative children (badges with numbers, avatar initials)
+    const walk = (node) => {
+      for (const child of node.childNodes) {
+        if (child.nodeType === 3) {                       // TEXT_NODE
+          text += child.textContent;
+        } else if (child.nodeType === 1) {                // ELEMENT_NODE
+          const childText = (child.textContent || '').trim();
+          // Skip badge/counter elements (purely numeric) and avatar initials (single char)
+          if (/^\d+$/.test(childText) || childText.length <= 1) continue;
+          walk(child);
+        }
+      }
+    };
+    walk(el);
+    return text;
   }
 
   _shortUrl(url) {
