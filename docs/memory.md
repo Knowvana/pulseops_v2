@@ -1,7 +1,7 @@
 # PulseOps V2 — Development Memory
 
 > **Auto-updated by Cascade after each work session.**
-> Last updated: 2026-03-03 (Session 5)
+> Last updated: 2026-06-28 (Session 6)
 
 ---
 
@@ -92,7 +92,59 @@ PulseOps V2 is an enterprise modular operations platform with a plug-and-play mo
 | T21 | App.jsx: thin auth wrapper, URL-driven PlatformDashboard orchestrator | DONE |
 | T22 | moduleRegistry.js: dynamic-only (no core modules), V1-style getAllManifests API | DONE |
 
-## Recent Updates (2026-03-03 — Session 5: ConfirmationModal Restructuring & .windsurfrules Compliance)
+## Recent Updates (2026-06-28 — Session 6: SuperAdmin + RBAC + Settings Overhaul)
+
+### SuperAdmin Authentication (Backend)
+- **`api/src/config/DefaultSuperAdmin.json`** — SuperAdmin credential store (bcrypt-hashed password, requirePasswordChange flag, role: super_admin)
+- **`api/src/core/routes/superAdminRoutes.js`** — Dedicated routes:
+  - `POST /api/auth/superadmin/login` — Authenticates against JSON file (not database), returns JWT
+  - `PATCH /api/auth/superadmin/password` — Updates hashed password in JSON file
+  - `GET /api/auth/superadmin/profile` — Returns SuperAdmin profile (name, email, role)
+- **`api/src/app.js`** — Mounts superAdminRoutes at `/api/auth`
+- **`api/src/core/routes/authRoutes.js`** — Removed `json_file` provider entirely; regular users always authenticate against the database
+
+### RBAC Schema (Backend)
+- **`api/src/config/DefaultDatabaseSchema.json`** — Schema now includes RBAC tables: `system_roles`, `system_permissions`, `system_role_permissions`, `system_user_roles`
+- **`api/src/core/database/databaseService.js`** — `createSchema()` creates RBAC tables + indexes; `loadDefaultData()` seeds roles (super_admin, admin, operator, user, viewer) and permissions
+- **`api/src/config/auth-provider.json`** — Removed `json_file` from available providers; valid options: `database`, `social`
+
+### Logging (Backend)
+- **`api/src/core/routes/logRoutes.js`** — Renamed `/settings` → `/config`; added `enabled` flag check; `PUT /api/logs/config` for updating logging settings
+- **`api/src/core/services/logService.js`** — Added `updateConfig(cfg)` method; `getConfig()` reloads from file; storage always `database`
+- **`api/src/config/LogsConfig.json`** — Added `enabled` boolean flag and `captureOptions` + `management` sections
+
+### SuperAdmin Login (Frontend)
+- **`src/shared/components/SuperAdminLoginForm.jsx`** — Dark theme (slate-900), username "SuperAdmin" prefilled + read-only, password with show/hide, amber accent branding. Uses `createLogger` directly from `@shared/services/consoleLogger` (avoids circular import via barrel).
+- **`src/shared/contexts/AuthContext.jsx`** — `AuthProvider` + `useAuthContext` hook. ROLE_PERMISSIONS matrix (super_admin → all, admin → broad, operator → operational, user → basic, viewer → read-only). Helpers: `hasRole`, `can`, `canAll`, `canAny`, `isSuperAdmin`.
+- **`src/core/App.jsx`** — `BrowserRouter` at root. Routes: `/login/super-admin` → `SuperAdminLoginWrapper` (pre-auth outer route), `*` → `AppContent`. `AppContent` handles session check + both login flows. `AuthProvider` wraps `PlatformDashboard` when authenticated.
+- **`src/shared/index.js`** — Exports: `SuperAdminLoginForm`, `AuthProvider`, `useAuthContext`
+
+### Settings UI Restructure (Frontend)
+- **`src/core/views/Settings.jsx`** — Complete restructure:
+  - **Removed**: `LogSettingsTab` (file/database toggle — storage is always database now)
+  - **New `DatabaseConnectionTab`**: Auto-checks DB connection on tab open (`initRan` guard), Re-check button, shows `ConnectionStatus`
+  - **New `LogConfigTab`** (replaces old LogConfigTab + LogSettingsTab): enabled toggle, DB connection tester, log level selector (debug/info/warn/error), capture options (UI/API/Console/ModuleLogs toggles), management settings (maxUiEntries, maxApiEntries, pushIntervalMs). Saves via `PUT /api/logs/config`
+  - **Updated `AuthSettingsTab`**: Removed `json_file` option. Only `database` + `social (Coming Soon)`. Now also loads current provider from API on mount.
+  - **New `SuperAdminAuthTab`**: Profile card (fetched from `/api/auth/superadmin/profile`), 3-field password change form (current/new/confirm), regex validation (12+ chars, upper+lower+digit+special), `ConfirmationModal`.
+  - **`DatabaseObjectsTab`** → relabeled "Database Setup" under SuperAdmin section
+  - **Tab order**: `dbConnection` → `dbConfig` → `logConfig` → `authSettings` → `[SuperAdmin]` → `superAdminAuth` → `databaseSetup` → `[General]` → `generalSettings`
+  - **Default tab**: `dbConnection`
+- **`src/config/uiElementsText.json`** — New keys: `tabs.dbConnection`, `tabs.superAdminAuth`, `tabs.databaseSetup`; new sections: `dbConnection{}`, `superAdminAuth{}`, `databaseSetup{}`, `logConfig{}`; updated `authSettings.subtitle`; removed `json_file` from `authSettings.providers`
+
+### Structured Logging (Frontend — Task 9)
+All raw `console.log/warn/error` calls replaced with `createLogger` in:
+- `LoginForm.jsx`, `TestConnection.jsx`, `moduleRegistry.js`, `TestPage.jsx`
+- Only intentional raw console calls remain in `consoleLogger.js` and `uiLogger.js` (logger internals)
+
+### consoleLogger Import Pattern
+Components that are also exported from `@shared` barrel must import `createLogger` **directly**:
+```js
+import { createLogger } from '@shared/services/consoleLogger'; // avoids circular import
+```
+
+---
+
+## Previous (2026-03-03 — Session 5: ConfirmationModal Restructuring & .windsurfrules Compliance)
 
 ### ConfirmationModal Reusable Pattern (Finding 9)
 - **Restructured** `ConfirmationModal` to show action details FIRST, then ask for confirmation

@@ -2,29 +2,29 @@
 // Settings — PulseOps V2 Core
 //
 // PURPOSE: Native core view for platform-wide settings. Uses ConfigLayout
-// with vertical tabs for Database Config, Database Objects, Log Settings,
-// Log Configuration, and Authentication Settings.
+// with vertical tabs: DB Connection, DB Configuration, Log Configuration,
+// Authentication, SuperAdmin Auth, Database Setup, and General Settings.
 // This is NOT a dynamic module — it is a hard-routed core view.
 //
 // ROUTE: /settings
 //
-// ARCHITECTURE: Reads all text from uiText.json. Uses shared components
-// (ConfigLayout, TestConnection, DatabaseManager, LoggingConfig, Button,
-// ConfirmationModal) exclusively. No inline hardcoded strings.
+// ARCHITECTURE: Reads all text from uiElementsText.json. Uses shared components
+// exclusively. No inline hardcoded strings.
 //
 // DEPENDENCIES:
-//   - @config/uiText.json → All UI labels
-//   - @config/urls.json       → API endpoints
-//   - @config/app.json        → App metadata
-//   - @shared → ConfigLayout, TestConnection, DatabaseManager, LoggingConfig,
+//   - @config/uiElementsText.json → All UI labels
+//   - @config/urls.json           → API endpoints
+//   - @shared → ConfigLayout, TestConnection, DatabaseManager,
 //               Button, ConfirmationModal, ConnectionStatus
 // ============================================================================
 import React, { useState, useCallback, useEffect } from 'react';
 import {
-  Settings as SettingsIcon, Database, Layers, FileText, ScrollText,
-  Shield, Globe, AlertTriangle, RefreshCw, Check, Save, Globe2
+  Settings as SettingsIcon, Database, Layers, ScrollText,
+  Shield, Globe, AlertTriangle, RefreshCw, Save, Globe2,
+  ShieldCheck, Lock, Eye, EyeOff, ToggleLeft, ToggleRight,
+  Activity, Plug
 } from 'lucide-react';
-import { ConfigLayout, TestConnection, DatabaseManager, LoggingConfig, Button, ConfirmationModal, ConnectionStatus, TimezoneService, createLogger } from '@shared';
+import { ConfigLayout, TestConnection, DatabaseManager, Button, ConfirmationModal, ConnectionStatus, TimezoneService, createLogger } from '@shared';
 import uiText from '@config/uiElementsText.json';
 import uiMessages from '@config/UIMessages.json';
 import urls from '@config/urls.json';
@@ -33,7 +33,6 @@ const log = createLogger('Settings.jsx');
 
 const viewText = uiText.coreViews.settings;
 const tabText = viewText.tabs;
-const logText = viewText.logSettings;
 const authText = viewText.authSettings;
 const connectionText = viewText.connectionStatus;
 
@@ -149,7 +148,75 @@ function DatabaseConfigTab() {
   );
 }
 
-// ── Database Objects Tab ────────────────────────────────────────────────────
+// ── Database Connection Tab (auto-check on open) ──────────────────────────
+function DatabaseConnectionTab() {
+  const connText = viewText.dbConnection || {};
+  const [status, setStatus] = useState({ status: 'loading', message: connectionText.testing, meta: null, lastTested: null });
+  const initRan = React.useRef(false);
+
+  const checkConnection = useCallback(async () => {
+    log.info('DatabaseConnectionTab:checkConnection', 'Checking database connection');
+    setStatus({ status: 'loading', message: connectionText.testing, meta: null, lastTested: null });
+    try {
+      const response = await fetch(urls.database.connection, { credentials: 'include' });
+      const result = await response.json();
+      const timeString = TimezoneService.formatCurrentTime();
+      if (result?.success) {
+        const data = result.data || {};
+        const parts = [];
+        if (data.latencyMs != null) parts.push(`${connectionText.responseTime} ${data.latencyMs}ms`);
+        if (data.dbType) parts.push(`${connectionText.dbType} ${data.dbType}`);
+        if (data.dbVersion) parts.push(`${connectionText.version} ${data.dbVersion.split(',')[0].replace('PostgreSQL ', '')}`);
+        setStatus({
+          status: 'success',
+          message: connectionText.connected,
+          meta: parts.join(` ${connectionText.metaSeparator} `) || null,
+          lastTested: timeString,
+        });
+        log.info('DatabaseConnectionTab:checkConnection', 'Connection OK', { latency: data.latencyMs });
+      } else {
+        const errMsg = result?.error?.message || connectionText.failed;
+        setStatus({ status: 'error', message: errMsg, meta: null, lastTested: timeString });
+        log.warn('DatabaseConnectionTab:checkConnection', `Connection failed: ${errMsg}`);
+      }
+    } catch (err) {
+      setStatus({ status: 'error', message: err.message || connectionText.failed, meta: null, lastTested: TimezoneService.formatCurrentTime() });
+      log.error('DatabaseConnectionTab:checkConnection', 'Connection error', { message: err.message });
+    }
+  }, []);
+
+  useEffect(() => {
+    if (initRan.current) return;
+    initRan.current = true;
+    log.info('DatabaseConnectionTab', 'Tab opened — auto-checking database connection');
+    checkConnection();
+  }, [checkConnection]);
+
+  return (
+    <div className="space-y-6 animate-fade-in">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-base font-bold text-surface-800 mb-1">{connText.title || tabText.dbConnection}</h3>
+          <p className="text-sm text-surface-400">{connText.subtitle}</p>
+        </div>
+        <Button variant="ghost" size="sm" icon={<RefreshCw size={14} />} onClick={checkConnection} isLoading={status.status === 'loading'}>
+          {connText.recheckButton}
+        </Button>
+      </div>
+      <ConnectionStatus
+        type={connectionText.type}
+        status={status.status}
+        message={status.message}
+        meta={status.meta}
+        lastTested={status.lastTested}
+        icon={Database}
+        showBadge
+      />
+    </div>
+  );
+}
+
+// ── Database Objects Tab (used as Database Setup under SuperAdmin) ──────────
 function DatabaseObjectsTab() {
   const [dbStatus, setDbStatus] = useState({
     connected: false, exists: false, schemaInitialized: false, hasDefaultData: false,
@@ -220,7 +287,7 @@ function DatabaseObjectsTab() {
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-base font-bold text-surface-800 mb-1">{tabText.dbObjects}</h3>
+          <h3 className="text-base font-bold text-surface-800 mb-1">{viewText.databaseSetup?.title || tabText.databaseSetup}</h3>
           <p className="text-sm text-surface-400">{viewText.subtitle}</p>
         </div>
         <Button variant="primary" size="sm" icon={<RefreshCw />} onClick={checkStatus} isLoading={isLoading}>
@@ -284,251 +351,276 @@ function DatabaseObjectsTab() {
   );
 }
 
-// ── Log Settings Tab (File vs Database toggle) ─────────────────────────────
-function LogSettingsTab() {
-  const [logMode, setLogMode] = useState('file');
-  const [dbReady, setDbReady] = useState(false);
-  const [isSwitching, setIsSwitching] = useState(false);
-  const [allStats, setAllStats] = useState({ ui: { count: 0 }, api: { count: 0 } });
-  const [logStatus, setLogStatus] = useState({ status: 'loading', message: connectionText.testing, meta: null, lastTested: null });
+// ── Log Configuration Tab (DB-only: enabled toggle, level, capture, management) ───
+function LogConfigTabNew() {
+  const lcText = viewText.logConfig || {};
+  const [cfg, setCfg] = useState({
+    enabled: true,
+    defaultLevel: 'info',
+    captureOptions: { ui: true, api: true, console: false, moduleLogs: true },
+    management: { maxUiEntries: 1000, maxApiEntries: 1000, pushIntervalMs: 5000 },
+  });
+  const [dbStatus, setDbStatus] = useState({ status: 'idle', message: '' });
+  const [showSaveModal, setShowSaveModal] = useState(false);
   const initRan = React.useRef(false);
-
-  const fetchStatus = useCallback(async () => {
-    log.info('LogSettingsTab:fetchStatus', 'Fetching log storage status');
-    try {
-      const [dbRes, configRes, statsRes] = await Promise.allSettled([
-        fetch(urls.database.schema, { credentials: 'include' }),
-        fetch(urls.logs.settingsStatus, { credentials: 'include' }),
-        fetch(urls.logs.stats, { credentials: 'include' }),
-      ]);
-
-      if (dbRes.status === 'fulfilled') {
-        const dbResult = await dbRes.value.json();
-        if (dbResult?.success && dbResult?.data?.initialized) setDbReady(true);
-      }
-
-      if (configRes.status === 'fulfilled') {
-        const configResult = await configRes.value.json();
-        if (configResult?.success && configResult?.data) {
-          setLogMode(configResult.data.storage || 'file');
-          log.info('LogSettingsTab:fetchStatus', `Log mode loaded: ${configResult.data.storage || 'file'}`);
-        }
-      }
-
-      const timeString = TimezoneService.formatCurrentTime();
-      if (statsRes.status === 'fulfilled' && statsRes.value.ok) {
-        const statsResult = await statsRes.value.json();
-        if (statsResult?.success && statsResult?.data) {
-          const d = statsResult.data;
-          setAllStats({ ui: d.ui || { count: 0 }, api: d.api || { count: 0 } });
-          const totalCount = (d.ui?.count || 0) + (d.api?.count || 0);
-          const meta = `UI: ${d.ui?.count || 0} ${connectionText.metaSeparator} API: ${d.api?.count || 0} ${connectionText.metaSeparator} Total: ${totalCount}`;
-          const mode = d.storage || 'file';
-          setLogStatus({
-            status: 'success',
-            message: mode === 'file' ? logText.fileActive : logText.dbActive,
-            meta,
-            lastTested: timeString,
-          });
-          log.info('LogSettingsTab:fetchStatus', 'Stats loaded', { uiCount: d.ui?.count, apiCount: d.api?.count, totalCount });
-        }
-      } else {
-        setLogStatus({ status: 'success', message: logMode === 'file' ? logText.fileActive : logText.dbActive, meta: null, lastTested: timeString });
-      }
-    } catch (err) {
-      log.error('LogSettingsTab:fetchStatus', 'Failed to fetch status', { message: err.message });
-      setLogStatus({ status: 'error', message: connectionText.failed, meta: null, lastTested: TimezoneService.formatCurrentTime() });
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!initRan.current) {
-      initRan.current = true;
-      log.info('LogSettingsTab', 'Tab accessed — loading log settings');
-      fetchStatus();
-    }
-  }, [fetchStatus]);
-
-  const handleSwitch = useCallback(async (newMode) => {
-    if (newMode === logMode) return;
-    if (newMode === 'database' && !dbReady) return;
-    log.info('LogSettingsTab:handleSwitch', `Switching log mode: ${logMode} → ${newMode}`);
-    setIsSwitching(true);
-    try {
-      const res = await fetch(urls.logs.settings, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ storage: newMode }),
-      });
-      const result = await res.json();
-      if (result?.success) {
-        setLogMode(newMode);
-        log.info('LogSettingsTab:handleSwitch', `Log mode switched to: ${newMode}`);
-        await fetchStatus();
-      } else {
-        log.error('LogSettingsTab:handleSwitch', 'Switch failed', { message: result?.error?.message });
-      }
-    } catch (err) {
-      log.error('LogSettingsTab:handleSwitch', 'Switch error', { message: err.message });
-    } finally {
-      setIsSwitching(false);
-    }
-  }, [logMode, dbReady, fetchStatus]);
-
-  return (
-    <div className="space-y-6 animate-fade-in">
-      <div>
-        <h3 className="text-base font-bold text-surface-800 mb-1">{logText.title}</h3>
-        <p className="text-sm text-surface-400">{logText.subtitle}</p>
-      </div>
-
-      {/* Log Storage Connection Status */}
-      <ConnectionStatus
-        type={logMode === 'file' ? logText.fileMode : logText.dbMode}
-        status={logStatus.status}
-        message={logStatus.message}
-        meta={logStatus.meta}
-        lastTested={logStatus.lastTested}
-        icon={logMode === 'file' ? FileText : Database}
-        showBadge={true}
-      />
-
-      {/* File Logging Option */}
-      <button
-        onClick={() => handleSwitch('file')}
-        disabled={isSwitching}
-        className={`w-full text-left p-4 rounded-xl border-2 transition-all ${
-          logMode === 'file'
-            ? 'border-brand-500 bg-brand-50/50'
-            : 'border-surface-200 hover:border-surface-300 cursor-pointer'
-        } ${isSwitching ? 'opacity-60 cursor-wait' : ''}`}
-      >
-        <div className="flex items-start gap-3">
-          <FileText size={18} className={logMode === 'file' ? 'text-brand-600' : 'text-surface-400'} />
-          <div>
-            <p className="text-sm font-semibold text-surface-800">{logText.fileMode}</p>
-            <p className="text-xs text-surface-500 mt-0.5">{logText.fileModeDesc}</p>
-          </div>
-        </div>
-      </button>
-
-      {/* Database Logging Option */}
-      <button
-        onClick={() => handleSwitch('database')}
-        disabled={!dbReady || isSwitching}
-        className={`w-full text-left p-4 rounded-xl border-2 transition-all ${
-          !dbReady
-            ? 'border-surface-100 bg-surface-50 cursor-not-allowed opacity-60'
-            : logMode === 'database'
-              ? 'border-brand-500 bg-brand-50/50'
-              : 'border-surface-200 hover:border-surface-300 cursor-pointer'
-        } ${isSwitching ? 'opacity-60 cursor-wait' : ''}`}
-      >
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex items-start gap-3 flex-1">
-            <Database size={18} className={logMode === 'database' ? 'text-brand-600' : 'text-surface-400'} />
-            <div>
-              <p className="text-sm font-semibold text-surface-800">{logText.dbMode}</p>
-              <p className="text-xs text-surface-500 mt-0.5">{logText.dbModeDesc}</p>
-            </div>
-          </div>
-          {!dbReady && (
-            <span className="px-2 py-0.5 text-[10px] font-bold uppercase rounded-full bg-amber-100 text-amber-700 shrink-0">
-              {logText.dbNotReady}
-            </span>
-          )}
-        </div>
-      </button>
-
-      {/* Warning if DB not ready */}
-      {!dbReady && (
-        <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-800">
-          <AlertTriangle size={13} className="mt-0.5 shrink-0" />
-          <div>
-            <p className="font-semibold">{logText.dbNotReady}</p>
-            <p className="mt-0.5 text-amber-700">{logText.dbNotReadyDesc}</p>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── Log Configuration Tab ───────────────────────────────────────────────────
-function LogConfigTab() {
-  const [isSaving, setIsSaving] = useState(false);
-
-  log.debug('LogConfigTab', 'Tab accessed — rendering log configuration');
-
-  const handleSave = useCallback(async (newConfig) => {
-    log.info('LogConfigTab:handleSave', 'Saving log configuration', newConfig);
-    setIsSaving(true);
-    try {
-      await fetch(urls.systemConfig.save, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ key: 'logging', value: newConfig }),
-      });
-      log.info('LogConfigTab:handleSave', 'Log configuration saved successfully');
-    } catch (err) {
-      log.error('LogConfigTab:handleSave', 'Save failed', { message: err.message });
-    } finally {
-      setIsSaving(false);
-    }
-  }, []);
-
-  return (
-    <LoggingConfig
-      config={{
-        logLevel: 'debug',
-        captureOptions: { console: true, api: true, ui: true, moduleLogs: true },
-        logSyncLimit: 100,
-        autoCleanup: true,
-        maxInMemoryEntries: 600,
-        moduleLogging: [],
-      }}
-      onSave={handleSave}
-      isSaving={isSaving}
-    />
-  );
-}
-
-// ── Authentication Settings Tab ─────────────────────────────────────────────
-function AuthSettingsTab() {
-  const [currentProvider, setCurrentProvider] = useState('json_file');
-  const [selectedProvider, setSelectedProvider] = useState('json_file');
-  const [dbReady, setDbReady] = useState(false);
-  const [showModal, setShowModal] = useState(false);
-  const initRan = React.useRef(false);
-
-  const PROVIDER_ICONS = { json_file: Shield, database: Database, social: Globe };
-  const providerIds = ['json_file', 'database', 'social'];
 
   useEffect(() => {
     if (initRan.current) return;
     initRan.current = true;
-    log.info('AuthSettingsTab', 'Tab accessed — checking database readiness for auth providers');
-    const checkDb = async () => {
+    log.info('LogConfigTab', 'Tab accessed — loading log configuration');
+    const load = async () => {
       try {
-        const response = await fetch(urls.database.schema, { credentials: 'include' });
-        const result = await response.json();
-        if (result?.success && result?.data?.initialized && result?.data?.hasDefaultData) {
-          setDbReady(true);
-          log.info('AuthSettingsTab', 'Database is ready for auth provider switching');
-        } else {
-          log.info('AuthSettingsTab', 'Database not ready for auth provider switching');
+        const res = await fetch(urls.logs.config, { credentials: 'include' });
+        const result = await res.json();
+        if (result?.success && result?.data) {
+          const d = result.data;
+          setCfg({
+            enabled: d.enabled !== false,
+            defaultLevel: d.defaultLevel || 'info',
+            captureOptions: d.captureOptions || { ui: true, api: true, console: false, moduleLogs: true },
+            management: d.management || { maxUiEntries: 1000, maxApiEntries: 1000, pushIntervalMs: 5000 },
+          });
+          log.info('LogConfigTab', 'Config loaded', { enabled: d.enabled, level: d.defaultLevel });
         }
       } catch (err) {
-        log.warn('AuthSettingsTab', 'Database check failed', { message: err.message });
+        log.error('LogConfigTab', 'Failed to load config', { message: err.message });
       }
     };
-    checkDb();
+    load();
+  }, []);
+
+  const testDbConnection = useCallback(async () => {
+    log.info('LogConfigTab:testDbConnection', 'Testing DB connection for logging');
+    setDbStatus({ status: 'loading', message: connectionText.testing });
+    try {
+      const res = await fetch(urls.logs.configStatus, { credentials: 'include' });
+      const result = await res.json();
+      const timeString = TimezoneService.formatCurrentTime();
+      if (result?.success && result?.data?.databaseAvailable) {
+        setDbStatus({ status: 'success', message: connectionText.connected, lastTested: timeString });
+        log.info('LogConfigTab:testDbConnection', 'DB connection OK for logging');
+      } else {
+        setDbStatus({ status: 'error', message: lcText.dbNotReady || connectionText.failed, lastTested: timeString });
+        log.warn('LogConfigTab:testDbConnection', 'DB not available for logging');
+      }
+    } catch (err) {
+      setDbStatus({ status: 'error', message: err.message || connectionText.failed, lastTested: TimezoneService.formatCurrentTime() });
+      log.error('LogConfigTab:testDbConnection', 'Test failed', { message: err.message });
+    }
+  }, []);
+
+  const handleSaveAction = useCallback(async () => {
+    log.info('LogConfigTab:handleSaveAction', 'Saving log configuration', cfg);
+    const res = await fetch(urls.logs.config, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(cfg),
+    });
+    const result = await res.json();
+    if (!result?.success) {
+      log.error('LogConfigTab:handleSaveAction', 'Save failed', { message: result?.error?.message });
+      throw new Error(result?.error?.message || 'Save failed');
+    }
+    log.info('LogConfigTab:handleSaveAction', 'Log configuration saved');
+    return { enabled: cfg.enabled, level: cfg.defaultLevel };
+  }, [cfg]);
+
+  const LOG_LEVELS = ['debug', 'info', 'warn', 'error'];
+
+  return (
+    <div className="space-y-6 animate-fade-in">
+      <div>
+        <h3 className="text-base font-bold text-surface-800 mb-1">{lcText.title || tabText.logConfig}</h3>
+        <p className="text-sm text-surface-400">{lcText.subtitle}</p>
+      </div>
+
+      {/* Enable Toggle */}
+      <div className="bg-white rounded-xl border border-surface-200 p-4 shadow-sm">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-semibold text-surface-800">{lcText.enabledLabel}</p>
+            <p className="text-xs text-surface-500 mt-0.5">{lcText.enabledDesc}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setCfg(prev => ({ ...prev, enabled: !prev.enabled }))}
+            className="flex items-center gap-1.5 focus:outline-none"
+          >
+            {cfg.enabled
+              ? <ToggleRight size={32} className="text-brand-500" />
+              : <ToggleLeft size={32} className="text-surface-300" />}
+          </button>
+        </div>
+      </div>
+
+      {/* DB Connection Test */}
+      <div className="bg-white rounded-xl border border-surface-200 p-4 shadow-sm space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-semibold text-surface-800">{lcText.dbStatusLabel}</p>
+            <p className="text-xs text-surface-500 mt-0.5">{lcText.dbStatusDesc}</p>
+          </div>
+          <Button variant="ghost" size="sm" icon={<Plug size={13} />} onClick={testDbConnection} isLoading={dbStatus.status === 'loading'}>
+            {lcText.testConnectionButton}
+          </Button>
+        </div>
+        {dbStatus.status !== 'idle' && (
+          <ConnectionStatus
+            type={connectionText.type}
+            status={dbStatus.status}
+            message={dbStatus.message}
+            lastTested={dbStatus.lastTested}
+            icon={Database}
+            showBadge
+          />
+        )}
+      </div>
+
+      {/* Log Level */}
+      <div className="bg-white rounded-xl border border-surface-200 p-4 shadow-sm space-y-2">
+        <p className="text-sm font-semibold text-surface-800">{lcText.logLevelLabel}</p>
+        <p className="text-xs text-surface-400">{lcText.logLevelDesc}</p>
+        <div className="flex gap-2 flex-wrap mt-2">
+          {LOG_LEVELS.map(level => (
+            <button
+              key={level}
+              type="button"
+              onClick={() => setCfg(prev => ({ ...prev, defaultLevel: level }))}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold capitalize transition-all ${
+                cfg.defaultLevel === level
+                  ? 'bg-brand-500 text-white'
+                  : 'bg-surface-100 text-surface-600 hover:bg-surface-200'
+              }`}
+            >
+              {level}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Capture Options */}
+      <div className="bg-white rounded-xl border border-surface-200 p-4 shadow-sm space-y-3">
+        <p className="text-sm font-semibold text-surface-800">{lcText.captureOptionsLabel}</p>
+        {[
+          { key: 'ui',          label: lcText.captureUiLogs,      desc: lcText.captureUiLogsDesc },
+          { key: 'api',         label: lcText.captureApiLogs,     desc: lcText.captureApiLogsDesc },
+          { key: 'console',     label: lcText.captureConsoleLogs, desc: lcText.captureConsoleLogsDesc },
+          { key: 'moduleLogs',  label: lcText.captureModuleLogs,  desc: lcText.captureModuleLogsDesc },
+        ].map(({ key, label, desc }) => (
+          <div key={key} className="flex items-center justify-between py-1">
+            <div>
+              <p className="text-sm text-surface-700">{label}</p>
+              <p className="text-xs text-surface-400">{desc}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setCfg(prev => ({ ...prev, captureOptions: { ...prev.captureOptions, [key]: !prev.captureOptions[key] } }))}
+              className="flex items-center focus:outline-none"
+            >
+              {cfg.captureOptions[key]
+                ? <ToggleRight size={26} className="text-brand-500" />
+                : <ToggleLeft size={26} className="text-surface-300" />}
+            </button>
+          </div>
+        ))}
+      </div>
+
+      {/* Management Settings */}
+      <div className="bg-white rounded-xl border border-surface-200 p-4 shadow-sm space-y-3">
+        <p className="text-sm font-semibold text-surface-800">{lcText.managementLabel}</p>
+        {[
+          { key: 'maxUiEntries',  label: lcText.maxUiLabel },
+          { key: 'maxApiEntries', label: lcText.maxApiLabel },
+          { key: 'pushIntervalMs', label: lcText.pushIntervalLabel },
+        ].map(({ key, label }) => (
+          <div key={key} className="flex items-center gap-4">
+            <label className="text-xs text-surface-600 w-48 shrink-0">{label}</label>
+            <input
+              type="number"
+              value={cfg.management[key] || ''}
+              onChange={(e) => setCfg(prev => ({ ...prev, management: { ...prev.management, [key]: Number(e.target.value) } }))}
+              className="w-32 px-3 py-1.5 text-sm border border-surface-200 rounded-lg bg-white text-surface-700 focus:outline-none focus:ring-2 focus:ring-brand-200"
+            />
+          </div>
+        ))}
+      </div>
+
+      <Button variant="primary" size="md" icon={<Save size={15} />} onClick={() => setShowSaveModal(true)} isLoading={isSaving}>
+        {lcText.saveButton}
+      </Button>
+
+      <ConfirmationModal
+        isOpen={showSaveModal}
+        onClose={() => setShowSaveModal(false)}
+        title="Save Log Configuration"
+        actionDescription="update the database logging configuration"
+        actionTarget="Log Configuration"
+        actionDetails={[
+          { label: 'Logging Enabled', value: cfg.enabled ? 'Yes' : 'No' },
+          { label: 'Log Level', value: cfg.defaultLevel },
+        ]}
+        confirmLabel="Save"
+        action={handleSaveAction}
+        onSuccess={() => log.info('LogConfigTab', 'Save confirmed')}
+        variant="info"
+        buildSummary={(data) => [
+          { label: 'Logging', value: data?.enabled ? 'Enabled' : 'Disabled' },
+          { label: 'Level', value: data?.level },
+          { label: 'Status', value: 'Saved successfully' },
+        ]}
+      />
+    </div>
+  );
+}
+
+// Alias keeps the name consistent with the tabs array reference
+const LogConfigTab = LogConfigTabNew;
+
+// ── Authentication Settings Tab (database + social only, no json_file) ───────
+function AuthSettingsTab() {
+  const [currentProvider, setCurrentProvider] = useState('database');
+  const [selectedProvider, setSelectedProvider] = useState('database');
+  const [dbReady, setDbReady] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+  const initRan = React.useRef(false);
+
+  const PROVIDER_ICONS = { database: Database, social: Globe };
+  const providerIds = ['database', 'social'];
+
+  useEffect(() => {
+    if (initRan.current) return;
+    initRan.current = true;
+    log.info('AuthSettingsTab', 'Tab accessed — loading current auth provider');
+    const load = async () => {
+      try {
+        const [provRes, dbRes] = await Promise.allSettled([
+          fetch(urls.auth.provider, { credentials: 'include' }),
+          fetch(urls.database.schema, { credentials: 'include' }),
+        ]);
+        if (provRes.status === 'fulfilled') {
+          const r = await provRes.value.json();
+          if (r?.success && r?.data?.provider) {
+            setCurrentProvider(r.data.provider);
+            setSelectedProvider(r.data.provider);
+            log.info('AuthSettingsTab', `Auth provider loaded: ${r.data.provider}`);
+          }
+        }
+        if (dbRes.status === 'fulfilled') {
+          const r = await dbRes.value.json();
+          if (r?.success && r?.data?.initialized && r?.data?.hasDefaultData) {
+            setDbReady(true);
+          }
+        }
+      } catch (err) {
+        log.warn('AuthSettingsTab', 'Failed to load auth provider', { message: err.message });
+      }
+    };
+    load();
   }, []);
 
   const handleSwitchProvider = useCallback(async () => {
-    log.info('AuthSettingsTab:handleSwitchProvider', `Switching auth provider: ${currentProvider} → ${selectedProvider}`);
+    log.info('AuthSettingsTab:handleSwitchProvider', `Switching provider: ${currentProvider} → ${selectedProvider}`);
     const response = await fetch(urls.auth.provider, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -537,15 +629,15 @@ function AuthSettingsTab() {
     });
     const result = await response.json();
     if (!result?.success) {
-      log.error('AuthSettingsTab:handleSwitchProvider', 'Provider switch failed', { message: result?.error?.message });
+      log.error('AuthSettingsTab:handleSwitchProvider', 'Switch failed', { message: result?.error?.message });
       throw new Error(result?.error?.message || uiText.errors.serverError);
     }
-    log.info('AuthSettingsTab:handleSwitchProvider', `Auth provider switched to: ${selectedProvider}`);
+    log.info('AuthSettingsTab:handleSwitchProvider', `Provider switched to: ${selectedProvider}`);
     return { provider: selectedProvider, previous: currentProvider };
   }, [selectedProvider, currentProvider]);
 
   const handleSwitchSuccess = useCallback((result) => {
-    log.info('AuthSettingsTab:handleSwitchSuccess', `Provider switch confirmed: ${result.provider}`);
+    log.info('AuthSettingsTab:handleSwitchSuccess', `Provider confirmed: ${result.provider}`);
     setCurrentProvider(result.provider);
   }, []);
 
@@ -584,10 +676,7 @@ function AuthSettingsTab() {
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-start gap-3 flex-1 min-w-0">
-                    <Icon
-                      size={18}
-                      className={`mt-0.5 shrink-0 ${isSelected && !isDisabled ? 'text-brand-600' : 'text-surface-400'}`}
-                    />
+                    <Icon size={18} className={`mt-0.5 shrink-0 ${isSelected && !isDisabled ? 'text-brand-600' : 'text-surface-400'}`} />
                     <div className="min-w-0">
                       <p className="text-sm font-semibold text-surface-800">{provTxt.label || providerId}</p>
                       <p className="text-xs text-surface-500 mt-0.5">{provTxt.description}</p>
@@ -607,7 +696,7 @@ function AuthSettingsTab() {
                     )}
                     {isDbProvider && !dbReady && (
                       <span className="px-2 py-0.5 text-[10px] font-bold uppercase rounded-full bg-amber-100 text-amber-700">
-                        {logText.dbNotReady}
+                        {authText.dbNotReadyBadge || 'DB Not Ready'}
                       </span>
                     )}
                   </div>
@@ -617,7 +706,6 @@ function AuthSettingsTab() {
           })}
         </div>
 
-        {/* DB not ready warning when switching to database */}
         {hasChange && selectedProvider === 'database' && !dbReady && (
           <div className="flex items-start gap-2 p-3 mt-4 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-800">
             <AlertTriangle size={13} className="mt-0.5 shrink-0" />
@@ -629,12 +717,7 @@ function AuthSettingsTab() {
         )}
 
         <div className="mt-4 flex items-center gap-3">
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={() => setShowModal(true)}
-            disabled={!hasChange}
-          >
+          <Button variant="primary" size="sm" onClick={() => setShowModal(true)} disabled={!hasChange}>
             {authText.switchButton}
           </Button>
           {hasChange && (
@@ -648,21 +731,167 @@ function AuthSettingsTab() {
       <ConfirmationModal
         isOpen={showModal}
         onClose={() => setShowModal(false)}
-        title={authText.crud.switchProvider.confirmLabel}
-        actionDescription={`switch authentication provider to ${(authText.providers?.[selectedProvider]?.label) || selectedProvider}`}
+        title={authText.crud?.switchProvider?.confirmLabel || 'Switch Auth Provider'}
+        actionDescription={`switch authentication provider to ${authText.providers?.[selectedProvider]?.label || selectedProvider}`}
         actionTarget="Platform Authentication"
         actionDetails={[
-          { label: 'Current Provider', value: (authText.providers?.[currentProvider]?.label) || currentProvider },
-          { label: 'New Provider', value: (authText.providers?.[selectedProvider]?.label) || selectedProvider },
+          { label: 'Current Provider', value: authText.providers?.[currentProvider]?.label || currentProvider },
+          { label: 'New Provider',     value: authText.providers?.[selectedProvider]?.label || selectedProvider },
         ]}
-        confirmLabel={authText.crud.switchProvider.confirmLabel}
+        confirmLabel={authText.crud?.switchProvider?.confirmLabel || 'Switch Provider'}
         action={handleSwitchProvider}
         onSuccess={handleSwitchSuccess}
-        variant={selectedProvider === 'database' ? 'warning' : 'info'}
+        variant="warning"
         buildSummary={(data) => [
-          { label: authText.crud.switchProvider.summaryProvider, value: (authText.providers?.[data?.provider]?.label) || data?.provider },
-          { label: authText.crud.switchProvider.summaryPrevious, value: (authText.providers?.[data?.previous]?.label) || data?.previous },
-          { label: authText.crud.switchProvider.summaryStatus, value: authText.crud.switchProvider.summarySuccess },
+          { label: 'Provider',  value: authText.providers?.[data?.provider]?.label || data?.provider },
+          { label: 'Previous',  value: authText.providers?.[data?.previous]?.label || data?.previous },
+          { label: 'Status',    value: authText.crud?.switchProvider?.summarySuccess || 'Switched successfully' },
+        ]}
+      />
+    </div>
+  );
+}
+
+// ── SuperAdmin Auth Tab ──────────────────────────────────────────────────────
+const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()\-_=+[\]{};':"\\|,.<>/?`~]).{12,}$/;
+
+function SuperAdminAuthTab() {
+  const saText = viewText.superAdminAuth || {};
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showCurrent, setShowCurrent] = useState(false);
+  const [showNew, setShowNew] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+  const [profileInfo, setProfileInfo] = useState(null);
+  const initRan = React.useRef(false);
+
+  useEffect(() => {
+    if (initRan.current) return;
+    initRan.current = true;
+    log.info('SuperAdminAuthTab', 'Tab accessed — loading SuperAdmin profile');
+    const load = async () => {
+      try {
+        const res = await fetch(urls.superAdmin.profile, { credentials: 'include' });
+        const result = await res.json();
+        if (result?.success && result?.data) {
+          setProfileInfo(result.data);
+          log.info('SuperAdminAuthTab', 'SuperAdmin profile loaded', { email: result.data.email });
+        }
+      } catch (err) {
+        log.warn('SuperAdminAuthTab', 'Could not load SuperAdmin profile', { message: err.message });
+      }
+    };
+    load();
+  }, []);
+
+  const validate = useCallback(() => {
+    if (!currentPassword || !newPassword || !confirmPassword) return null;
+    if (newPassword !== confirmPassword) return saText.passwordMismatch;
+    if (!PASSWORD_REGEX.test(newPassword)) return saText.passwordWeak;
+    return true;
+  }, [currentPassword, newPassword, confirmPassword, saText]);
+
+  const handleSaveAction = useCallback(async () => {
+    log.info('SuperAdminAuthTab:handleSaveAction', 'Updating SuperAdmin password');
+    const response = await fetch(urls.superAdmin.password, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ currentPassword, newPassword }),
+    });
+    const result = await response.json();
+    if (!result?.success) {
+      log.error('SuperAdminAuthTab:handleSaveAction', 'Password update failed', { message: result?.error?.message });
+      throw new Error(result?.error?.message || 'Password update failed');
+    }
+    log.info('SuperAdminAuthTab:handleSaveAction', 'SuperAdmin password updated successfully');
+    setCurrentPassword('');
+    setNewPassword('');
+    setConfirmPassword('');
+    return { status: 'updated' };
+  }, [currentPassword, newPassword]);
+
+  const validationResult = validate();
+  const canSubmit = validationResult === true;
+  const validationError = (validationResult !== null && validationResult !== true) ? validationResult : null;
+
+  return (
+    <div className="space-y-6 animate-fade-in">
+      <div>
+        <h3 className="text-base font-bold text-surface-800 mb-1">{saText.title}</h3>
+        <p className="text-sm text-surface-400">{saText.subtitle}</p>
+      </div>
+
+      {profileInfo && (
+        <div className="bg-white rounded-xl border border-surface-200 p-4 shadow-sm">
+          <p className="text-xs font-bold uppercase tracking-wider text-surface-500 mb-3">{saText.profileSection}</p>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
+              <ShieldCheck size={20} className="text-amber-600" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-surface-800">{profileInfo.name || 'SuperAdmin'}</p>
+              <p className="text-xs text-surface-500">{profileInfo.email}</p>
+              <span className="inline-block mt-0.5 px-2 py-0.5 text-[10px] font-bold uppercase rounded-full bg-amber-100 text-amber-700">
+                {profileInfo.role || 'super_admin'}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="bg-white rounded-xl border border-surface-200 p-4 shadow-sm space-y-4">
+        {[
+          { label: saText.currentPasswordLabel, value: currentPassword, setter: setCurrentPassword, show: showCurrent, toggleShow: () => setShowCurrent(v => !v), placeholder: saText.currentPasswordPlaceholder },
+          { label: saText.newPasswordLabel,     value: newPassword,     setter: setNewPassword,     show: showNew,     toggleShow: () => setShowNew(v => !v),     placeholder: saText.newPasswordPlaceholder },
+          { label: saText.confirmPasswordLabel, value: confirmPassword, setter: setConfirmPassword, show: showConfirm, toggleShow: () => setShowConfirm(v => !v), placeholder: saText.confirmPasswordPlaceholder },
+        ].map(({ label, value, setter, show, toggleShow, placeholder }) => (
+          <div key={label}>
+            <label className="block text-xs font-semibold text-surface-600 mb-1.5">{label}</label>
+            <div className="relative">
+              <Lock size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-surface-400" />
+              <input
+                type={show ? 'text' : 'password'}
+                value={value}
+                onChange={(e) => setter(e.target.value)}
+                placeholder={placeholder}
+                className="w-full pl-9 pr-9 py-2.5 text-sm border border-surface-200 rounded-lg bg-white text-surface-700 focus:outline-none focus:ring-2 focus:ring-brand-200"
+              />
+              <button type="button" onClick={toggleShow} className="absolute right-3 top-1/2 -translate-y-1/2 text-surface-400 hover:text-surface-600">
+                {show ? <EyeOff size={14} /> : <Eye size={14} />}
+              </button>
+            </div>
+          </div>
+        ))}
+
+        {validationError && (
+          <div className="flex items-start gap-2 p-3 rounded-lg bg-red-50 border border-red-200 text-xs text-red-700">
+            <AlertTriangle size={13} className="mt-0.5 shrink-0" />
+            <p>{validationError}</p>
+          </div>
+        )}
+      </div>
+
+      <Button variant="primary" size="md" icon={<Save size={15} />} onClick={() => setShowModal(true)} disabled={!canSubmit}>
+        {saText.saveButton}
+      </Button>
+
+      <ConfirmationModal
+        isOpen={showModal}
+        onClose={() => setShowModal(false)}
+        title={saText.crud?.updatePassword?.confirmLabel || 'Update SuperAdmin Password'}
+        actionDescription="update the SuperAdmin account password"
+        actionTarget="SuperAdmin Account"
+        actionDetails={[{ label: 'Account', value: 'SuperAdmin' }]}
+        confirmLabel="Update Password"
+        action={handleSaveAction}
+        onSuccess={() => log.info('SuperAdminAuthTab', 'Password update confirmed')}
+        variant="warning"
+        buildSummary={() => [
+          { label: 'Account', value: 'SuperAdmin' },
+          { label: 'Status',  value: saText.crud?.updatePassword?.summarySuccess || 'Password updated successfully' },
         ]}
       />
     </div>
@@ -799,12 +1028,15 @@ function GeneralSettingsTab() {
 // ── Main Settings Component ─────────────────────────────────────────────────
 export default function Settings() {
   const tabs = [
-    { id: 'generalSettings', label: tabText.generalSettings, icon: Globe2, content: () => <GeneralSettingsTab /> },
-    { id: 'dbConfig', label: tabText.dbConfig, icon: Database, content: () => <DatabaseConfigTab />, separator: true },
-    { id: 'dbObjects', label: tabText.dbObjects, icon: Layers, content: () => <DatabaseObjectsTab /> },
-    { id: 'logSettings', label: tabText.logSettings, icon: FileText, content: () => <LogSettingsTab />, separator: true },
-    { id: 'logConfig', label: tabText.logConfig, icon: ScrollText, content: () => <LogConfigTab /> },
-    { id: 'authSettings', label: tabText.authSettings, icon: Shield, content: () => <AuthSettingsTab />, separator: true },
+    { id: 'dbConnection', label: tabText.dbConnection, icon: Activity,    content: () => <DatabaseConnectionTab /> },
+    { id: 'dbConfig',     label: tabText.dbConfig,     icon: Database,    content: () => <DatabaseConfigTab />, separator: true },
+    { id: 'logConfig',    label: tabText.logConfig,    icon: ScrollText,  content: () => <LogConfigTab /> },
+    { id: 'authSettings', label: tabText.authSettings, icon: Shield,      content: () => <AuthSettingsTab />, separator: true },
+    // ── SuperAdmin section ──
+    { id: 'superAdminAuth',  label: tabText.superAdminAuth,  icon: ShieldCheck, content: () => <SuperAdminAuthTab />, separator: true },
+    { id: 'databaseSetup',   label: tabText.databaseSetup,   icon: Layers,      content: () => <DatabaseObjectsTab /> },
+    // ── General section ──
+    { id: 'generalSettings', label: tabText.generalSettings, icon: Globe2,      content: () => <GeneralSettingsTab />, separator: true },
   ];
 
   return (
@@ -813,7 +1045,7 @@ export default function Settings() {
       subtitle={viewText.subtitle}
       icon={SettingsIcon}
       tabs={tabs}
-      defaultTab="dbConfig"
+      defaultTab="dbConnection"
     />
   );
 }

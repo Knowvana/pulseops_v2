@@ -1,22 +1,22 @@
 // ============================================================================
 // Log Routes — PulseOps V2 API
 //
-// PURPOSE: REST endpoints for log management. Supports reading, writing,
-// deleting, and configuring logs for both UI and API log types.
+// PURPOSE: REST endpoints for log management. Database-only storage.
+// All log writes are gated by the global 'enabled' flag in LogsConfig.json.
 //
 // ENDPOINTS:
-//   GET    /logs/settings          → Get current logging configuration
-//   PUT    /logs/settings          → Update logging configuration (storage mode)
-//   GET    /logs/settings/status   → Check if DB logging tables exist
-//   POST   /logs/settings/tables   → Create log tables in database
+//   GET    /logs/config          → Get current logging configuration
+//   PUT    /logs/config          → Update logging configuration (level, capture, management)
+//   GET    /logs/config/status   → Check DB logging availability + connection
 //   GET    /logs/stats           → Get stats for both log types
 //   GET    /logs/:type           → Get logs (type = ui | api)
-//   POST   /logs/:type           → Write log entries (push from UI)
+//   POST   /logs/:type           → Write log entries (push from UI) — gated by enabled flag
+//   DELETE /logs                 → Delete ALL logs (UI + API)
 //   DELETE /logs/:type           → Delete all logs for a type
 //   GET    /logs/:type/stats     → Get stats for a specific log type
 //
-// ARCHITECTURE: Uses LogService for all operations. Storage mode
-// (file vs database) is transparent to the caller.
+// ARCHITECTURE: Storage is always 'database'. The 'enabled' flag in
+// LogsConfig.json acts as a global on/off switch for all log captures.
 // ============================================================================
 import { Router } from 'express';
 import LogService from '#core/services/logService.js';
@@ -25,66 +25,48 @@ import { logger } from '#shared/logger.js';
 
 const router = Router();
 
-// ── GET /logs/settings — Get current logging configuration ──────────────────
-router.get('/settings', (_req, res) => {
+// ── GET /logs/config — Get current logging configuration ─────────────────────
+router.get('/config', (_req, res) => {
   try {
-    const config = LogService.getConfig();
-    res.json({ success: true, data: config });
+    const cfg = LogService.getConfig();
+    res.json({ success: true, data: cfg });
   } catch (err) {
-    logger.error('Failed to read log config', { error: err.message });
+    logger.error('GET /logs/config failed', { error: err.message });
     res.status(500).json({ success: false, error: { message: err.message } });
   }
 });
 
-// ── PUT /logs/settings — Update storage mode ────────────────────────────────
-router.put('/settings', async (req, res) => {
+// ── PUT /logs/config — Update logging configuration ─────────────────────────
+router.put('/config', async (req, res) => {
   try {
-    const { storage } = req.body;
-    if (!storage || !['file', 'database'].includes(storage)) {
-      return res.status(400).json({
-        success: false,
-        error: { message: 'Invalid storage mode. Must be "file" or "database".' },
-      });
-    }
-    await LogService.setStorageMode(storage);
-    res.json({
-      success: true,
-      data: { storage, message: `Log storage switched to ${storage}.` },
-    });
+    const updates = req.body;
+    const result = await LogService.updateConfig(updates);
+    logger.info('Log configuration updated', { updates });
+    res.json({ success: true, data: result });
   } catch (err) {
-    logger.error('Failed to update log config', { error: err.message });
+    logger.error('PUT /logs/config failed', { error: err.message });
     res.status(500).json({ success: false, error: { message: err.message } });
   }
 });
 
-// ── GET /logs/settings/status — Check if DB log tables exist ────────────────
-router.get('/settings/status', async (_req, res) => {
+// ── GET /logs/config/status — Check DB logging availability ────────────────
+router.get('/config/status', async (_req, res) => {
   try {
     const available = await LogService.isDatabaseLoggingAvailable();
-    const config = LogService.getConfig();
+    const cfg = LogService.getConfig();
     res.json({
       success: true,
       data: {
-        storage: config.storage,
+        enabled: cfg.enabled,
+        storage: 'database',
         databaseAvailable: available,
       },
     });
   } catch (err) {
     res.json({
       success: true,
-      data: { storage: 'file', databaseAvailable: false },
+      data: { enabled: false, storage: 'database', databaseAvailable: false },
     });
-  }
-});
-
-// ── POST /logs/settings/tables — Create log tables in database ──────────────
-router.post('/settings/tables', async (_req, res) => {
-  try {
-    const result = await LogService.createLogTables();
-    res.json({ success: true, data: result });
-  } catch (err) {
-    logger.error('Failed to create log tables', { error: err.message });
-    res.status(500).json({ success: false, error: { message: err.message } });
   }
 });
 

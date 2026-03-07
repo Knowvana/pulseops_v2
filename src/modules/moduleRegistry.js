@@ -28,6 +28,9 @@
 //   - @config/urls.json → API endpoints for module bundles
 // ============================================================================
 import urls from '@config/urls.json';
+import { createLogger } from '@shared/services/consoleLogger';
+
+const log = createLogger('moduleRegistry.js');
 
 // ─── Dynamic manifest store (populated at runtime from DB) ──────────────────
 let _dynamicManifests = [];
@@ -92,7 +95,7 @@ export async function loadModuleManifest(moduleId) {
         return manifest;
       }
     } catch (err) {
-      console.warn(`[ModuleRegistry] Failed to load registered manifest for '${moduleId}':`, err);
+      log.warn('loadManifest', `Failed to load registered manifest for '${moduleId}'`, { message: err.message });
     }
   }
 
@@ -107,7 +110,7 @@ export async function loadModuleManifest(moduleId) {
       return manifest;
     }
   } catch (err) {
-    console.warn(`[ModuleRegistry] Failed to load hot-drop manifest for '${moduleId}':`, err);
+    log.warn('loadHotDrop', `Failed to load hot-drop manifest for '${moduleId}'`, { message: err.message });
   }
 
   return null;

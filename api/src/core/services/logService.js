@@ -402,21 +402,43 @@ const LogService = {
   },
 
   /**
-   * Update the storage mode (file or database).
-   * @param {string} mode - "file" or "database"
+   * Update logging configuration fields (enabled, level, captureOptions, management).
+   * Merges provided fields into existing config and persists to LogsConfig.json.
+   * @param {Object} updates - Partial config to merge { enabled?, defaultLevel?, captureOptions?, management? }
+   * @returns {Object} Updated config
    */
-  async setStorageMode(mode) {
-    if (mode !== 'file' && mode !== 'database') {
-      throw new Error('Invalid storage mode. Must be "file" or "database".');
-    }
-    if (mode === 'database') {
-      const tablesExist = await checkLogTablesExist();
-      if (!tablesExist) {
-        await createLogTables();
+  async updateConfig(updates) {
+    const { saveJson } = await import('#shared/loadJson.js');
+    reloadConfig();
+
+    // Allowed top-level fields that callers may update
+    const allowed = ['enabled', 'defaultLevel', 'captureOptions', 'management'];
+    for (const key of allowed) {
+      if (updates[key] !== undefined) {
+        if (typeof updates[key] === 'object' && !Array.isArray(updates[key])) {
+          logsConfig[key] = { ...logsConfig[key], ...updates[key] };
+        } else {
+          logsConfig[key] = updates[key];
+        }
       }
     }
+    // Storage is always 'database' — never override
+    logsConfig.storage = 'database';
+    saveJson('LogsConfig.json', logsConfig);
+    reloadConfig();
+    return { ...logsConfig };
+  },
+
+  /**
+   * Update the storage mode (kept for backward compat — storage is now always 'database').
+   * @param {string} mode - only "database" is accepted
+   */
+  async setStorageMode(mode) {
+    if (mode !== 'database') {
+      throw new Error('Only database storage is supported. File-based logging has been removed.');
+    }
     const { saveJson } = await import('#shared/loadJson.js');
-    logsConfig.storage = mode;
+    logsConfig.storage = 'database';
     saveJson('LogsConfig.json', logsConfig);
     reloadConfig();
   },
@@ -468,6 +490,10 @@ const LogService = {
   async writeLogs(logType, entries) {
     if (!entries || entries.length === 0) return { written: 0, total: 0 };
 
+    // Global on/off switch — if disabled, silently discard (no DB required)
+    reloadConfig();
+    if (!logsConfig.enabled) return { written: 0, total: 0 };
+
     // Add timestamp if missing
     const timestamped = entries.map(e => ({
       ...e,
@@ -476,9 +502,15 @@ const LogService = {
 
     const mode = getStorageMode();
     if (mode === 'database') {
-      const written = await writeLogsToDb(logType, timestamped);
-      const stats = await getDbLogStats(logType);
-      return { written, total: stats.count };
+      try {
+        const written = await writeLogsToDb(logType, timestamped);
+        const stats = await getDbLogStats(logType);
+        return { written, total: stats.count };
+      } catch (err) {
+        // DB unavailable — silently discard rather than propagating a 500
+        logger.warn(`writeLogs: DB write failed, entries discarded — ${err.message}`);
+        return { written: 0, total: 0 };
+      }
     }
     const total = appendLogsToFile(logType, timestamped);
     return { written: timestamped.length, total };

@@ -12,6 +12,7 @@
 // --- Components (Design System) ---
 export { default as Button } from '@shared/components/Button';
 export { default as LoginForm } from '@shared/components/LoginForm';
+export { default as SuperAdminLoginForm } from '@shared/components/SuperAdminLoginForm';
 export { default as TestPage } from '@shared/components/TestPage';
 export { default as ConfigLayout } from '@shared/components/ConfigLayout';
 export { default as ConnectionStatus } from '@shared/components/ConnectionStatus';
@@ -35,4 +36,4 @@ export { createLogger } from '@shared/services/consoleLogger';
 // (Add hooks as they are created)
 
 // --- Contexts ---
-// (Add contexts as they are created)
+export { AuthProvider, useAuthContext } from '@shared/contexts/AuthContext';

@@ -54,8 +54,9 @@
   "login": {
     "title": "Welcome Back",
     "subtitle": "Sign in to your account",
-    "emailLabel": "Email Address",
-    "emailPlaceholder": "admin@example.com",
+    "emailLabel": "Email or Username",
+    "emailPlaceholder": "admin@example.com or SuperAdmin",
+    "superAdminHint": "To access SuperAdmin, enter \"SuperAdmin\" as the username.",
     "passwordLabel": "Password",
     "passwordPlaceholder": "Enter your password",
     "submitButton": "Sign In",
@@ -63,12 +64,26 @@
     "dividerLabel": "or continue with",
     "poweredBy": "Powered by PulseOps",
     "socialComingSoon": " login coming soon",
-    "validationError": "Both email and password are required",
+    "validationError": "Both email/username and password are required",
     "socialProviders": [
       { "id": "google", "label": "Google" },
       { "id": "microsoft", "label": "Microsoft" },
       { "id": "github", "label": "GitHub" }
     ]
+  },
+  "superAdminLogin": {
+    "title": "Super Administrator",
+    "subtitle": "Platform SuperAdmin — Restricted Access",
+    "notice": "This login is for the designated SuperAdmin only. All other users should use the standard login.",
+    "usernameLabel": "Username",
+    "lockedBadge": "Fixed",
+    "passwordLabel": "Password",
+    "passwordPlaceholder": "Enter SuperAdmin password",
+    "passwordRequired": "Password is required.",
+    "signInButton": "Sign In as SuperAdmin",
+    "signingIn": "Authenticating…",
+    "backText": "Not a SuperAdmin?",
+    "backLink": "Go to regular login"
   },
   "coreNav": {
     "dashboard": "Dashboard",
@@ -168,12 +183,76 @@
       "title": "Platform Settings",
       "subtitle": "Global configuration — Admin only",
       "tabs": {
-        "dbConfig": "Database Connection Status",
-        "dbObjects": "Database Objects",
-        "logSettings": "Log Settings",
+        "dbConnection": "Database Connection",
+        "dbConfig": "Database Configuration",
         "logConfig": "Log Configuration",
         "authSettings": "Authentication",
+        "superAdminSectionLabel": "SuperAdmin",
+        "superAdminAuth": "SuperAdmin Auth",
+        "databaseSetup": "Database Setup",
         "generalSettings": "General Settings"
+      },
+      "dbConnection": {
+        "title": "Database Connection",
+        "subtitle": "Real-time connection status to the configured PostgreSQL database",
+        "autoCheckLabel": "Connection checked on open",
+        "recheckButton": "Re-check Connection"
+      },
+      "superAdminAuth": {
+        "title": "SuperAdmin Credentials",
+        "subtitle": "Update the SuperAdmin account password. Changes take effect on next login.",
+        "currentPasswordLabel": "Current Password",
+        "newPasswordLabel": "New Password",
+        "confirmPasswordLabel": "Confirm New Password",
+        "currentPasswordPlaceholder": "Enter current password",
+        "newPasswordPlaceholder": "Minimum 12 characters, mixed case, digit and special char",
+        "confirmPasswordPlaceholder": "Re-enter new password",
+        "saveButton": "Update Password",
+        "savingButton": "Updating…",
+        "passwordMismatch": "New password and confirmation do not match.",
+        "passwordWeak": "Password must be at least 12 characters with uppercase, lowercase, digit, and special character.",
+        "requirePasswordChangeNotice": "A password change is required. Please update your SuperAdmin password.",
+        "profileSection": "Account Profile",
+        "crud": {
+          "updatePassword": {
+            "confirmLabel": "Update SuperAdmin Password",
+            "summaryLabel": "Password Updated",
+            "summaryStatus": "Active",
+            "summarySuccess": "Password updated successfully"
+          }
+        }
+      },
+      "databaseSetup": {
+        "title": "Database Setup",
+        "subtitle": "Create database, initialize schema, manage default data and RBAC tables"
+      },
+      "logConfig": {
+        "title": "Log Configuration",
+        "subtitle": "Configure database logging settings, log level, capture options, and management",
+        "enabledLabel": "Enable Database Logging",
+        "enabledDesc": "When disabled, no logs are captured or persisted to the database.",
+        "logLevelLabel": "Log Level",
+        "logLevelDesc": "Minimum severity level to capture.",
+        "dbStatusLabel": "Database Connection",
+        "dbStatusDesc": "Verify that the database is ready to receive log entries.",
+        "testConnectionButton": "Test DB Connection",
+        "captureOptionsLabel": "Capture Options",
+        "captureUiLogs": "UI Logs",
+        "captureUiLogsDesc": "Capture UI component log events",
+        "captureApiLogs": "API Logs",
+        "captureApiLogsDesc": "Capture API request and response logs",
+        "captureConsoleLogs": "Console Logs",
+        "captureConsoleLogsDesc": "Capture browser console output",
+        "captureModuleLogs": "Module Logs",
+        "captureModuleLogsDesc": "Capture module-specific log events",
+        "managementLabel": "Management Settings",
+        "maxUiLabel": "Max UI Entries (in-memory)",
+        "maxApiLabel": "Max API Entries (in-memory)",
+        "pushIntervalLabel": "Push Interval (ms)",
+        "saveButton": "Save Configuration",
+        "savingButton": "Saving…",
+        "dbNotReady": "Setup Database First",
+        "dbNotReadyDesc": "Database must be configured and initialized before enabling logging."
       },
       "logSettings": {
         "title": "Log Storage Settings",
@@ -203,13 +282,8 @@
       },
       "authSettings": {
         "title": "Authentication Settings",
-        "subtitle": "Configure authentication provider for the platform",
+        "subtitle": "Configure the authentication provider for regular platform users. SuperAdmin always authenticates via JSON file.",
         "providers": {
-          "json_file": {
-            "label": "JSON File",
-            "description": "Authenticate against a local JSON file. Default mode — works without a database.",
-            "detail": "Ideal for initial setup and development before database is configured."
-          },
           "database": {
             "label": "Database",
             "description": "Authenticate against the PostgreSQL system_users table with bcrypt hashing.",

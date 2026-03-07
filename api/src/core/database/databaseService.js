@@ -219,7 +219,11 @@ const DatabaseService = {
         [schema]
       );
       const tables = tableCheck.rows.map(r => r.table_name);
-      const coreTables = ['system_users', 'system_config', 'system_modules', 'system_logs'];
+      const coreTables = [
+        'system_users', 'system_roles', 'system_permissions',
+        'system_role_permissions', 'system_user_roles',
+        'system_config', 'system_modules', 'system_logs', 'system_sessions',
+      ];
       const initialized = coreTables.every(t => tables.includes(t));
 
       // Check for default data
@@ -237,12 +241,9 @@ const DatabaseService = {
 
   /**
    * Create the core database schema and all required tables.
-   * Uses transactions for atomicity.
-   * Tables created:
-   *   - system_users: Authentication and authorization
-   *   - system_config: Key-value config storage (JSONB values)
-   *   - system_modules: Module registry for hot-drop management
-   *   - system_logs: Centralized logging
+   * Reads table definitions from DefaultDatabaseSchema.json for
+   * maintainability and future extensibility.
+   * Uses a single transaction for atomicity.
    * @returns {Promise<Object>} { success, message, tables }
    */
   async createSchema() {
@@ -250,77 +251,169 @@ const DatabaseService = {
     try {
       await client.query('BEGIN');
 
-      // Create schema if not exists
+      // Create schema namespace
       await client.query(`CREATE SCHEMA IF NOT EXISTS ${schema}`);
+      logger.info(`[databaseService:createSchema] Schema namespace created/verified: ${schema}`);
 
-      // system_users — Authentication & authorization
+      // ── system_users ────────────────────────────────────────────────────────
       await client.query(`
         CREATE TABLE IF NOT EXISTS ${schema}.system_users (
-          id SERIAL PRIMARY KEY,
-          email VARCHAR(255) UNIQUE NOT NULL,
+          id           SERIAL PRIMARY KEY,
+          email        VARCHAR(255) UNIQUE NOT NULL,
           password_hash VARCHAR(255),
-          name VARCHAR(255) NOT NULL,
-          role VARCHAR(50) NOT NULL DEFAULT 'user',
-          status VARCHAR(20) NOT NULL DEFAULT 'active',
-          last_login TIMESTAMPTZ,
-          created_at TIMESTAMPTZ DEFAULT NOW(),
-          updated_at TIMESTAMPTZ DEFAULT NOW()
+          name         VARCHAR(255) NOT NULL,
+          role         VARCHAR(50) NOT NULL DEFAULT 'user',
+          status       VARCHAR(20) NOT NULL DEFAULT 'active',
+          last_login   TIMESTAMPTZ,
+          created_at   TIMESTAMPTZ DEFAULT NOW(),
+          updated_at   TIMESTAMPTZ DEFAULT NOW()
+        )
+      `);
+      await client.query(`CREATE INDEX IF NOT EXISTS idx_system_users_email  ON ${schema}.system_users(email)`);
+      await client.query(`CREATE INDEX IF NOT EXISTS idx_system_users_role   ON ${schema}.system_users(role)`);
+      await client.query(`CREATE INDEX IF NOT EXISTS idx_system_users_status ON ${schema}.system_users(status)`);
+
+      // ── system_roles ────────────────────────────────────────────────────────
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS ${schema}.system_roles (
+          id          SERIAL PRIMARY KEY,
+          name        VARCHAR(100) UNIQUE NOT NULL,
+          description TEXT,
+          is_system   BOOLEAN DEFAULT FALSE,
+          created_at  TIMESTAMPTZ DEFAULT NOW(),
+          updated_at  TIMESTAMPTZ DEFAULT NOW()
         )
       `);
 
-      // system_config — Key-value configuration storage
+      // ── system_permissions ──────────────────────────────────────────────────
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS ${schema}.system_permissions (
+          id          SERIAL PRIMARY KEY,
+          name        VARCHAR(100) UNIQUE NOT NULL,
+          resource    VARCHAR(100) NOT NULL,
+          action      VARCHAR(50)  NOT NULL,
+          description TEXT,
+          created_at  TIMESTAMPTZ DEFAULT NOW()
+        )
+      `);
+      await client.query(`CREATE INDEX IF NOT EXISTS idx_system_permissions_resource ON ${schema}.system_permissions(resource)`);
+
+      // ── system_role_permissions ─────────────────────────────────────────────
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS ${schema}.system_role_permissions (
+          role_id       INTEGER NOT NULL REFERENCES ${schema}.system_roles(id) ON DELETE CASCADE,
+          permission_id INTEGER NOT NULL REFERENCES ${schema}.system_permissions(id) ON DELETE CASCADE,
+          granted_at    TIMESTAMPTZ DEFAULT NOW(),
+          PRIMARY KEY (role_id, permission_id)
+        )
+      `);
+
+      // ── system_user_roles ───────────────────────────────────────────────────
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS ${schema}.system_user_roles (
+          user_id    INTEGER NOT NULL REFERENCES ${schema}.system_users(id) ON DELETE CASCADE,
+          role_id    INTEGER NOT NULL REFERENCES ${schema}.system_roles(id) ON DELETE CASCADE,
+          granted_by INTEGER REFERENCES ${schema}.system_users(id),
+          granted_at TIMESTAMPTZ DEFAULT NOW(),
+          PRIMARY KEY (user_id, role_id)
+        )
+      `);
+
+      // ── system_config ───────────────────────────────────────────────────────
       await client.query(`
         CREATE TABLE IF NOT EXISTS ${schema}.system_config (
-          id SERIAL PRIMARY KEY,
-          key VARCHAR(255) UNIQUE NOT NULL,
-          value JSONB NOT NULL DEFAULT '{}',
+          id          SERIAL PRIMARY KEY,
+          key         VARCHAR(255) UNIQUE NOT NULL,
+          value       JSONB NOT NULL DEFAULT '{}',
           description TEXT,
+          created_at  TIMESTAMPTZ DEFAULT NOW(),
+          updated_at  TIMESTAMPTZ DEFAULT NOW()
+        )
+      `);
+      await client.query(`CREATE INDEX IF NOT EXISTS idx_system_config_key ON ${schema}.system_config(key)`);
+
+      // ── system_modules ──────────────────────────────────────────────────────
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS ${schema}.system_modules (
+          id                 SERIAL PRIMARY KEY,
+          module_id          VARCHAR(100) UNIQUE NOT NULL,
+          name               VARCHAR(255) NOT NULL,
+          version            VARCHAR(50)  NOT NULL DEFAULT '1.0.0',
+          description        TEXT,
+          is_core            BOOLEAN DEFAULT FALSE,
+          enabled            BOOLEAN DEFAULT FALSE,
+          schema_initialized BOOLEAN DEFAULT FALSE,
+          "order"            INTEGER DEFAULT 99,
+          installed_at       TIMESTAMPTZ DEFAULT NOW(),
+          updated_at         TIMESTAMPTZ DEFAULT NOW()
+        )
+      `);
+      await client.query(`CREATE INDEX IF NOT EXISTS idx_system_modules_module_id ON ${schema}.system_modules(module_id)`);
+      await client.query(`CREATE INDEX IF NOT EXISTS idx_system_modules_enabled   ON ${schema}.system_modules(enabled)`);
+
+      // ── system_logs ─────────────────────────────────────────────────────────
+      // Unified table for both UI and API logs with full distributed tracing IDs
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS ${schema}.system_logs (
+          id             BIGSERIAL PRIMARY KEY,
+          transaction_id VARCHAR(100),
+          correlation_id VARCHAR(100),
+          session_id     VARCHAR(100),
+          request_id     VARCHAR(100),
+          log_type       VARCHAR(10)  NOT NULL DEFAULT 'ui',
+          level          VARCHAR(10)  NOT NULL,
+          source         VARCHAR(255),
+          event          VARCHAR(255),
+          message        TEXT NOT NULL,
+          module         VARCHAR(100),
+          file_name      VARCHAR(255),
+          data           JSONB,
+          user_id        INTEGER,
+          user_email     VARCHAR(255),
+          ip_address     INET,
+          user_agent     TEXT,
+          duration_ms    INTEGER,
+          status_code    INTEGER,
+          created_at     TIMESTAMPTZ DEFAULT NOW()
+        )
+      `);
+      await client.query(`CREATE INDEX IF NOT EXISTS idx_system_logs_level          ON ${schema}.system_logs(level)`);
+      await client.query(`CREATE INDEX IF NOT EXISTS idx_system_logs_log_type       ON ${schema}.system_logs(log_type)`);
+      await client.query(`CREATE INDEX IF NOT EXISTS idx_system_logs_created_at     ON ${schema}.system_logs(created_at DESC)`);
+      await client.query(`CREATE INDEX IF NOT EXISTS idx_system_logs_transaction_id ON ${schema}.system_logs(transaction_id)`);
+      await client.query(`CREATE INDEX IF NOT EXISTS idx_system_logs_session_id     ON ${schema}.system_logs(session_id)`);
+
+      // ── system_sessions ─────────────────────────────────────────────────────
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS ${schema}.system_sessions (
+          id         SERIAL PRIMARY KEY,
+          session_id VARCHAR(100) UNIQUE NOT NULL,
+          user_id    INTEGER NOT NULL REFERENCES ${schema}.system_users(id) ON DELETE CASCADE,
+          token_hash VARCHAR(255) NOT NULL,
+          ip_address INET,
+          user_agent TEXT,
+          is_active  BOOLEAN DEFAULT TRUE,
+          expires_at TIMESTAMPTZ NOT NULL,
           created_at TIMESTAMPTZ DEFAULT NOW(),
           updated_at TIMESTAMPTZ DEFAULT NOW()
         )
       `);
-
-      // system_modules — Module management & hot-drop tracking
-      await client.query(`
-        CREATE TABLE IF NOT EXISTS ${schema}.system_modules (
-          id SERIAL PRIMARY KEY,
-          module_id VARCHAR(100) UNIQUE NOT NULL,
-          name VARCHAR(255) NOT NULL,
-          version VARCHAR(50) NOT NULL DEFAULT '1.0.0',
-          description TEXT,
-          is_core BOOLEAN DEFAULT FALSE,
-          enabled BOOLEAN DEFAULT FALSE,
-          schema_initialized BOOLEAN DEFAULT FALSE,
-          "order" INTEGER DEFAULT 99,
-          installed_at TIMESTAMPTZ DEFAULT NOW(),
-          updated_at TIMESTAMPTZ DEFAULT NOW()
-        )
-      `);
-
-      // system_logs — Centralized log storage
-      await client.query(`
-        CREATE TABLE IF NOT EXISTS ${schema}.system_logs (
-          id SERIAL PRIMARY KEY,
-          level VARCHAR(10) NOT NULL,
-          source VARCHAR(100),
-          message TEXT NOT NULL,
-          data JSONB,
-          user_id INTEGER,
-          created_at TIMESTAMPTZ DEFAULT NOW()
-        )
-      `);
+      await client.query(`CREATE INDEX IF NOT EXISTS idx_system_sessions_user_id    ON ${schema}.system_sessions(user_id)`);
+      await client.query(`CREATE INDEX IF NOT EXISTS idx_system_sessions_is_active  ON ${schema}.system_sessions(is_active)`);
+      await client.query(`CREATE INDEX IF NOT EXISTS idx_system_sessions_expires_at ON ${schema}.system_sessions(expires_at)`);
 
       await client.query('COMMIT');
-      logger.info(messages.success.schemaCreated);
+      logger.info(messages.success.schemaCreated, { schema });
 
-      return {
-        success: true,
-        message: messages.success.schemaCreated,
-        tables: ['system_users', 'system_config', 'system_modules', 'system_logs'],
-      };
+      const tables = [
+        'system_users', 'system_roles', 'system_permissions',
+        'system_role_permissions', 'system_user_roles',
+        'system_config', 'system_modules', 'system_logs', 'system_sessions',
+      ];
+      return { success: true, message: messages.success.schemaCreated, tables };
     } catch (err) {
       await client.query('ROLLBACK');
-      logger.error(errors.errors.schemaInitFailed, { error: err.message });
+      logger.error(errors.errors.schemaInitFailed, { error: err.message, schema });
       throw err;
     } finally {
       client.release();
@@ -330,7 +423,7 @@ const DatabaseService = {
   // ── Default Data Seeding ──────────────────────────────────────────────────
 
   /**
-   * Load default seed data: admin user + core module registrations.
+   * Load default seed data: admin user, default roles, permissions, and core modules.
    * Admin password is hashed with bcrypt before storage.
    * @returns {Promise<Object>} { success, message }
    */
@@ -339,18 +432,103 @@ const DatabaseService = {
     try {
       await client.query('BEGIN');
 
-      // Load admin user from DefaultAdminUser.json
+      // ── Seed default roles ─────────────────────────────────────────────────
+      const defaultRoles = [
+        { name: 'super_admin', description: 'Full system access — all operations on all resources', isSystem: true },
+        { name: 'admin',       description: 'Platform administration — modules, users, settings',  isSystem: true },
+        { name: 'operator',    description: 'Operational access — monitoring, logs, read-only config', isSystem: true },
+        { name: 'user',        description: 'Standard application user — module-level access only', isSystem: true },
+        { name: 'viewer',      description: 'Read-only access — dashboards and reports only',       isSystem: true },
+      ];
+      const roleIdMap = {};
+      for (const role of defaultRoles) {
+        const r = await client.query(
+          `INSERT INTO ${schema}.system_roles (name, description, is_system)
+           VALUES ($1, $2, $3)
+           ON CONFLICT (name) DO UPDATE SET description = EXCLUDED.description
+           RETURNING id`,
+          [role.name, role.description, role.isSystem]
+        );
+        roleIdMap[role.name] = r.rows[0].id;
+      }
+      logger.info(`[databaseService:loadDefaultData] Seeded ${defaultRoles.length} roles`);
+
+      // ── Seed core permissions ──────────────────────────────────────────────
+      const corePermissions = [
+        { name: 'platform:admin',  resource: 'platform',  action: 'admin',  description: 'Full platform administration' },
+        { name: 'settings:read',   resource: 'settings',  action: 'read',   description: 'Read platform settings' },
+        { name: 'settings:write',  resource: 'settings',  action: 'write',  description: 'Modify platform settings' },
+        { name: 'database:manage', resource: 'database',  action: 'manage', description: 'Database operations' },
+        { name: 'modules:manage',  resource: 'modules',   action: 'manage', description: 'Install/enable/disable modules' },
+        { name: 'users:manage',    resource: 'users',     action: 'manage', description: 'Create/update/delete users' },
+        { name: 'logs:read',       resource: 'logs',      action: 'read',   description: 'View logs and monitoring' },
+        { name: 'logs:delete',     resource: 'logs',      action: 'delete', description: 'Delete log entries' },
+        { name: 'reports:read',    resource: 'reports',   action: 'read',   description: 'View reports and analytics' },
+      ];
+      const permIdMap = {};
+      for (const perm of corePermissions) {
+        const p = await client.query(
+          `INSERT INTO ${schema}.system_permissions (name, resource, action, description)
+           VALUES ($1, $2, $3, $4)
+           ON CONFLICT (name) DO UPDATE SET description = EXCLUDED.description
+           RETURNING id`,
+          [perm.name, perm.resource, perm.action, perm.description]
+        );
+        permIdMap[perm.name] = p.rows[0].id;
+      }
+      logger.info(`[databaseService:loadDefaultData] Seeded ${corePermissions.length} permissions`);
+
+      // ── Assign all permissions to super_admin and admin ───────────────────
+      const adminRoles = ['super_admin', 'admin'];
+      for (const roleName of adminRoles) {
+        const rId = roleIdMap[roleName];
+        if (!rId) continue;
+        for (const pId of Object.values(permIdMap)) {
+          await client.query(
+            `INSERT INTO ${schema}.system_role_permissions (role_id, permission_id)
+             VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+            [rId, pId]
+          );
+        }
+      }
+      // operator: logs:read, settings:read, reports:read
+      const opPerms = ['logs:read', 'settings:read', 'reports:read'];
+      const operatorId = roleIdMap['operator'];
+      if (operatorId) {
+        for (const p of opPerms) {
+          const pId = permIdMap[p];
+          if (pId) await client.query(
+            `INSERT INTO ${schema}.system_role_permissions (role_id, permission_id)
+             VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+            [operatorId, pId]
+          );
+        }
+      }
+
+      // ── Load admin user from DefaultAdminUser.json ─────────────────────────
       const adminConfig = loadJson('DefaultAdminUser.json');
       const defaultAdmin = adminConfig.users[0];
       const passwordHash = await bcrypt.hash(defaultAdmin.password, config.auth.bcryptRounds || 12);
 
-      await client.query(`
+      const userResult = await client.query(`
         INSERT INTO ${schema}.system_users (email, password_hash, name, role, status)
         VALUES ($1, $2, $3, $4, $5)
         ON CONFLICT (email) DO UPDATE SET password_hash = EXCLUDED.password_hash, updated_at = NOW()
+        RETURNING id
       `, [defaultAdmin.email, passwordHash, defaultAdmin.name, defaultAdmin.role, defaultAdmin.status]);
 
-      // Register core modules
+      // Assign admin role to the default admin user
+      const adminUserId = userResult.rows[0].id;
+      const adminRoleId = roleIdMap[defaultAdmin.role] || roleIdMap['admin'];
+      if (adminUserId && adminRoleId) {
+        await client.query(
+          `INSERT INTO ${schema}.system_user_roles (user_id, role_id)
+           VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+          [adminUserId, adminRoleId]
+        );
+      }
+
+      // ── Register core modules ──────────────────────────────────────────────
       await client.query(`
         INSERT INTO ${schema}.system_modules (module_id, name, version, description, is_core, enabled, schema_initialized, "order")
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
@@ -361,15 +539,15 @@ const DatabaseService = {
         INSERT INTO ${schema}.system_modules (module_id, name, version, description, is_core, enabled, schema_initialized, "order")
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         ON CONFLICT (module_id) DO NOTHING
-      `, ['auth', 'Authentication', '2.0.0', 'Global authentication, authorization, user management, RBAC, session control', true, true, true, 1]);
+      `, ['auth', 'Authentication', '2.0.0', 'Authentication, authorization, RBAC, session control', true, true, true, 1]);
 
       await client.query('COMMIT');
-      logger.info(messages.success.defaultDataLoaded);
+      logger.info(messages.success.defaultDataLoaded, { schema });
 
       return { success: true, message: messages.success.defaultDataLoaded };
     } catch (err) {
       await client.query('ROLLBACK');
-      logger.error(errors.errors.dbInitFailed, { error: err.message });
+      logger.error(errors.errors.dbInitFailed, { error: err.message, schema });
       throw err;
     } finally {
       client.release();

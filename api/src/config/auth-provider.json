@@ -1,7 +1,6 @@
 {
-  "provider": "json_file",
+  "provider": "database",
   "availableProviders": [
-    "json_file",
     "database",
     "social"
   ],

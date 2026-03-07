@@ -1,0 +1,18 @@
+{
+  "superAdmin": {
+    "id": "superadmin_001",
+    "username": "SuperAdmin",
+    "email": "superadmin@pulseops.io",
+    "name": "Super Administrator",
+    "role": "super_admin",
+    "status": "active",
+    "authMethod": "json_file",
+    "passwordHash": "$2b$12$1MrpeL.3HDODl/kR0EBpbOp4juAOx848/uNJR1GW9kyHGVSQ70Cva",
+    "defaultPassword": "",
+    "requirePasswordChange": true,
+    "passwordLastChangedAt": "2026-03-07T10:12:11.025Z",
+    "lastLoginAt": "2026-03-07T10:12:11.029Z",
+    "createdAt": "2024-01-01T00:00:00.000Z",
+    "notes": "SuperAdmin authenticates against this JSON file only. Password is bcrypt-hashed on first login. Change via Settings → Platform Settings → SuperAdmin → Auth."
+  }
+}

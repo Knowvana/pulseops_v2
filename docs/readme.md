@@ -1,163 +1,104 @@
-# PulseOps V2 — Developer Reference
+# PulseOps V2
 
-## Quick Start URLs & Credentials
+Enterprise modular operations platform with plug-and-play module architecture, RBAC, and Kubernetes-ready stateless deployment.
 
-### Service URLs (Development)
+## Architecture
+
+- **Microkernel + Micro-Frontend** — Core modules statically bundled, add-on modules hot-dropped at runtime
+- **Zero-Downtime Hot-Dropping** — Build, drop, discover, load — no restart required
+- **K8s-Ready** — Stateless API, horizontal scaling, health/readiness probes
+- **Dual-Auth** — SuperAdmin authenticates via JSON file; regular users authenticate against PostgreSQL with RBAC
+
+## Local Development URLs
 
 > **Note**: All URLs and ports are centralized in `src/config/urls.json` and `api/src/config/urls.json`
 
-| Service | URL | Notes |
-|---------|-----|-------|
-| **Frontend (Vite Dev)** | `http://localhost:1001` | React SPA — auto-reloads on save |
-| **Backend API** | `http://localhost:4001/api` | Express REST API |
-| **Swagger UI** | `http://localhost:4001/swagger-ui` | Interactive API documentation |
-| **Health Check** | `http://localhost:4001/api/health` | Liveness probe |
-| **Readiness Check** | `http://localhost:4001/api/health/readiness` | K8s readiness probe |
-| **PgAdmin** | `http://localhost:5050` | PostgreSQL admin UI (if running via Docker) |
+| Service | URL |
+|---------|-----|
+| **Frontend** | http://localhost:1001 |
+| **API** | http://localhost:4001 |
+| **Swagger** | http://localhost:4001/api-docs |
 
-### Default Credentials
+## Authentication
 
-| Service | Username / Email | Password | Notes |
-|---------|-----------------|----------|-------|
-| **PulseOps Login** | `admin@test.com` | `Infosys@123` | Default admin (JSON file auth) |
-| **PostgreSQL** | `postgres` | `Infosys@123` | Local dev database |
-| **PgAdmin** | `admin@pulseops.com` | `admin` | Docker PgAdmin (if configured) |
+### SuperAdmin Login
+- **URL**: `http://localhost:1001/login/super-admin`
+- **Username**: `SuperAdmin` (prefilled, read-only)
+- **Default Password**: See `api/src/config/DefaultSuperAdmin.json`
+- Authenticates against JSON file — works without a database
 
-### Database Configuration (Development)
+### Regular Users
+- **URL**: `http://localhost:1001` (standard login page)
+- **Default Dev Credentials**: `admin@test.com` / `Infosys@123`
+- Authenticates against PostgreSQL `system_users` table
+- Requires database to be initialized first (via Settings → Database Setup)
 
-| Parameter | Value |
-|-----------|-------|
-| **Host** | `localhost` |
-| **Port** | `5432` |
-| **Database** | `pulseops_v2` |
-| **Schema** | `pulseops` |
-| **User** | `postgres` |
-| **SSL** | `false` |
-| **Pool Size** | `10` |
+### RBAC Roles
+`super_admin` → `admin` → `operator` → `user` → `viewer`
 
----
-
-## API Endpoint Reference
-
-### Health & Status
-
-| Method | Endpoint | Auth | Description |
-|--------|----------|------|-------------|
-| GET | `/api/health` | No | Liveness check |
-| GET | `/api/health/readiness` | No | K8s readiness probe |
-
-### Authentication
-
-| Method | Endpoint | Auth | Description |
-|--------|----------|------|-------------|
-| POST | `/api/auth/login` | No | Login — returns HttpOnly cookie |
-| POST | `/api/auth/logout` | Cookie | Logout — clears cookie |
-| POST | `/api/auth/refresh` | Cookie | Refresh access token |
-| GET | `/api/auth/me` | Cookie | Get current user |
-| POST | `/api/auth/config` | Cookie | Switch auth provider |
-
-### Database Management
-
-| Method | Endpoint | Auth | Description |
-|--------|----------|------|-------------|
-| POST | `/api/database/test-connection` | Cookie | Test PostgreSQL connection |
-| POST | `/api/database/save-config` | Cookie | Save database config |
-| GET | `/api/database/config` | Cookie | Get current database config |
-| GET | `/api/database/schema-status` | Cookie | Check schema/data status |
-| POST | `/api/database/create-database` | Cookie | Create database |
-| DELETE | `/api/database/delete-database` | Cookie | Delete database |
-| POST | `/api/database/create-schema` | Cookie | Initialize schema + tables |
-| POST | `/api/database/load-default-data` | Cookie | Seed default admin + config |
-| DELETE | `/api/database/load-default-data` | Cookie | Clean default data |
-| POST | `/api/database/wipe` | Cookie | Drop all tables |
-| GET | `/api/database/stats` | Cookie | Database statistics |
-
-### Modules
-
-| Method | Endpoint | Auth | Description |
-|--------|----------|------|-------------|
-| GET | `/api/modules` | Cookie | List enabled modules |
-| GET | `/api/modules/available` | Cookie | List all available modules |
-| GET | `/api/modules/bundle/:id/manifest.js` | No | Hot-drop module bundle |
-
-### Configuration
-
-| Method | Endpoint | Auth | Description |
-|--------|----------|------|-------------|
-| GET | `/api/config` | Cookie | List system config |
-| POST | `/api/config` | Cookie | Save system config |
-| GET | `/api/config/:key` | Cookie | Get config by key |
-
-### Logs
-
-| Method | Endpoint | Auth | Description |
-|--------|----------|------|-------------|
-| GET | `/api/logs/config` | No | Get current logging configuration |
-| POST | `/api/logs/config` | No | Update logging config (storage mode: file/database) |
-| GET | `/api/logs/config/status` | No | Check log storage status and DB availability |
-| POST | `/api/logs/config/tables` | No | Create log tables in database |
-| GET | `/api/logs/stats` | No | Get stats for both UI and API logs |
-| GET | `/api/logs/ui` | No | Get UI logs (query: `level`, `search`, `limit`, `offset`) |
-| GET | `/api/logs/api` | No | Get API logs (query: `level`, `search`, `limit`, `offset`) |
-| POST | `/api/logs/ui` | No | Push UI log entries (body: `{ entries: [...] }`) |
-| POST | `/api/logs/api` | No | Push API log entries (body: `{ entries: [...] }`) |
-| DELETE | `/api/logs/ui` | No | Delete all UI logs |
-| DELETE | `/api/logs/api` | No | Delete all API logs |
-| GET | `/api/logs/ui/stats` | No | Get stats for UI logs only |
-| GET | `/api/logs/api/stats` | No | Get stats for API logs only |
-
----
-
-## Running Locally
+## Quick Start
 
 ```bash
-# Terminal 1 — Backend API
-cd api
+# Install frontend dependencies
 npm install
-npm run dev          # Starts on port 4001
 
-# Terminal 2 — Frontend
-npm install
-npm run dev          # Starts on port 1001 (Vite)
+# Install API dependencies
+cd api && npm install && cd ..
+
+# Start both (frontend + API)
+npm run dev
+
+# Or start separately
+npm run dev:ui    # Frontend on :1001
+npm run dev:api   # API on :4001
 ```
 
-## Production Build
+## First-Time Setup
 
-```bash
-# Frontend
-npm run build        # Output: dist/
+1. Navigate to `http://localhost:1001/login/super-admin`
+2. Log in with SuperAdmin credentials
+3. Go to **Settings → Database Connection** to verify DB connectivity
+4. Go to **Settings → Database Configuration** to configure PostgreSQL
+5. Go to **Settings → Database Setup** to create schema and seed default data
+6. Go to **Settings → Authentication** to switch to database auth provider
 
-# Backend
-cd api
-npm start            # NODE_ENV=production
+## Project Structure
+
+```
+pulseops_v2/
+├── api/                    # Backend (Node.js + Express)
+│   └── src/
+│       ├── config/         # Backend config (JSON files, Swagger)
+│       ├── core/           # Middleware, routes, database, services
+│       └── shared/         # Logger (Winston), utilities
+├── src/                    # Frontend (React + Vite + Tailwind)
+│   ├── config/             # Global frontend config (urls, text, app)
+│   ├── core/               # App bootstrap, platform dashboard, core views
+│   ├── layouts/            # App shell, navigation components
+│   ├── modules/            # Pluggable add-on modules
+│   └── shared/             # Design system, services, contexts, hooks
+├── dist-modules/           # Compiled hot-drop module bundles
+├── docs/                   # Architecture docs + development memory
+└── scripts/                # Build scripts
 ```
 
-## Docker (Optional)
+## Settings Tabs
 
-```bash
-# PostgreSQL + PgAdmin
-docker-compose up -d db pgadmin
+| Tab | Description |
+|-----|-------------|
+| **Database Connection** | Auto-checks DB connectivity on open |
+| **Database Configuration** | Configure PostgreSQL host/port/credentials |
+| **Log Configuration** | Enable/disable DB logging, log level, capture options |
+| **Authentication** | Switch auth provider (database / social) |
+| **SuperAdmin Auth** | Change SuperAdmin password |
+| **Database Setup** | Create schema, seed RBAC data, manage objects |
+| **General Settings** | Timezone and display preferences |
 
-# Full stack
-docker-compose up -d
-```
+## Tech Stack
 
----
-
-## Architecture Summary
-
-| Layer | Technology | Port |
-|-------|-----------|------|
-| **Frontend** | React 19 + Vite 7 + TailwindCSS 4 | 1001 |
-| **Backend** | Node.js + Express | 4001 |
-| **Database** | PostgreSQL 16 | 5432 |
-| **Auth** | JWT via HttpOnly cookies | — |
-| **Module System** | ES Module hot-drop (zero-downtime) | — |
-| **API Docs** | Swagger / OpenAPI 3.0 | 4001 |
-
-### Key Architecture Decisions
-
-- **HttpOnly Cookie Auth** — JWT is never exposed to JavaScript. Browser sends cookies automatically via `credentials: 'include'`.
-- **Zero-Downtime Modules** — Add-on modules are loaded via dynamic `import()` with cache-busting URLs. No rebuild needed.
-- **Zero Hardcoded Text** — All UI labels, messages, and errors are externalized to JSON config files (`uiElementsText.json`, `UIMessages.json`, `UIErrors.json`).
-- **Core vs Modules** — Admin, Auth, Logs, and Database are core platform features (not modules). Only business modules use the hot-drop system.
+| Layer | Technology |
+|-------|-----------|
+| **Frontend** | React 19, Vite 7, TailwindCSS 3, Lucide Icons, react-router-dom 7 |
+| **Backend** | Node.js, Express 4, PostgreSQL (pg), Winston |
+| **Security** | Helmet.js, JWT (HttpOnly cookies + Bearer), bcrypt, rate limiting |
+| **Deployment** | Docker, Kubernetes |

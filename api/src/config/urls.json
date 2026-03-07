@@ -30,6 +30,12 @@
     "me": "/auth/me",
     "provider": "/auth/provider"
   },
+  "superAdmin": {
+    "base": "/auth/superadmin",
+    "login": "/auth/superadmin/login",
+    "profile": "/auth/superadmin/profile",
+    "password": "/auth/superadmin/password"
+  },
   "database": {
     "base": "/database",
     "config": "/database/config",
@@ -49,9 +55,8 @@
   "logs": {
     "base": "/logs",
     "stats": "/logs/stats",
-    "settings": "/logs/settings",
-    "settingsStatus": "/logs/settings/status",
-    "settingsTables": "/logs/settings/tables",
+    "config": "/logs/config",
+    "configStatus": "/logs/config/status",
     "ui": "/logs/ui",
     "api": "/logs/api",
     "uiStats": "/logs/ui/stats",

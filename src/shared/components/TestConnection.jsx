@@ -45,13 +45,13 @@ import { Database, RefreshCw, Save, Eye, EyeOff, CheckCircle2, AlertTriangle } f
 import { Button, ConfirmationModal } from '@shared';
 import ConnectionStatus from '@shared/components/ConnectionStatus';
 import TimezoneService from '@shared/services/timezoneService';
+import { createLogger } from '@shared/services/consoleLogger';
 import uiText from '@config/uiElementsText.json';
 import messages from '@config/UIMessages.json';
 
+const log = createLogger('TestConnection.jsx');
 const connMessages = messages.connection;
 const connText = uiText.shared?.testConnection || {};
-
-const LOG_SRC = '[TestConnection]';
 
 export default function TestConnection({
   title = connText.defaultTitle || 'Connection Test',
@@ -108,7 +108,7 @@ export default function TestConnection({
 
   const handleTest = async () => {
     if (!onTest) return;
-    console.log(`🔌 ${LOG_SRC} Testing connection for: ${title}`, config);
+    log.info('handleTest', `Testing connection for: ${title}`, { config });
 
     setIsTesting(true);
     setConnectionStatus({
@@ -125,7 +125,7 @@ export default function TestConnection({
       setLastTestedTime(timeString);
       
       if (result.success) {
-        console.log(`✅ ${LOG_SRC} Connection test successful for: ${title}`, { message: result.message, meta: result.meta });
+        log.info('handleTest', `Connection test successful — ${title}`, { message: result.message, meta: result.meta });
         setConnectionStatus({
           type: title,
           status: 'success',
@@ -134,7 +134,7 @@ export default function TestConnection({
           lastTested: timeString,
         });
       } else {
-        console.warn(`⚠️ ${LOG_SRC} Connection test failed for: ${title}`, { message: result.message });
+        log.warn('handleTest', `Connection test failed — ${title}`, { message: result.message });
         setConnectionStatus({
           type: title,
           status: 'error',
@@ -146,7 +146,7 @@ export default function TestConnection({
     } catch (error) {
       const timeString = TimezoneService.formatCurrentTime();
       setLastTestedTime(timeString);
-      console.error(`❌ ${LOG_SRC} Connection test error for: ${title}`, error.message);
+      log.error('handleTest', `Connection test error — ${title}`, { message: error.message });
       
       setConnectionStatus({
         type: title,
@@ -162,7 +162,7 @@ export default function TestConnection({
 
   const handleSaveAction = async () => {
     if (!onSave) return;
-    console.log(`💾 ${LOG_SRC} Saving configuration for: ${title}`, config);
+    log.info('handleSaveAction', `Saving configuration for: ${title}`, { config });
     await onSave(config);
     return {
       host: config.host || '',
@@ -172,7 +172,7 @@ export default function TestConnection({
   };
 
   const handleSaveSuccess = () => {
-    console.log(`✅ ${LOG_SRC} Configuration saved successfully for: ${title}`);
+    log.info('handleSaveSuccess', `Configuration saved — ${title}`);
     setSaveMessage({ type: 'success', text: connMessages.configSaved });
     setTimeout(() => setSaveMessage(null), 5000);
   };
@@ -182,7 +182,7 @@ export default function TestConnection({
   useEffect(() => {
     if (autoTest && onTest && !autoTestRan.current) {
       autoTestRan.current = true;
-      console.log(`🔄 ${LOG_SRC} Auto-test triggered on mount for: ${title}`);
+      log.debug('autoTest', `Auto-test triggered on mount — ${title}`);
       const runAutoTest = async () => {
         setIsTesting(true);
         setConnectionStatus({
@@ -305,7 +305,7 @@ export default function TestConnection({
               if (emptyFields.length > 0) {
                 const names = emptyFields.map(f => f.label).join(', ');
                 setValidationError(`${connMessages.validationEmpty || 'Required fields cannot be empty'}: ${names}`);
-                console.warn(`⚠️ ${LOG_SRC} Save blocked — empty fields: ${names}`);
+                log.warn('saveValidation', `Save blocked — empty required fields: ${names}`);
                 setTimeout(() => setValidationError(null), 5000);
                 return;
               }

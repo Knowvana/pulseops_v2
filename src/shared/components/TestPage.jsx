@@ -8,6 +8,7 @@
 // ============================================================================
 import React, { useState } from 'react';
 import { LogIn, Database, Settings, Shield, Key, Sliders, AlertCircle, Clock, CheckCircle2, Ticket } from 'lucide-react';
+import { createLogger } from '@shared/services/consoleLogger';
 import Button from '@shared/components/Button';
 import LoginForm from '@shared/components/LoginForm';
 import ConfigLayout from '@shared/components/ConfigLayout';
@@ -17,6 +18,8 @@ import StatsCount from '@shared/components/StatsCount';
 import DatabaseManager from '@shared/components/DatabaseManager';
 import LoggingConfig from '@shared/components/LoggingConfig';
 import PageLoader from '@shared/components/PageLoader';
+
+const log = createLogger('TestPage.jsx');
 
 export default function TestPage() {
   // State for managing various component demos
@@ -48,7 +51,7 @@ export default function TestPage() {
 
   // Handler for LoginForm component demo
   const handleLogin = async (email, password) => {
-    console.log('Login attempt:', { email, password });
+    log.info('handleLogin', 'Login attempt', { email });
     await new Promise(resolve => setTimeout(resolve, 1500));
   };
 
@@ -74,7 +77,7 @@ export default function TestPage() {
   // Handler for saving configuration in TestConnection component
   const handleSaveConfig = async (config) => {
     await new Promise(resolve => setTimeout(resolve, 1000));
-    console.log('Configuration saved:', config);
+    log.info('handleSaveConfig', 'Configuration saved', { config });
   };
 
   // Handler for StatsCount component - simulates syncing ticket data from ServiceNow
@@ -93,12 +96,12 @@ export default function TestPage() {
     ]);
     
     setIsSyncing(false);
-    console.log('Tickets synced successfully');
+    log.info('handleSync', 'Tickets synced successfully');
   };
 
   const handleLoginServiceNow = () => {
     setIsLoggedIn(true);
-    console.log('ServiceNow login opened');
+    log.info('handleLoginServiceNow', 'ServiceNow login opened');
   };
 
   // Database Manager state and handlers for DatabaseManager component demo
@@ -173,7 +176,7 @@ export default function TestPage() {
     await new Promise(resolve => setTimeout(resolve, 2000));
     setLoggingConfig(newConfig);
     setIsSavingLogging(false);
-    console.log('Logging config saved:', newConfig);
+    log.info('handleSaveLogging', 'Logging config saved', { config: newConfig });
   };
 
   // Sample tabs for ConfigLayout component demo

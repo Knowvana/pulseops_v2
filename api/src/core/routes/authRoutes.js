@@ -1,10 +1,10 @@
 // ============================================================================
 // Auth Routes — PulseOps V2 API
 //
-// PURPOSE: Authentication endpoints with multi-provider support.
-// The active provider (json_file | database | social) determines how login
-// is validated. Provider config is stored in auth-provider.json and mirrored
-// to system_config table when DB is available.
+// PURPOSE: Authentication endpoints for regular platform users.
+// All regular users authenticate against PostgreSQL (system_users table).
+// SuperAdmin has a separate route: /auth/superadmin/*
+// Social/OAuth/SAML will be supported in a future release.
 //
 // ENDPOINTS (Public):
 //   POST /auth/login      — Authenticate with email/password → JWT tokens
@@ -14,18 +14,18 @@
 //   POST /auth/refresh    — Refresh an expired access token
 //   POST /auth/logout     — Logout (clear cookies + client discards token)
 //   GET  /auth/me         — Get current authenticated user profile
-//   PUT  /auth/provider   — Save auth provider (super_admin only)
+//   PUT  /auth/provider   — Update auth provider (super_admin only)
 //
 // PROVIDER ROUTING:
-//   json_file  → validates against api/src/config/DefaultAdminUser.json
-//   database   → validates against pulseops.system_users in PostgreSQL
+//   database → validates against pulseops.system_users in PostgreSQL (default)
+//   social   → OAuth/SAML (coming soon)
 //
 // SECURITY:
-//   - Passwords compared with bcrypt (database provider)
-//   - Plaintext match (json_file provider — dev/bootstrap only)
+//   - Passwords hashed/compared with bcrypt (BCRYPT_ROUNDS from config)
 //   - HttpOnly cookies set on login for frontend security
 //   - Bearer tokens also returned for Swagger/API tool usage
 //   - Auth rate limiter applied at mount point in app.js
+//   - json_file provider is REMOVED — only SuperAdmin uses JSON file auth
 //
 // DEPENDENCIES:
 //   - ../middleware/auth.js → JWT, bcrypt, authenticate, requireRole
@@ -34,9 +34,6 @@
 //   - ../../shared/loadJson.js → messages, errors, loadJson, saveJson
 //   - ../../shared/logger.js → structured logging
 // ============================================================================
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
 import { Router } from 'express';
 import {
   generateAccessToken,
@@ -54,38 +51,37 @@ import { logger } from '#shared/logger.js';
 
 const router = Router();
 const schema = config.db.schema || 'pulseops';
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const AUTH_PROVIDER_FILE = 'auth-provider.json';
-const USERS_FILE = 'DefaultAdminUser.json';
 
 // ── Auth Provider Helpers ────────────────────────────────────────────────────
 
 /**
- * Read auth provider from DB first, fall back to auth-provider.json.
- * @returns {Promise<string>} 'json_file' | 'database' | 'social'
+ * Read active auth provider from DB first, fall back to auth-provider.json.
+ * Supported: 'database' | 'social'  (json_file is REMOVED)
+ * @returns {Promise<string>}
  */
 async function getAuthProvider() {
   try {
     const result = await DatabaseService.query(
       `SELECT value FROM ${schema}.system_config WHERE key = 'auth_provider' LIMIT 1`
     );
-    if (result.rows[0]?.value?.provider) {
-      return result.rows[0].value.provider;
-    }
+    const p = result.rows[0]?.value?.provider;
+    if (p && p !== 'json_file') return p;
   } catch {
     // DB not available — fall back to file
   }
   try {
     const fileConfig = loadJson(AUTH_PROVIDER_FILE);
-    return fileConfig.provider || 'json_file';
+    const p = fileConfig.provider;
+    return (p && p !== 'json_file') ? p : 'database';
   } catch {
-    return 'json_file';
+    return 'database';
   }
 }
 
 /**
  * Persist provider to auth-provider.json AND system_config table (if DB ready).
- * @param {string} provider
+ * @param {string} provider 'database' | 'social'
  */
 async function saveAuthProvider(provider) {
   const existing = loadJson(AUTH_PROVIDER_FILE);
@@ -105,29 +101,9 @@ async function saveAuthProvider(provider) {
 }
 
 /**
- * Authenticate against DefaultAdminUser.json (json_file provider).
- */
-function loginWithJsonFile(email, password) {
-  const { users } = loadJson(USERS_FILE);
-  const user = users.find(u => u.email.toLowerCase() === email.toLowerCase().trim());
-
-  if (!user) return { error: 'INVALID_CREDENTIALS' };
-  if (user.status !== 'active') return { error: 'ACCOUNT_INACTIVE' };
-  if (user.password !== password) return { error: 'INVALID_CREDENTIALS' };
-
-  return {
-    user: {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      role: user.role,
-      authMethod: 'json_file',
-    },
-  };
-}
-
-/**
- * Authenticate against PostgreSQL system_users (database provider).
+ * Authenticate regular user against PostgreSQL system_users.
+ * All users (admin, operator, user, viewer) use this path.
+ * SuperAdmin has a SEPARATE route at /auth/superadmin/login.
  */
 async function loginWithDatabase(email, password) {
   const result = await DatabaseService.query(
@@ -171,41 +147,44 @@ async function loginWithDatabase(email, password) {
 
 // ── GET /auth/provider (Public) ────────────────────────────────────────────
 router.get('/provider', async (req, res) => {
-  logger.info('API event: GET /auth/config');
+  const requestId = req.requestId;
+  logger.info(`[${requestId}] GET /auth/provider — loading auth provider config`);
   try {
     const fileConfig = loadJson(AUTH_PROVIDER_FILE);
     const activeProvider = await getAuthProvider();
 
-    logger.info(messages.success.authProviderLoaded, {
-      provider: activeProvider, requestId: req.requestId,
-    });
+    logger.info(messages.success.authProviderLoaded, { provider: activeProvider, requestId });
 
     res.json({
       success: true,
       data: {
         provider: activeProvider,
-        availableProviders: fileConfig.availableProviders || ['json_file', 'database', 'social'],
+        availableProviders: ['database', 'social'],
         social: fileConfig.social || { enabled: false },
       },
     });
   } catch (err) {
+    logger.error(`[${requestId}] Failed to load auth provider — ${err.message}`, { requestId });
     res.status(500).json({
       success: false,
-      error: { message: errors.errors.authProviderSaveFailed },
+      error: { message: errors.errors.authProviderSaveFailed, requestId },
     });
   }
 });
 
 // ── PUT /auth/provider (Protected — super_admin only) ──────────────────────
+// Supported providers: 'database' | 'social'  (json_file is prohibited)
 router.put('/provider', authenticate, requireRole('super_admin'), async (req, res) => {
-  logger.info('API event: POST /auth/config', { provider: req.body?.provider, user: req.user?.email });
+  const requestId = req.requestId;
   const { provider } = req.body;
-  const validProviders = ['json_file', 'database', 'social'];
+  logger.info(`[${requestId}] PUT /auth/provider — switch request`, { provider, user: req.user?.email });
 
+  const validProviders = ['database', 'social'];
   if (!provider || !validProviders.includes(provider)) {
+    logger.warn(`[${requestId}] Auth provider switch rejected — invalid provider: ${provider}`);
     return res.status(400).json({
       success: false,
-      error: { message: errors.errors.authProviderInvalid, code: 'INVALID_PROVIDER' },
+      error: { message: errors.errors.authProviderInvalid, code: 'INVALID_PROVIDER', requestId },
     });
   }
 
@@ -214,115 +193,87 @@ router.put('/provider', authenticate, requireRole('super_admin'), async (req, re
     try {
       const status = await DatabaseService.getSchemaStatus();
       if (!status.initialized || !status.hasDefaultData) {
+        logger.warn(`[${requestId}] Auth provider switch to database rejected — schema not ready`);
         return res.status(400).json({
           success: false,
-          error: { message: errors.errors.authProviderDbNotReady, code: 'DB_NOT_READY' },
+          error: { message: errors.errors.authProviderDbNotReady, code: 'DB_NOT_READY', requestId },
         });
       }
     } catch {
       return res.status(400).json({
         success: false,
-        error: { message: errors.errors.authProviderDbNotReady, code: 'DB_NOT_READY' },
+        error: { message: errors.errors.authProviderDbNotReady, code: 'DB_NOT_READY', requestId },
       });
     }
   }
 
   try {
     await saveAuthProvider(provider);
-    logger.info(messages.success.authProviderSaved, {
-      provider, userId: req.user.userId, requestId: req.requestId,
-    });
+    logger.info(messages.success.authProviderSaved, { provider, userId: req.user.userId, requestId });
     res.json({
       success: true,
       data: { provider, message: messages.success.authProviderSaved },
     });
   } catch (err) {
-    logger.error(errors.errors.authProviderSaveFailed, {
-      error: err.message, requestId: req.requestId,
-    });
+    logger.error(errors.errors.authProviderSaveFailed, { error: err.message, requestId });
     res.status(500).json({
       success: false,
-      error: { message: errors.errors.authProviderSaveFailed, code: 'SAVE_FAILED' },
+      error: { message: errors.errors.authProviderSaveFailed, code: 'SAVE_FAILED', requestId },
     });
   }
 });
 
-// ── POST /auth/login (Public) ───────────────────────────────────────────────
+// ── POST /auth/login (Public) — database users only ─────────────────────────
 router.post('/login', async (req, res) => {
   const { email, password } = req.body;
+  const requestId = req.requestId;
 
-  logger.info(`[${req.requestId}] 🔐 Login attempt`, { email, requestId: req.requestId });
+  logger.info(`[${requestId}] POST /auth/login — login attempt`, { email, requestId });
 
   if (!email || !password) {
-    logger.warn(`[${req.requestId}] ❌ Login failed - missing credentials`);
+    logger.warn(`[${requestId}] Login rejected — missing email or password`);
     return res.status(400).json({
       success: false,
-      error: { message: errors.errors.authCredentialsRequired, code: 'CREDENTIALS_REQUIRED' },
+      error: { message: errors.errors.authCredentialsRequired, code: 'CREDENTIALS_REQUIRED', requestId },
     });
   }
 
   try {
-    const provider = await getAuthProvider();
-    logger.info(`[${req.requestId}] 🔑 Auth provider: ${provider}`);
-    let result;
-
-    if (provider === 'json_file') {
-      logger.info(`[${req.requestId}] 📄 Authenticating with JSON file`);
-      result = loginWithJsonFile(email, password);
-    } else if (provider === 'database') {
-      logger.info(`[${req.requestId}] 🗄️  Authenticating with database`);
-      result = await loginWithDatabase(email, password);
-    } else {
-      logger.error(`[${req.requestId}] ❌ Unsupported auth provider: ${provider}`);
-      return res.status(400).json({
-        success: false,
-        error: { message: errors.errors.authProviderInvalid, code: 'UNSUPPORTED_PROVIDER' },
-      });
-    }
+    // All regular users authenticate against the database
+    logger.info(`[${requestId}] Authenticating user against database`, { email });
+    const result = await loginWithDatabase(email, password);
 
     if (result.error === 'INVALID_CREDENTIALS') {
-      logger.warn(`[${req.requestId}] ❌ Login failed - invalid credentials for ${email}`);
+      logger.warn(`[${requestId}] Login failed — invalid credentials`, { email, requestId });
       return res.status(401).json({
         success: false,
-        error: { message: errors.errors.authInvalidCredentials, code: 'INVALID_CREDENTIALS' },
+        error: { message: errors.errors.authInvalidCredentials, code: 'INVALID_CREDENTIALS', requestId },
       });
     }
 
     if (result.error === 'ACCOUNT_INACTIVE') {
-      logger.warn(`[${req.requestId}] ❌ Login failed - account inactive for ${email}`);
+      logger.warn(`[${requestId}] Login failed — account inactive`, { email, requestId });
       return res.status(403).json({
         success: false,
-        error: { message: errors.errors.authAccountInactive, code: 'ACCOUNT_INACTIVE' },
+        error: { message: errors.errors.authAccountInactive, code: 'ACCOUNT_INACTIVE', requestId },
       });
     }
 
-    logger.info(`[${req.requestId}] ✅ Authentication successful for ${email}`);
-    
-    const accessToken = generateAccessToken(result.user);
+    logger.info(`[${requestId}] Authentication successful`, { email, userId: result.user.id, role: result.user.role });
+
+    const accessToken  = generateAccessToken(result.user);
     const refreshToken = generateRefreshToken(result.user);
 
-    logger.info(`[${req.requestId}] 🎫 Generated JWT tokens (access + refresh)`);
-
-    // Set HttpOnly cookies for frontend security
     const cookieOptions = {
       httpOnly: true,
       secure: config.nodeEnv === 'production',
       sameSite: 'lax',
       maxAge: config.auth.jwtExpiresInSeconds * 1000,
     };
-
     res.cookie('accessToken', accessToken, cookieOptions);
-    res.cookie('refreshToken', refreshToken, {
-      ...cookieOptions,
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-    });
+    res.cookie('refreshToken', refreshToken, { ...cookieOptions, maxAge: 7 * 24 * 60 * 60 * 1000 });
 
-    logger.info(`[${req.requestId}] 🍪 Set HttpOnly cookies (accessToken + refreshToken)`);
-
-    logger.info(messages.success.authLoginSuccess, {
-      userId: result.user.id, email: result.user.email,
-      provider, requestId: req.requestId,
-    });
+    logger.info(messages.success.authLoginSuccess, { userId: result.user.id, email, requestId });
 
     res.json({
       success: true,
@@ -334,40 +285,51 @@ router.post('/login', async (req, res) => {
       },
     });
   } catch (err) {
-    logger.error(`[${req.requestId}] ❌ Login error: ${err.message}`, {
-      error: err.message, 
-      stack: err.stack,
-      requestId: req.requestId,
-    });
+    logger.error(`[${requestId}] Login error — ${err.message}`, { error: err.message, requestId });
+    // Detect pg/network DB unavailability and return 503
+    const isDbDown = err.code === 'ECONNREFUSED' || err.code === 'ENOTFOUND'
+      || err.code === '3D000' || err.code === '28P01'
+      || /connect|ECONNREFUSED|database|relation.*does not exist/i.test(err.message || '');
+    if (isDbDown) {
+      return res.status(503).json({
+        success: false,
+        error: { message: errors.errors.authDbUnavailable, code: 'DB_UNAVAILABLE', requestId },
+      });
+    }
     res.status(500).json({
       success: false,
-      error: { message: errors.errors.authLoginFailed, code: 'SERVER_ERROR' },
+      error: { message: errors.errors.authLoginFailed, code: 'SERVER_ERROR', requestId },
     });
   }
 });
 
 // ── POST /auth/refresh ──────────────────────────────────────────────────────
 router.post('/refresh', async (req, res) => {
-  logger.info('API event: POST /auth/refresh');
-  const { refreshToken } = req.body;
+  const requestId = req.requestId;
+  // Accept token from body or cookie
+  const refreshToken = req.body?.refreshToken || req.cookies?.refreshToken;
+  logger.info(`[${requestId}] POST /auth/refresh — token refresh request`);
 
   if (!refreshToken) {
     return res.status(400).json({
       success: false,
-      error: { message: errors.errors.authRefreshTokenRequired },
+      error: { message: errors.errors.authRefreshTokenRequired, requestId },
     });
   }
 
   try {
     const decoded = verifyRefreshToken(refreshToken);
-    const provider = await getAuthProvider();
     let user;
 
-    if (provider === 'json_file') {
-      const { users } = loadJson(USERS_FILE);
-      user = users.find(u => u.id === decoded.userId && u.status === 'active');
-      if (user) user = { id: user.id, email: user.email, name: user.name, role: user.role };
+    // SuperAdmin tokens (authMethod=json_file) — validate against JSON config
+    if (decoded.authMethod === 'json_file') {
+      const { loadJson: lj } = await import('#shared/loadJson.js');
+      const sa = lj('DefaultSuperAdmin.json')?.superAdmin;
+      if (sa?.id === decoded.userId && sa?.status === 'active') {
+        user = { id: sa.id, email: sa.email, name: sa.name, role: sa.role };
+      }
     } else {
+      // Regular users — validate against database
       const result = await DatabaseService.query(
         `SELECT id, email, name, role, status FROM ${schema}.system_users WHERE id = $1`,
         [decoded.userId]
@@ -377,9 +339,10 @@ router.post('/refresh', async (req, res) => {
     }
 
     if (!user) {
+      logger.warn(`[${requestId}] Token refresh failed — user not found or inactive`);
       return res.status(401).json({
         success: false,
-        error: { message: errors.errors.authRefreshInvalid },
+        error: { message: errors.errors.authRefreshInvalid, requestId },
       });
     }
 
@@ -391,31 +354,27 @@ router.post('/refresh', async (req, res) => {
       maxAge: config.auth.jwtExpiresInSeconds * 1000,
     });
 
+    logger.info(messages.success.authTokenRefreshed, { userId: user.id, requestId });
     res.json({
       success: true,
-      data: {
-        accessToken: newAccessToken,
-        expiresIn: config.auth.jwtExpiresInSeconds,
-      },
+      data: { accessToken: newAccessToken, expiresIn: config.auth.jwtExpiresInSeconds },
     });
   } catch (err) {
-    logger.warn(errors.errors.authRefreshInvalid, {
-      error: err.message, requestId: req.requestId,
-    });
+    logger.warn(`[${requestId}] Token refresh failed — ${err.message}`, { error: err.message, requestId });
     res.status(401).json({
       success: false,
-      error: { message: errors.errors.authRefreshInvalid },
+      error: { message: errors.errors.authRefreshInvalid, requestId },
     });
   }
 });
 
 // ── POST /auth/logout (Protected) ──────────────────────────────────────────
 router.post('/logout', authenticate, (req, res) => {
+  const requestId = req.requestId;
+  logger.info(`[${requestId}] POST /auth/logout — user logout`, { userId: req.user?.userId, email: req.user?.email });
   res.clearCookie('accessToken');
   res.clearCookie('refreshToken');
-  logger.info(messages.success.authLogoutSuccess, {
-    userId: req.user.userId, requestId: req.requestId,
-  });
+  logger.info(messages.success.authLogoutSuccess, { userId: req.user.userId, requestId });
   res.json({
     success: true,
     data: { message: messages.success.authLogoutSuccess },
@@ -424,39 +383,48 @@ router.post('/logout', authenticate, (req, res) => {
 
 // ── GET /auth/me (Protected) ───────────────────────────────────────────────
 router.get('/me', authenticate, async (req, res) => {
-  logger.info('API event: GET /auth/me', { userId: req.user?.userId });
-  try {
-    const provider = await getAuthProvider();
+  const requestId = req.requestId;
+  logger.info(`[${requestId}] GET /auth/me — profile request`, { userId: req.user?.userId });
 
-    if (provider === 'json_file') {
-      const { users } = loadJson(USERS_FILE);
-      const user = users.find(u => u.id === req.user.userId);
-      if (!user) {
-        return res.status(404).json({
-          success: false,
-          error: { message: errors.errors.authUserNotFound },
-        });
+  try {
+    // SuperAdmin is identified by authMethod in token (new JWTs) or by role (stale JWTs pre-fix)
+    if (req.user?.authMethod === 'json_file' || req.user?.role === 'super_admin') {
+      const sa = loadJson('DefaultSuperAdmin.json')?.superAdmin;
+      if (!sa) {
+        return res.status(404).json({ success: false, error: { message: errors.errors.authUserNotFound } });
       }
       return res.json({
         success: true,
-        data: { id: user.id, email: user.email, name: user.name, role: user.role, authMethod: 'json_file' },
+        data: {
+          id: sa.id, email: sa.email, name: sa.name, role: sa.role,
+          authMethod: 'json_file', status: sa.status,
+          lastLoginAt: sa.lastLoginAt,
+        },
       });
     }
 
+    // Regular database users
     const result = await DatabaseService.query(
       `SELECT id, email, name, role, status, last_login, created_at FROM ${schema}.system_users WHERE id = $1`,
       [req.user.userId]
     );
     const user = result.rows[0];
     if (!user) {
+      logger.warn(`[${requestId}] /auth/me — user not found`, { userId: req.user.userId });
       return res.status(404).json({
         success: false,
-        error: { message: errors.errors.authUserNotFound },
+        error: { message: errors.errors.authUserNotFound, requestId },
       });
     }
     res.json({ success: true, data: { ...user, authMethod: 'database' } });
   } catch (err) {
-    res.status(500).json({ success: false, error: { message: err.message } });
+    const msg = err.message || 'Failed to load user profile';
+    logger.error(`[${requestId}] /auth/me failed — ${msg}`, { error: msg, requestId });
+    const isDbDown = err.code === 'ECONNREFUSED' || /connect|ECONNREFUSED/i.test(msg);
+    res.status(isDbDown ? 503 : 500).json({
+      success: false,
+      error: { message: isDbDown ? errors.errors.authDbUnavailable : msg, requestId },
+    });
   }
 });
 

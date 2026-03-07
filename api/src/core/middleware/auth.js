@@ -43,12 +43,12 @@ const BCRYPT_ROUNDS = config.auth.bcryptRounds;
 
 /**
  * Generate an access token for a user.
- * @param {Object} user - { id, email, name, role }
+ * @param {Object} user - { id, email, name, role, authMethod? }
  * @returns {string} JWT access token
  */
 export function generateAccessToken(user) {
   return jwt.sign(
-    { userId: user.id, email: user.email, name: user.name, role: user.role },
+    { userId: user.id, email: user.email, name: user.name, role: user.role, authMethod: user.authMethod || 'database' },
     JWT_SECRET,
     { expiresIn: ACCESS_EXPIRY }
   );
@@ -56,12 +56,12 @@ export function generateAccessToken(user) {
 
 /**
  * Generate a refresh token for a user.
- * @param {Object} user - { id, email }
+ * @param {Object} user - { id, email, authMethod? }
  * @returns {string} JWT refresh token
  */
 export function generateRefreshToken(user) {
   return jwt.sign(
-    { userId: user.id, email: user.email, type: 'refresh' },
+    { userId: user.id, email: user.email, type: 'refresh', authMethod: user.authMethod || 'database' },
     REFRESH_SECRET,
     { expiresIn: REFRESH_EXPIRY }
   );

@@ -11,17 +11,19 @@
 import React, { useState } from 'react';
 import { Mail, Lock, Eye, EyeOff, LogIn, Loader, AlertCircle } from 'lucide-react';
 import Button from '@shared/components/Button';
+import { createLogger } from '@shared/services/consoleLogger';
 import uiText from '@config/uiElementsText.json';
 import messages from '@config/UIMessages.json';
 
+const log = createLogger('LoginForm.jsx');
 const loginText = uiText.login;
 const authMessages = messages.auth;
 
-export default function LoginForm({ onLogin, isLoading = false }) {
-  console.log('📋 [LoginForm] Login page accessed');
+export default function LoginForm({ onLogin, isLoading = false, defaultUsername }) {
+  log.debug('mount', 'Login page accessed');
   // TODO: Remove default credentials before production deployment
-  const [email, setEmail] = useState('admin@test.com');
-  const [password, setPassword] = useState('Infosys@123');
+  const [email, setEmail] = useState(defaultUsername || 'admin@test.com');
+  const [password, setPassword] = useState(defaultUsername ? '' : 'Infosys@123');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -31,18 +33,18 @@ export default function LoginForm({ onLogin, isLoading = false }) {
     setError(null);
 
     if (!email.trim() || !password.trim()) {
-      console.warn('⚠️ [LoginForm] Validation failed — email or password empty');
+      log.warn('handleSubmit', 'Validation failed — email or password empty');
       setError(loginText.validationError);
       return;
     }
 
     try {
-      console.log('🔐 [LoginForm] Login form submitted', { email });
+      log.info('handleSubmit', 'Login form submitted', { email });
       setLoading(true);
       await onLogin(email, password);
-      console.log('✅ [LoginForm] Login successful — redirecting');
+      log.info('handleSubmit', 'Login successful — redirecting');
     } catch (err) {
-      console.error('❌ [LoginForm] Login failed:', err.message);
+      log.error('handleSubmit', 'Login failed', { message: err.message });
       setError(err.message || authMessages.loginFailed);
     } finally {
       setLoading(false);
@@ -50,7 +52,7 @@ export default function LoginForm({ onLogin, isLoading = false }) {
   };
 
   const handleSocialLogin = (provider) => {
-    console.log(`ℹ️ [LoginForm] Social login attempted — provider: ${provider} (not available)`);
+    log.info('handleSocialLogin', `Social login attempted — provider: ${provider} (not available)`);
     setError(`${provider}${loginText.socialComingSoon}`);
   };
 
@@ -92,13 +94,13 @@ export default function LoginForm({ onLogin, isLoading = false }) {
               <div className="relative">
                 <Mail size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-surface-400" />
                 <input
-                  type="email"
+                  type="text"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder={loginText.emailPlaceholder}
                   className="w-full pl-11 pr-4 py-3 rounded-xl border-2 border-surface-200 bg-white focus:border-brand-500 focus:ring-2 focus:ring-brand-200 outline-none transition-all text-surface-800 font-medium placeholder:text-surface-400"
                   disabled={isProcessing}
-                  autoComplete="email"
+                  autoComplete="username"
                 />
               </div>
             </div>
@@ -176,7 +178,8 @@ export default function LoginForm({ onLogin, isLoading = false }) {
         </div>
 
         {/* Footer */}
-        <p className="text-center text-sm text-surface-400 mt-6">{loginText.poweredBy}</p>
+        <p className="text-center text-xs text-surface-300 mt-4">{loginText.superAdminHint}</p>
+        <p className="text-center text-sm text-surface-400 mt-2">{loginText.poweredBy}</p>
       </div>
     </div>
   );

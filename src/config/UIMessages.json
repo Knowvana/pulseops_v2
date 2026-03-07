@@ -5,6 +5,7 @@
     "logoutSuccess": "You have been logged out successfully.",
     "providerSwitched": "Authentication provider has been updated successfully.",
     "serverUnavailable": "Unable to connect to the server. Please ensure the API server is running and try again.",
+    "dbUnavailable": "Database is not available. Set up the database first in Settings → Database Setup.",
     "networkError": "Network error occurred. Please check your connection and try again."
   },
   "database": {
