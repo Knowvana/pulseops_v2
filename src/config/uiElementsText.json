@@ -274,6 +274,17 @@
     "apiCalls": {
       "emptyMessage": "No API calls recorded.",
       "emptyHint": "API requests and responses will appear here."
+    },
+    "deleteConfirm": {
+      "title": "Delete All Logs",
+      "actionDescription": "permanently delete all captured logs and API call records",
+      "actionTarget": "Platform Log Storage",
+      "detailUiLogs": "UI Logs (in session)",
+      "detailApiCalls": "API Calls (in session)",
+      "detailStored": "Total Stored",
+      "confirmLabel": "Delete All",
+      "summaryDeleted": "Entries Cleared",
+      "summaryStatus": "All logs cleared successfully"
     }
   },
   "errors": {

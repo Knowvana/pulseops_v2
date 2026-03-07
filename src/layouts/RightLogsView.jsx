@@ -20,11 +20,13 @@ import {
   X, ScrollText, Globe, Trash2, ChevronDown, ChevronRight, Copy, Check,
   Bug, Info, AlertTriangle, AlertCircle, Navigation, MousePointer
 } from 'lucide-react';
+import { ConfirmationModal } from '@shared';
 import uiText from '@config/uiElementsText.json';
 
-const panelText = uiText.rightPanel;
-const logText = panelText.logs;
-const apiText = panelText.apiCalls;
+const panelText  = uiText.rightPanel;
+const logText    = panelText.logs;
+const apiText    = panelText.apiCalls;
+const delText    = panelText.deleteConfirm;
 
 const LOG_LEVEL_CONFIG = {
   debug: { icon: Bug,           color: 'text-surface-400', bg: 'bg-surface-50',    border: 'border-surface-200', dot: 'bg-surface-400' },
@@ -168,11 +170,11 @@ function ApiCallCard({ call, scale = 1 }) {
 }
 
 export default function RightLogsView({ isOpen, onClose, logs = [], apiCalls = [], onDeleteAllLogs, totalCount }) {
-  const [activeTab, setActiveTab] = useState('logs');
-  const [logFilter, setLogFilter] = useState('all');
-  const [copied, setCopied]       = useState(false);
-  const [deleting, setDeleting]   = useState(false);
-  const [fontScale, setFontScale] = useState(1);
+  const [activeTab, setActiveTab]           = useState('logs');
+  const [logFilter, setLogFilter]           = useState('all');
+  const [copied, setCopied]                 = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [fontScale, setFontScale]           = useState(1);
   const scrollEndRef = useRef(null);
 
   const filteredLogs = logFilter === 'all' ? logs : logs.filter(l => l.level === logFilter);
@@ -188,12 +190,6 @@ export default function RightLogsView({ isOpen, onClose, logs = [], apiCalls = [
     navigator.clipboard.writeText(JSON.stringify(data, null, 2))
       .then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); })
       .catch(() => {});
-  };
-
-  const handleDeleteAll = async () => {
-    setDeleting(true);
-    await onDeleteAllLogs?.();
-    setDeleting(false);
   };
 
   const sessionId = logs[0]?.sessionId || apiCalls[0]?.sessionId;
@@ -254,10 +250,9 @@ export default function RightLogsView({ isOpen, onClose, logs = [], apiCalls = [
             {copied ? <Check size={12} className="text-emerald-500" /> : <Copy size={12} />}
           </button>
           <button
-            onClick={handleDeleteAll}
-            disabled={deleting}
+            onClick={() => setShowDeleteConfirm(true)}
             title="Delete all logs"
-            className="p-1 rounded text-surface-400 hover:text-rose-500 hover:bg-rose-50 transition-colors disabled:opacity-50"
+            className="p-1 rounded text-surface-400 hover:text-rose-500 hover:bg-rose-50 transition-colors"
           >
             <Trash2 size={12} />
           </button>
@@ -328,6 +323,33 @@ export default function RightLogsView({ isOpen, onClose, logs = [], apiCalls = [
           </>
         )}
       </div>
+
+      <ConfirmationModal
+        isOpen={showDeleteConfirm}
+        onClose={() => setShowDeleteConfirm(false)}
+        title={delText.title}
+        actionDescription={delText.actionDescription}
+        actionTarget={delText.actionTarget}
+        actionDetails={[
+          { label: delText.detailUiLogs,   value: logs.length },
+          { label: delText.detailApiCalls, value: apiCalls.length },
+          { label: delText.detailStored,   value: totalCount !== null ? totalCount.toLocaleString() : '—' },
+        ]}
+        confirmLabel={delText.confirmLabel}
+        variant="danger"
+        action={async () => {
+          const cleared = logs.length + apiCalls.length;
+          const stored  = totalCount;
+          await onDeleteAllLogs?.();
+          return { cleared, stored };
+        }}
+        onSuccess={() => setShowDeleteConfirm(false)}
+        buildSummary={(result) => [
+          { label: delText.summaryDeleted, value: result.cleared },
+          { label: delText.detailStored,   value: result.stored !== null ? result.stored.toLocaleString() : '—' },
+          { label: 'Status',               value: delText.summaryStatus },
+        ]}
+      />
     </div>
   );
 }

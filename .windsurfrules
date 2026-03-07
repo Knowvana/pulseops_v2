@@ -318,10 +318,17 @@ Route paths are centralized in `api/src/config/urls.json`. NEVER hardcode route 
 - `CrudSummary.jsx` — Standalone CRUD summary display.
 - `DatabaseManager.jsx` — Database CRUD operations panel.
 - `LoggingConfig.jsx` — Log configuration component.
+- `LogStats.jsx` — Log statistics display (count, storage, last sync).
+- `LogViewer.jsx` — Full log grid + detail panel viewer.
 - `LoginForm.jsx` — Authentication login form.
 - `StatsCount.jsx` — Animated stats counter.
 - `TestConnection.jsx` — Connection test form with auto-test support.
 - `TestPage.jsx` — Design system showcase/test page.
+
+**Current Shared Services** (in `src/shared/services/`, imported via `@shared`):
+- `UILogService.js` (`UILogService`) — Intercepts console output, captures interactions and API calls, syncs to backend. NEVER use `console.log` directly; this service handles it.
+- `TimezoneService.js` (`TimezoneService`) — Timezone-aware date/time formatting. Use `TimezoneService.formatCurrentTime()` and `TimezoneService.format(date)` for all display timestamps.
+- `consoleLogger.js` (`createLogger`) — Structured, styled browser console output. All component and service files MUST use this instead of raw `console.*` calls. See Rule 3.10.
 
 ### 3.2 Frontend Import Aliases (MANDATORY)
 
@@ -387,6 +394,39 @@ All destructive CRUD operations MUST use `<ConfirmationModal />` from `@shared`:
 
 - All API calls go through `src/shared/services/apiClient.js`.
 - API URLs come from `src/config/urls.json` — NEVER hardcode endpoint paths.
+
+### 3.10 Console Logger (MANDATORY — REPLACES ALL raw console calls)
+
+**PROHIBITED:** `console.log()`, `console.warn()`, `console.error()`, `console.info()` directly in any component, view, layout, or service file.
+
+**REQUIRED:** Use `createLogger` from `@shared`:
+
+```javascript
+import { createLogger } from '@shared';
+const log = createLogger('FileName.jsx'); // module-level constant, AFTER all imports
+
+// Inside functions:
+log.info ('functionName', 'Human-readable message');
+log.warn ('functionName', 'Warning message',    { key: value });
+log.error('functionName', 'Error description',  errorOrObject);
+log.debug('functionName', 'Debug detail',       { key: value }); // suppressed in production
+```
+
+**Output format in browser console:**
+```
+● INFO  [App.jsx:handleLogin]      Login successful — user@email.com
+▲ WARN  [Settings.jsx:handleSave]  Save failed  ▼ {status: 400}
+✖ ERROR [LogManager.jsx:fetchLogs] Network error
+○ DEBUG [PlatformDashboard.jsx:render] Dashboard rendered
+```
+
+**Rules:**
+- `const log = createLogger('FileName.jsx')` MUST be declared at module scope, AFTER all `import` statements.
+- The `file` argument MUST match the actual filename (e.g., `'Settings.jsx'`, `'DatabaseManager.jsx'`).
+- The `func` argument (first arg to each method) MUST be the function or context name (e.g., `'handleSave'`, `'DatabaseConfigTab'`).
+- `data` (third arg) is optional — if provided, it renders as a collapsible `console.groupCollapsed`.
+- `log.debug` calls are automatically suppressed when `import.meta.env.MODE === 'production'`.
+- `createLogger` is exported from `src/shared/services/consoleLogger.js` and re-exported from `src/shared/index.js`.
 
 ---
 
@@ -595,21 +635,124 @@ All functions, hooks, and services MUST include JSDoc.
 - [ ] Imports: all using aliases (`@shared`, `@config`, `@core`, `@layouts`, `@modules`, `#config`, `#shared`, `#core`)?
 - [ ] Error Handling: logged with Request ID? responses consistent?
 - [ ] Build: `npx vite build` passes with zero errors?
+- [ ] REST: HTTP methods correct (GET=read, POST=create, PUT=replace, PATCH=partial, DELETE=remove)? No action verbs in URLs? Correct status codes?
+- [ ] CRUD Pattern: every state-changing operation uses `<ConfirmationModal />`? Confirmation shows real details from API? Summary phase shows success message?
+- [ ] Console Logging: no raw `console.log/warn/error`? All files use `const log = createLogger('FileName.jsx')` from `@shared`? Logger declared after all imports?
 
 ---
 
-## 11. Universal CRUD Pattern: Confirm → Summary (MANDATORY)
+## 11. Universal CRUD Pattern: Confirm → Progress → Summary (MANDATORY)
 
-All destructive and state-changing CRUD operations MUST follow this two-phase pattern:
+**EVERY state-changing operation** (Create, Update, Delete, Switch, Wipe, or any action that mutates backend state) MUST follow the 3-phase pattern. This includes log deletion from both the Logs page and the Sidebar Logs panel.
 
-1. **Confirmation Phase:** Show the user what will happen, the target system/resource, and affected details (e.g., datasource type, entry count, resource name). Ask for explicit confirmation before proceeding.
-2. **Summary Phase:** After the operation completes, show a summary modal with:
-   - Operation result (success/failure)
-   - Affected resource details (fetched dynamically from the API, NEVER hardcoded)
-   - Close button
+### Phase 1: Confirmation
+Before executing any operation, show the user:
+- **Action description** — What will happen (e.g., `"delete all logs"`).
+- **Target system** — Where it applies (e.g., `"Platform Log Storage"`).
+- **Affected details** — Array of `{ label, value }` pairs with real data fetched from the API (NEVER hardcoded):
+  - For log delete: total entry count, storage type (File / Database), session count.
+  - For DB operations: database name, schema, table count (from API).
+  - For provider switch: current provider, new provider.
 
-This pattern applies universally to: Delete, Create, Update, Switch, Wipe, and any other CRUD action.
-Use `<ConfirmationModal />` from `@shared` which supports both phases via `buildSummary` prop.
+### Phase 2: Progress
+- Animated progress bar while the async `action` prop executes.
+- User cannot cancel during progress.
+
+### Phase 3: Summary (Success Message MANDATORY)
+- Always show a result summary after the operation completes, regardless of success or failure.
+- **On success:** Green result with `buildSummary` details showing what changed (entries deleted, records created, etc.).
+- **On failure:** Red error result with the error message.
+- Close button to dismiss.
+
+### Implementation
+Use `<ConfirmationModal />` from `@shared`:
+```jsx
+<ConfirmationModal
+  isOpen={showDeleteConfirm}
+  onClose={() => setShowDeleteConfirm(false)}
+  title="Delete All Logs"
+  actionDescription="permanently delete all logs"
+  actionTarget="Platform Log Storage"
+  actionDetails={[
+    { label: 'UI Logs',  value: uiCount },
+    { label: 'API Calls', value: apiCount },
+    { label: 'Storage',  value: storageType },
+  ]}
+  confirmLabel="Delete All"
+  variant="danger"
+  action={async () => { await onDeleteAllLogs(); return { deleted: uiCount + apiCount }; }}
+  onSuccess={() => { /* post-delete refresh */ }}
+  buildSummary={(result) => [
+    { label: 'Entries Deleted', value: result.deleted },
+    { label: 'Status', value: 'All logs cleared successfully' },
+  ]}
+/>
+```
+
+**CRITICAL:** All label/button text MUST come from `uiElementsText.json` / `UIMessages.json`. Dynamic counts and names MUST come from the API or live state. NEVER hardcode.
+
+---
+
+## 13. REST API Design Principles (STRICT)
+
+All backend API endpoints in `api/src/core/routes/` MUST strictly follow REST conventions.
+
+### 13.1 HTTP Method Semantics (NON-NEGOTIABLE)
+
+| Method | Semantics | Example |
+|--------|-----------|--------|
+| `GET` | Read only — MUST NOT mutate state | `GET /api/logs` |
+| `POST` | Create a new resource | `POST /api/users` |
+| `PUT` | Full replacement of a resource | `PUT /api/config` |
+| `PATCH` | Partial update of a resource | `PATCH /api/settings` |
+| `DELETE` | Remove a resource | `DELETE /api/logs` |
+
+**PROHIBITED:** Using `GET` to trigger mutations. Using `POST` for deletions. Action verbs in URLs.
+
+### 13.2 Resource Naming (STRICT)
+
+- URLs MUST use **plural nouns**: `/api/logs`, `/api/users`, `/api/modules`.
+- Sub-resources use nested paths: `/api/logs/ui`, `/api/logs/api`, `/api/logs/stats`.
+- **PROHIBITED:** Action verbs in URLs (`/api/deleteLogs`, `/api/createDatabase`, `/api/testConnection`).
+  - ✅ CORRECT: `DELETE /api/logs`
+  - ❌ WRONG:   `POST /api/logs/delete`
+  - ✅ CORRECT: `POST /api/database/test` (noun: test = sub-resource)
+  - ❌ WRONG:   `GET /api/runTest`
+
+### 13.3 HTTP Status Codes (MANDATORY)
+
+| Code | Usage |
+|------|-------|
+| `200 OK` | Successful GET, PUT, PATCH, DELETE with body |
+| `201 Created` | Successful POST that created a resource |
+| `204 No Content` | Successful DELETE with no response body |
+| `400 Bad Request` | Validation error, missing required fields |
+| `401 Unauthorized` | Missing or invalid authentication |
+| `403 Forbidden` | Authenticated but not authorized |
+| `404 Not Found` | Resource does not exist |
+| `409 Conflict` | Resource already exists / state conflict |
+| `500 Internal Server Error` | Unhandled server error |
+
+### 13.4 Response Envelope (STANDARD)
+
+```javascript
+// Success
+{ "success": true,  "data": { ... } }
+// Error
+{ "success": false, "error": { "message": "...", "code": "ERROR_CODE", "requestId": "uuid" } }
+```
+
+### 13.5 Route Centralization (MANDATORY)
+
+- All route paths defined ONLY in `api/src/config/urls.json` and `src/config/urls.json`.
+- NEVER hardcode paths in route files, service files, or frontend components.
+- Frontend `urls.json` and backend `urls.json` MUST stay in sync for every endpoint.
+
+### 13.6 Idempotency
+
+- `GET`, `PUT`, `DELETE` MUST be idempotent (calling multiple times = same result).
+- `POST` is NOT required to be idempotent.
+- `PATCH` SHOULD be idempotent where possible.
 
 ---
 
@@ -625,6 +768,6 @@ Use `<ConfirmationModal />` from `@shared` which supports both phases via `build
 
 ---
 
-**Last Updated:** March 3, 2026
-**Version:** 2.2.0
+**Last Updated:** March 6, 2026
+**Version:** 2.3.0
 **Scope:** PulseOps V2 (All code in this repository)
