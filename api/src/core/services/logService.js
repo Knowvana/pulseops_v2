@@ -452,7 +452,12 @@ const LogService = {
   async getLogs(logType, filters = {}) {
     const mode = getStorageMode();
     if (mode === 'database') {
-      return readLogsFromDb(logType, filters);
+      try {
+        return await readLogsFromDb(logType, filters);
+      } catch (err) {
+        logger.warn(`getLogs: DB read failed, returning empty — ${err.message}`);
+        return [];
+      }
     }
     // File mode — apply filters in memory
     let logs = readLogsFromFile(logType);
@@ -540,7 +545,13 @@ const LogService = {
   async getStats(logType) {
     const mode = getStorageMode();
     if (mode === 'database') {
-      const dbStats = await getDbLogStats(logType);
+      let dbStats;
+      try {
+        dbStats = await getDbLogStats(logType);
+      } catch (err) {
+        logger.warn(`getStats: DB stats failed, returning empty — ${err.message}`);
+        return { count: 0, lastEntry: null, storage: 'database' };
+      }
       return {
         storage: 'database',
         count: dbStats.count,

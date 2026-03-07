@@ -65,9 +65,17 @@ function saveSuperAdmin(updated) {
   saveJson(SUPER_ADMIN_FILE, { superAdmin: updated });
 }
 
+// ── GET /auth/superadmin/info (Public) ──────────────────────────────────────
+// Returns SA username + email so the frontend can detect SA by either identifier.
+router.get('/info', (req, res) => {
+  const sa = loadSuperAdmin();
+  if (!sa) return res.status(500).json({ success: false, error: { message: 'SuperAdmin config not found' } });
+  return res.json({ success: true, data: { username: sa.username, email: sa.email } });
+});
+
 // ── POST /auth/superadmin/login (Public) ─────────────────────────────────────
 router.post('/login', async (req, res) => {
-  const { password } = req.body;
+  const { usernameOrEmail, password } = req.body;
   const requestId = req.requestId;
 
   logger.info(`[${requestId}] SuperAdmin login attempt`);
@@ -95,6 +103,18 @@ router.post('/login', async (req, res) => {
       });
     }
 
+    // ── Optional identifier check: if provided, must match SA username or email ──
+    if (usernameOrEmail) {
+      const lower = usernameOrEmail.trim().toLowerCase();
+      if (lower !== sa.username?.toLowerCase() && lower !== sa.email?.toLowerCase()) {
+        logger.warn(`[${requestId}] SuperAdmin login failed — identifier does not match`);
+        return res.status(401).json({
+          success: false,
+          error: { message: errors.errors.superAdminInvalidCredentials, code: 'INVALID_CREDENTIALS', requestId },
+        });
+      }
+    }
+
     if (sa.status !== 'active') {
       logger.warn(`[${requestId}] SuperAdmin login denied — account inactive`);
       return res.status(403).json({
@@ -106,31 +126,13 @@ router.post('/login', async (req, res) => {
     let authenticated = false;
 
     if (!sa.passwordHash) {
-      // ── First-time login: compare against defaultPassword, then hash & persist ──
-      logger.info(`[${requestId}] SuperAdmin first-time login — comparing against defaultPassword`);
-
-      if (password !== sa.defaultPassword) {
-        logger.warn(`[${requestId}] SuperAdmin first-time login failed — incorrect default password`);
-        return res.status(401).json({
-          success: false,
-          error: { message: errors.errors.superAdminInvalidCredentials, code: 'INVALID_CREDENTIALS', requestId },
-        });
-      }
-
-      // Hash & persist immediately; clear plaintext defaultPassword
-      const hash = await hashPassword(password);
-      const now = new Date().toISOString();
-      saveSuperAdmin({
-        ...sa,
-        passwordHash: hash,
-        defaultPassword: '',
-        requirePasswordChange: true,
-        passwordLastChangedAt: now,
-      });
-      logger.info(`[${requestId}] SuperAdmin password hashed and persisted on first login`);
-      authenticated = true;
+      // ── No hash set yet: compare against plaintext defaultPassword ───────────
+      // Password is ONLY hashed when explicitly changed via Settings → SuperAdmin Auth.
+      // Login never modifies the credential file.
+      logger.info(`[${requestId}] SuperAdmin login — comparing against defaultPassword`);
+      authenticated = !!(sa.defaultPassword && password === sa.defaultPassword);
     } else {
-      // ── Subsequent logins: bcrypt compare ────────────────────────────────────
+      // ── Hash exists: bcrypt compare ───────────────────────────────────────────
       authenticated = await comparePassword(password, sa.passwordHash);
     }
 

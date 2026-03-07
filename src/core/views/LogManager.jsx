@@ -26,7 +26,8 @@
 //   - @shared → LogViewer, LogStats, ConfirmationModal
 // ============================================================================
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { ScrollText } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { ScrollText, AlertTriangle, Settings as SettingsIcon } from 'lucide-react';
 import { LogViewer, LogStats, ConfirmationModal, createLogger } from '@shared';
 import uiText from '@config/uiElementsText.json';
 import uiMessages from '@config/UIMessages.json';
@@ -41,6 +42,7 @@ const logTypeText = viewText.logTypes;
 const apiBase = '';
 
 export default function LogManager() {
+  const navigate = useNavigate();
   // ── StrictMode-safe refs ─────────────────────────────────────────────────
   const mountRan = useRef(false);    // Prevents double-mount fetch in React StrictMode
   const ready = useRef(false);       // True after initial fetch completes — gates Effects 2+
@@ -101,7 +103,7 @@ export default function LogManager() {
 
   const fetchLogConfig = useCallback(async () => {
     try {
-      const res = await fetch(`${apiBase}${urls.logs.settings}`, { credentials: 'include' });
+      const res = await fetch(`${apiBase}${urls.logs.config}`, { credentials: 'include' });
       const json = await res.json();
       if (json.success) setLogConfig(json.data);
     } catch { /* keep null */ }
@@ -194,9 +196,35 @@ export default function LogManager() {
     }
   }, [logType, levelFilter, fetchLogs, fetchStats]);
 
+  const logsDisabled = logConfig !== null && logConfig.enabled === false;
+
   // ── Render ─────────────────────────────────────────────────────────────
   return (
-    <div className="flex flex-col h-full animate-fade-in overflow-hidden">
+    <div className="relative flex flex-col h-full animate-fade-in overflow-hidden">
+      {/* Logs Disabled Overlay */}
+      {logsDisabled && (
+        <div className="absolute inset-0 z-30 flex items-center justify-center bg-surface-50/90 backdrop-blur-sm rounded-xl">
+          <div className="bg-white border border-amber-200 rounded-2xl shadow-xl p-8 max-w-md mx-4 text-center space-y-4">
+            <div className="w-14 h-14 bg-amber-50 rounded-2xl flex items-center justify-center mx-auto">
+              <AlertTriangle size={28} className="text-amber-500" />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-surface-800 mb-1">Logs Not Enabled</h3>
+              <p className="text-sm text-surface-500">
+                Database logging is currently disabled. Enable it from
+                {' '}<strong>Platform Admin → Settings → Log Configuration</strong>.
+              </p>
+            </div>
+            <button
+              onClick={() => navigate('/platform_admin/Settings')}
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-brand-500 text-white text-sm font-semibold rounded-xl hover:bg-brand-600 transition-colors"
+            >
+              <SettingsIcon size={15} />
+              Go to Log Configuration
+            </button>
+          </div>
+        </div>
+      )}
       {/* Page Header */}
       <div className="flex items-center gap-3 flex-shrink-0 mb-4">
         <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-50 to-brand-100 flex items-center justify-center shadow-sm">

@@ -7,12 +7,12 @@
     "role": "super_admin",
     "status": "active",
     "authMethod": "json_file",
-    "passwordHash": "$2b$12$1MrpeL.3HDODl/kR0EBpbOp4juAOx848/uNJR1GW9kyHGVSQ70Cva",
-    "defaultPassword": "",
+    "passwordHash": "",
+    "defaultPassword": "Infosys@123",
     "requirePasswordChange": true,
-    "passwordLastChangedAt": "2026-03-07T10:12:11.025Z",
-    "lastLoginAt": "2026-03-07T10:12:11.029Z",
+    "passwordLastChangedAt": "2026-03-07T13:29:13.391Z",
+    "lastLoginAt": "2026-03-07T13:33:49.085Z",
     "createdAt": "2024-01-01T00:00:00.000Z",
-    "notes": "SuperAdmin authenticates against this JSON file only. Password is bcrypt-hashed on first login. Change via Settings → Platform Settings → SuperAdmin → Auth."
+    "notes": "SuperAdmin authenticates against this JSON file only. Login compares against defaultPassword (plaintext) or passwordHash (bcrypt) — the file is NEVER modified at login time. Password hash is only set/updated via Settings → SuperAdmin Auth."
   }
 }

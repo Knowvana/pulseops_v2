@@ -22,7 +22,7 @@ import {
   Settings as SettingsIcon, Database, Layers, ScrollText,
   Shield, Globe, AlertTriangle, RefreshCw, Save, Globe2,
   ShieldCheck, Lock, Eye, EyeOff, ToggleLeft, ToggleRight,
-  Activity, Plug
+  Plug
 } from 'lucide-react';
 import { ConfigLayout, TestConnection, DatabaseManager, Button, ConfirmationModal, ConnectionStatus, TimezoneService, createLogger } from '@shared';
 import uiText from '@config/uiElementsText.json';
@@ -49,13 +49,36 @@ function DatabaseConfigTab() {
   ];
 
   const [savedConfig, setSavedConfig] = useState({});
+  const [connStatus, setConnStatus] = useState({ status: 'loading', message: connectionText.testing, meta: null, lastTested: null });
   const initRan = React.useRef(false);
+
+  const checkConnection = useCallback(async () => {
+    setConnStatus({ status: 'loading', message: connectionText.testing, meta: null, lastTested: null });
+    try {
+      const response = await fetch(urls.database.connection, { credentials: 'include' });
+      const result = await response.json();
+      const timeString = TimezoneService.formatCurrentTime();
+      if (result?.success) {
+        const data = result.data || {};
+        const parts = [];
+        if (data.latencyMs != null) parts.push(`${connectionText.responseTime} ${data.latencyMs}ms`);
+        if (data.dbType) parts.push(`${connectionText.dbType} ${data.dbType}`);
+        if (data.dbVersion) parts.push(`${connectionText.version} ${data.dbVersion.split(',')[0].replace('PostgreSQL ', '')}`);
+        setConnStatus({ status: 'success', message: connectionText.connected, meta: parts.join(` ${connectionText.metaSeparator} `) || null, lastTested: timeString });
+      } else {
+        setConnStatus({ status: 'error', message: result?.error?.message || connectionText.failed, meta: null, lastTested: timeString });
+      }
+    } catch (err) {
+      setConnStatus({ status: 'error', message: err.message || connectionText.failed, meta: null, lastTested: TimezoneService.formatCurrentTime() });
+    }
+  }, []);
 
   // Load saved config from API on mount (no hardcoded defaults)
   useEffect(() => {
     if (initRan.current) return;
     initRan.current = true;
-    log.info('DatabaseConfigTab', 'Tab accessed — loading saved configuration from API');
+    log.info('DatabaseConfigTab', 'Tab accessed — loading saved configuration + checking connection');
+    checkConnection();
     const loadConfig = async () => {
       try {
         const response = await fetch(urls.database.config, { credentials: 'include' });
@@ -133,6 +156,25 @@ function DatabaseConfigTab() {
 
   return (
     <div className="space-y-6 animate-fade-in">
+      {/* Live Connection Status (auto-checked on tab open) */}
+      <div className="bg-white rounded-xl border border-surface-200 p-4 shadow-sm">
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-sm font-semibold text-surface-800">{connectionText.type} Status</p>
+          <Button variant="ghost" size="sm" icon={<RefreshCw size={13} />} onClick={checkConnection} isLoading={connStatus.status === 'loading'}>
+            {viewText.dbConnection?.recheckButton || 'Re-check'}
+          </Button>
+        </div>
+        <ConnectionStatus
+          type={connectionText.type}
+          status={connStatus.status}
+          message={connStatus.message}
+          meta={connStatus.meta}
+          lastTested={connStatus.lastTested}
+          icon={Database}
+          showBadge
+        />
+      </div>
+      {/* Configuration Form */}
       <div className="bg-white rounded-xl border border-surface-200 p-4 shadow-sm">
         <TestConnection
           title={tabText.dbConfig}
@@ -362,6 +404,7 @@ function LogConfigTabNew() {
   });
   const [dbStatus, setDbStatus] = useState({ status: 'idle', message: '' });
   const [showSaveModal, setShowSaveModal] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const initRan = React.useRef(false);
 
   useEffect(() => {
@@ -1028,8 +1071,7 @@ function GeneralSettingsTab() {
 // ── Main Settings Component ─────────────────────────────────────────────────
 export default function Settings() {
   const tabs = [
-    { id: 'dbConnection', label: tabText.dbConnection, icon: Activity,    content: () => <DatabaseConnectionTab /> },
-    { id: 'dbConfig',     label: tabText.dbConfig,     icon: Database,    content: () => <DatabaseConfigTab />, separator: true },
+    { id: 'dbConfig',     label: tabText.dbConfig,     icon: Database,    content: () => <DatabaseConfigTab /> },
     { id: 'logConfig',    label: tabText.logConfig,    icon: ScrollText,  content: () => <LogConfigTab /> },
     { id: 'authSettings', label: tabText.authSettings, icon: Shield,      content: () => <AuthSettingsTab />, separator: true },
     // ── SuperAdmin section ──
@@ -1045,7 +1087,7 @@ export default function Settings() {
       subtitle={viewText.subtitle}
       icon={SettingsIcon}
       tabs={tabs}
-      defaultTab="dbConnection"
+      defaultTab="dbConfig"
     />
   );
 }

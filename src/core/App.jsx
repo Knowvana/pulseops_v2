@@ -66,6 +66,7 @@ function AppContent() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState({});
   const [isCheckingSession, setIsCheckingSession] = useState(true);
+  const [saInfo, setSaInfo] = useState(null);
   const sessionCheckRan = useRef(false);
   const navigate = useNavigate();
   const location = useLocation();
@@ -76,6 +77,14 @@ function AppContent() {
     sessionCheckRan.current = true;
     log.info('mount', 'Application mounted — checking existing session cookie');
     const checkSession = async () => {
+      try {
+        // Fetch SA info (public) so we can detect login by username OR email
+        const saRes = await fetch(urls.superAdmin.info);
+        if (saRes.ok) {
+          const saResult = await saRes.json();
+          if (saResult?.success) setSaInfo(saResult.data);
+        }
+      } catch { /* non-critical — fall back to username-only detection */ }
       try {
         log.debug('checkSession', 'Sending session check request', { url: urls.auth.me });
         const response = await fetch(urls.auth.me, { credentials: 'include' });
@@ -103,11 +112,15 @@ function AppContent() {
 
   // ── Unified login — detects SuperAdmin by username, routes to correct endpoint
   const handleLogin = useCallback(async (emailOrUsername, password) => {
-    const isSuperAdmin = emailOrUsername.trim().toLowerCase() === 'superadmin';
+    const lower = emailOrUsername.trim().toLowerCase();
+    const isSuperAdmin = lower === (saInfo?.username || 'superadmin').toLowerCase()
+                      || lower === (saInfo?.email || '').toLowerCase();
     log.info('handleLogin', isSuperAdmin ? 'SuperAdmin login attempt' : `Login attempt — ${emailOrUsername}`);
 
     const apiUrl = isSuperAdmin ? urls.superAdmin.login : urls.auth.login;
-    const body   = isSuperAdmin ? { password } : { email: emailOrUsername, password };
+    const body   = isSuperAdmin
+      ? { usernameOrEmail: emailOrUsername, password }
+      : { email: emailOrUsername, password };
 
     const result = await callLoginApi(apiUrl, body);
     if (result?.success && result.data?.user) {
@@ -119,7 +132,7 @@ function AppContent() {
       return;
     }
     throw new Error(result?.error?.message || authMessages.loginFailed);
-  }, [navigate]);
+  }, [navigate, saInfo]);
 
   // ── Logout ────────────────────────────────────────────────────────────────
   const handleLogout = useCallback(async () => {

@@ -28,6 +28,7 @@
   },
   "superAdmin": {
     "login": "/api/auth/superadmin/login",
+    "info": "/api/auth/superadmin/info",
     "profile": "/api/auth/superadmin/profile",
     "password": "/api/auth/superadmin/password"
   },
