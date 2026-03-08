@@ -22,7 +22,7 @@ import {
   Settings as SettingsIcon, Database, Layers, ScrollText,
   Shield, Globe, AlertTriangle, RefreshCw, Save, Globe2,
   ShieldCheck, Lock, Eye, EyeOff, ToggleLeft, ToggleRight,
-  Plug
+  Plug, Monitor, Server, Package
 } from 'lucide-react';
 import { ConfigLayout, TestConnection, DatabaseManager, Button, ConfirmationModal, ConnectionStatus, TimezoneService, createLogger } from '@shared';
 import uiText from '@config/uiElementsText.json';
@@ -407,6 +407,24 @@ function LogConfigTabNew() {
   const [isSaving, setIsSaving] = useState(false);
   const initRan = React.useRef(false);
 
+  function ToggleRow({ label, description, enabled, onToggle, icon: Icon }) {
+    return (
+      <div className="flex flex-col items-center gap-1">
+        <div className="flex items-center gap-1">
+          {Icon && <Icon size={16} className="text-surface-500" />}
+          <div className="text-xs font-semibold text-surface-700">{label}</div>
+        </div>
+        <div
+          className={`relative w-8 h-4 rounded-full transition-colors cursor-pointer ${enabled ? 'bg-brand-500' : 'bg-surface-300'}`}
+          onClick={onToggle}
+        >
+          <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-transform ${enabled ? 'translate-x-4' : 'translate-x-0.5'}`} />
+        </div>
+        {description && <div className="text-xs text-surface-400 text-center leading-tight">{description}</div>}
+      </div>
+    );
+  }
+
   useEffect(() => {
     if (initRan.current) return;
     initRan.current = true;
@@ -430,11 +448,13 @@ function LogConfigTabNew() {
       }
     };
     load();
+    // Auto-check database connection on page load
+    testDbConnection();
   }, []);
 
   const testDbConnection = useCallback(async () => {
     log.info('LogConfigTab:testDbConnection', 'Testing DB connection for logging');
-    setDbStatus({ status: 'loading', message: connectionText.testing });
+    setDbStatus({ status: 'loading', message: connectionText.testing, lastTested: null });
     try {
       const res = await fetch(urls.logs.configStatus, { credentials: 'include' });
       const result = await res.json();
@@ -478,46 +498,46 @@ function LogConfigTabNew() {
         <p className="text-sm text-surface-400">{lcText.subtitle}</p>
       </div>
 
-      {/* Enable Toggle */}
-      <div className="bg-white rounded-xl border border-surface-200 p-4 shadow-sm">
+      {/* Enable Database Logging & Database Connection */}
+      <div className="bg-white rounded-xl border border-surface-200 p-4 shadow-sm space-y-6">
+        {/* Enable Database Logging */}
         <div className="flex items-center justify-between">
           <div>
             <p className="text-sm font-semibold text-surface-800">{lcText.enabledLabel}</p>
             <p className="text-xs text-surface-500 mt-0.5">{lcText.enabledDesc}</p>
           </div>
-          <button
-            type="button"
-            onClick={() => setCfg(prev => ({ ...prev, enabled: !prev.enabled }))}
-            className="flex items-center gap-1.5 focus:outline-none"
-          >
-            {cfg.enabled
-              ? <ToggleRight size={32} className="text-brand-500" />
-              : <ToggleLeft size={32} className="text-surface-300" />}
-          </button>
-        </div>
-      </div>
-
-      {/* DB Connection Test */}
-      <div className="bg-white rounded-xl border border-surface-200 p-4 shadow-sm space-y-3">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm font-semibold text-surface-800">{lcText.dbStatusLabel}</p>
-            <p className="text-xs text-surface-500 mt-0.5">{lcText.dbStatusDesc}</p>
+          <div className="flex items-center gap-2">
+            <div
+              className={`relative w-8 h-4 rounded-full transition-colors cursor-pointer ${cfg.enabled ? 'bg-brand-500' : 'bg-surface-300'}`}
+              onClick={() => {
+                if (!cfg.enabled && dbStatus.status !== 'success') {
+                  return;
+                }
+                setCfg(prev => ({ ...prev, enabled: !prev.enabled }));
+              }}
+              title={dbStatus.status !== 'success' ? lcText.dbNotReady : undefined}
+            >
+              <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-transform ${cfg.enabled ? 'translate-x-4' : 'translate-x-0.5'}`} />
+            </div>
+            <Button variant="primary" size="sm" className="font-normal" icon={<Plug size={13} />} onClick={testDbConnection} isLoading={dbStatus.status === 'loading'}>
+              {lcText.refreshConnectionButton}
+            </Button>
           </div>
-          <Button variant="ghost" size="sm" icon={<Plug size={13} />} onClick={testDbConnection} isLoading={dbStatus.status === 'loading'}>
-            {lcText.testConnectionButton}
-          </Button>
         </div>
-        {dbStatus.status !== 'idle' && (
-          <ConnectionStatus
-            type={connectionText.type}
-            status={dbStatus.status}
-            message={dbStatus.message}
-            lastTested={dbStatus.lastTested}
-            icon={Database}
-            showBadge
-          />
-        )}
+
+        {/* Database Connection */}
+        <div>
+          {dbStatus.status !== 'idle' && (
+            <ConnectionStatus
+              type={connectionText.type}
+              status={dbStatus.status}
+              message={dbStatus.message}
+              lastTested={dbStatus.lastTested}
+              icon={Database}
+              showBadge
+            />
+          )}
+        </div>
       </div>
 
       {/* Log Level */}
@@ -543,30 +563,43 @@ function LogConfigTabNew() {
       </div>
 
       {/* Capture Options */}
-      <div className="bg-white rounded-xl border border-surface-200 p-4 shadow-sm space-y-3">
-        <p className="text-sm font-semibold text-surface-800">{lcText.captureOptionsLabel}</p>
-        {[
-          { key: 'ui',          label: lcText.captureUiLogs,      desc: lcText.captureUiLogsDesc },
-          { key: 'api',         label: lcText.captureApiLogs,     desc: lcText.captureApiLogsDesc },
-          { key: 'console',     label: lcText.captureConsoleLogs, desc: lcText.captureConsoleLogsDesc },
-          { key: 'moduleLogs',  label: lcText.captureModuleLogs,  desc: lcText.captureModuleLogsDesc },
-        ].map(({ key, label, desc }) => (
-          <div key={key} className="flex items-center justify-between py-1">
-            <div>
-              <p className="text-sm text-surface-700">{label}</p>
-              <p className="text-xs text-surface-400">{desc}</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setCfg(prev => ({ ...prev, captureOptions: { ...prev.captureOptions, [key]: !prev.captureOptions[key] } }))}
-              className="flex items-center focus:outline-none"
-            >
-              {cfg.captureOptions[key]
-                ? <ToggleRight size={26} className="text-brand-500" />
-                : <ToggleLeft size={26} className="text-surface-300" />}
-            </button>
+      <div className="bg-white rounded-xl border border-surface-200 p-4 shadow-sm">
+        <div className="text-center">
+          <h5 className="text-xs font-bold uppercase tracking-wider text-surface-400 mb-3">Log Capture Options</h5>
+          <div className="flex justify-center gap-2">
+            <ToggleRow
+              icon={Monitor}
+              label="Console Output"
+              description="Mirror logs to the browser developer console"
+              enabled={cfg.captureOptions.console}
+              onToggle={() => setCfg(prev => ({ ...prev, captureOptions: { ...prev.captureOptions, console: !prev.captureOptions.console } }))}
+            />
+            <div className="w-1 h-16 bg-gradient-to-b from-transparent via-brand-400 to-transparent shadow-lg" />
+            <ToggleRow
+              icon={Server}
+              label="API Logs"
+              description="Track all backend API requests and responses"
+              enabled={cfg.captureOptions.api}
+              onToggle={() => setCfg(prev => ({ ...prev, captureOptions: { ...prev.captureOptions, api: !prev.captureOptions.api } }))}
+            />
+            <div className="w-1 h-16 bg-gradient-to-b from-transparent via-brand-400 to-transparent shadow-lg" />
+            <ToggleRow
+              icon={Eye}
+              label="UI Logs"
+              description="Capture UI interaction and navigation events"
+              enabled={cfg.captureOptions.ui}
+              onToggle={() => setCfg(prev => ({ ...prev, captureOptions: { ...prev.captureOptions, ui: !prev.captureOptions.ui } }))}
+            />
+            <div className="w-1 h-16 bg-gradient-to-b from-transparent via-brand-400 to-transparent shadow-lg" />
+            <ToggleRow
+              icon={Package}
+              label="Module Logs"
+              description="Enable logging for specific modules"
+              enabled={cfg.captureOptions.moduleLogs}
+              onToggle={() => setCfg(prev => ({ ...prev, captureOptions: { ...prev.captureOptions, moduleLogs: !prev.captureOptions.moduleLogs } }))}
+            />
           </div>
-        ))}
+        </div>
       </div>
 
       {/* Management Settings */}
