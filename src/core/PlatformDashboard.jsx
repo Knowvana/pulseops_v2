@@ -30,13 +30,14 @@
 //   - @config/uiElementsText.json   → All UI text
 //   - @config/app.json          → App name, default credentials
 // ============================================================================
-import React, { useState, useEffect, useCallback, useMemo, Suspense } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef, Suspense } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   LayoutDashboard, Package, ScrollText, Settings as SettingsIcon, Shield, Eye
 } from 'lucide-react';
 import { AppShell } from '@layouts';
-import { getAllManifests, getManifestById, loadModuleManifests } from '@modules/moduleRegistry';
+import { getAllManifests, getManifestById, loadModuleManifests, unregisterDynamicManifest } from '@modules/moduleRegistry';
+import urls from '@config/urls.json';
 import { ConfigLayout, PageLoader, createLogger } from '@shared';
 import appConfig from '@config/app.json';
 import uiText from '@config/uiElementsText.json';
@@ -86,23 +87,54 @@ export default function PlatformDashboard({ user, onLogout }) {
 
   const [dbModules, setDbModules] = useState([]);
   const [modulesLoading, setModulesLoading] = useState(true);
+  const initRan = useRef(false);
 
   log.debug('render', `Dashboard rendered — module: ${activeModuleId}, view: ${activeView}`);
 
-  // ── Fetch enabled modules from database + load manifests ──────────────────
+  // ── Fetch enabled modules from API + load manifests via moduleRegistry ───────────
   const fetchModules = useCallback(async () => {
-    log.debug('fetchModules', 'Fetching enabled modules');
+    log.debug('fetchModules', 'Fetching enabled modules from API');
     setModulesLoading(true);
     try {
-      setDbModules([]);
+      // GET /api/modules — returns list of { id, name, version, enabled } records
+      const res = await fetch(urls.modules.list, { credentials: 'include' });
+      if (!res.ok) {
+        log.warn('fetchModules', `Modules API returned ${res.status}`);
+        setDbModules([]);
+        return;
+      }
+      const json = await res.json();
+      const enabledModules = (json.data || []).filter(m => m.enabled);
+      log.info('fetchModules', `Found ${enabledModules.length} enabled module(s)`, { ids: enabledModules.map(m => m.id) });
+
+      // Unregister manifests that are no longer enabled
+      const enabledIds = new Set(enabledModules.map(m => m.id));
+      const currentManifests = getAllManifests();
+      for (const m of currentManifests) {
+        if (!enabledIds.has(m.id)) {
+          unregisterDynamicManifest(m.id);
+          log.info('fetchModules', `Unregistered disabled module: ${m.id}`);
+        }
+      }
+
+      // Dynamically load each enabled module's manifest (dev: Vite import, prod: hot-drop bundle)
+      const ids = enabledModules.map(m => m.id);
+      const loaded = await loadModuleManifests(ids);
+      log.info('fetchModules', `Loaded ${loaded.length} manifest(s)`);
+      setDbModules(enabledModules);
     } catch (err) {
-      log.warn('fetchModules', 'Failed to fetch modules', { message: err.message });
+      log.warn('fetchModules', 'Failed to fetch/load modules — continuing without add-ons', { message: err.message });
+      setDbModules([]);
     } finally {
       setModulesLoading(false);
     }
   }, []);
 
-  useEffect(() => { fetchModules(); }, [fetchModules]);
+  useEffect(() => {
+    if (initRan.current) return;
+    initRan.current = true;
+    fetchModules();
+  }, [fetchModules]);
 
   // ── Build available modules: Core Admin + dynamic add-ons ─────────────────
   const availableModules = useMemo(() => {

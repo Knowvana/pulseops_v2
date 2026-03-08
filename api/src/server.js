@@ -13,7 +13,7 @@
 //   - Swagger: http://localhost:{port}/swagger-ui
 //   - API:     http://localhost:{port}/api/*
 // ============================================================================
-import { createApp } from '#root/app.js';
+import { createApp, initializeModules } from '#root/app.js';
 import { config } from '#config';
 import { logger } from '#shared/logger.js';
 import { messages } from '#shared/loadJson.js';
@@ -23,12 +23,15 @@ import packageJson from '#apiRoot/package.json' with { type: 'json' };
 const app = createApp();
 const PORT = config.port;
 
-const server = app.listen(PORT, () => {
+const server = app.listen(PORT, async () => {
   logger.info(messages.success.serverStarted);
   logger.info(`Version: ${packageJson.version}`);
   logger.info(`Environment: ${config.nodeEnv}`);
   logger.info(`Health:  http://localhost:${PORT}${apiUrls.apiPrefix}${apiUrls.health.base}`);
   logger.info(`Swagger: http://localhost:${PORT}${apiUrls.swagger.ui}`);
+
+  // Rehydrate enabled module routes (K8s safe — survives pod restarts)
+  await initializeModules(app);
 });
 
 // --- Graceful Shutdown (K8s Ready) ---

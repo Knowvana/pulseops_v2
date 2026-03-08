@@ -30,6 +30,11 @@
     "logStorageSwitched": "Log storage mode updated successfully.",
     "serverStarted": "PulseOps V2 API started",
     "serverShutdown": "Server shutting down gracefully.",
-    "databasePoolClosed": "Database pool closed."
+    "databasePoolClosed": "Database pool closed.",
+    "snConfigSaved": "ServiceNow configuration saved successfully.",
+    "snConnectionSuccess": "Successfully connected to ServiceNow instance.",
+    "snSyncComplete": "ServiceNow data synchronization completed successfully.",
+    "snModuleEnabled": "Module enabled successfully.",
+    "snModuleDisabled": "Module disabled successfully."
   }
 }

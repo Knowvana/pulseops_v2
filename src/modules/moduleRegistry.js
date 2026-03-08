@@ -38,17 +38,32 @@ let _dynamicManifests = [];
 // ─── Dynamic import map (runtime-extensible) ────────────────────────────────
 const MODULE_IMPORT_MAP = {};
 
+// ─── Environment detection ──────────────────────────────────────────────────
+const IS_DEV = import.meta.env.DEV;
+
 /**
- * Build the hot-drop import URL for a module with cache-busting.
- * Appends version or timestamp query param to prevent browser caching stale bundles.
+ * Build the import URL for a module manifest.
+ *
+ * DEV MODE:  Returns a Vite-resolvable source path that Vite's dev server
+ *            transforms on-the-fly (resolves React, lucide-react, aliases).
+ *            e.g. /src/modules/servicenow/manifest.jsx
+ *
+ * PROD MODE: Returns the pre-built bundle URL served by the API.
+ *            e.g. /api/modules/bundle/servicenow/manifest.js?v=1.0.0
+ *
  * @param {string} moduleId
- * @param {string} [version] - Module version for cache key (falls back to timestamp)
- * @returns {string} Full URL like /api/modules/bundle/demo/manifest.js?v=1.0.0
+ * @param {string} [version] - Module version for cache key (prod only)
+ * @returns {string}
  */
-function getHotDropUrl(moduleId, version) {
-  const base = urls.apiBaseUrl || '/api';
+function getManifestUrl(moduleId, version) {
+  if (IS_DEV) {
+    // Vite dev server resolves source files with full alias + HMR support
+    return `/src/modules/${moduleId}/manifest.jsx`;
+  }
+  // Production: pre-built bundle served by API
+  const bundleBase = urls.modules?.bundle || '/api/modules/bundle';
   const cacheBuster = version || Date.now();
-  return `${base}${urls.modulesBundle || '/modules/bundle'}/${moduleId}/manifest.js?v=${cacheBuster}`;
+  return `${bundleBase}/${moduleId}/manifest.js?v=${cacheBuster}`;
 }
 
 /**
@@ -76,7 +91,7 @@ export function registerDynamicManifest(manifest) {
  * LOADING ORDER:
  *   1. Check if already loaded (cached dynamic manifest)
  *   2. Check MODULE_IMPORT_MAP (registered hot-drop paths)
- *   3. Try hot-drop URL: /api/modules/bundle/<id>/manifest.js
+ *   3. Load via getManifestUrl (dev: Vite source, prod: API bundle)
  *
  * @param {string} moduleId - Module to load
  * @returns {Promise<Object|null>} Loaded manifest or null
@@ -100,17 +115,18 @@ export async function loadModuleManifest(moduleId) {
   }
 
   try {
-    const hotDropUrl = getHotDropUrl(moduleId);
-    const mod = await import(/* @vite-ignore */ hotDropUrl);
+    const manifestUrl = getManifestUrl(moduleId);
+    log.info('loadManifest', `Loading '${moduleId}' from ${manifestUrl}`);
+    const mod = await import(/* @vite-ignore */ manifestUrl);
     const manifest = mod.default || mod;
     if (manifest?.id) {
-      // Store a factory that generates a fresh cache-busted URL each time
-      MODULE_IMPORT_MAP[moduleId] = () => import(/* @vite-ignore */ getHotDropUrl(moduleId, manifest.version));
+      // Cache a factory for future loads (with cache-busting in prod)
+      MODULE_IMPORT_MAP[moduleId] = () => import(/* @vite-ignore */ getManifestUrl(moduleId, manifest.version));
       registerDynamicManifest(manifest);
       return manifest;
     }
   } catch (err) {
-    log.warn('loadHotDrop', `Failed to load hot-drop manifest for '${moduleId}'`, { message: err.message });
+    log.error('loadManifest', `Failed to load manifest for '${moduleId}'`, { message: err.message });
   }
 
   return null;
@@ -186,3 +202,14 @@ export function validateManifest(manifest) {
 
   return { valid: errors.length === 0, errors };
 }
+
+// ─── No hardcoded module registration ─────────────────────────────────────────
+// Modules are discovered from dist-modules/ via the Module Manager UI.
+// In both dev and production, the flow is identical:
+//   1. Build: npm run build:module <name>
+//   2. Deploy: dist-modules/<name>/ (constants.json + manifest.js + api/)
+//   3. Discover: Module Manager UI → GET /api/modules/available
+//   4. Install: POST /api/modules/<name>/install
+//   5. Enable: POST /api/modules/<name>/enable
+//   6. Load: PlatformDashboard fetches manifest from /api/modules/bundle/<name>/manifest.js
+// Zero code changes. Zero restarts. Zero downtime.

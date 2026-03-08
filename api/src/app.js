@@ -62,6 +62,9 @@ import databaseRoutes from '#core/routes/databaseRoutes.js';
 import configRoutes from '#core/routes/configRoutes.js';
 import logRoutes from '#core/routes/logRoutes.js';
 import generalSettingsRoutes from '#core/routes/generalSettingsRoutes.js';
+import modulesRoutes from '#core/routes/modulesRoutes.js';
+import { rehydrateEnabledModules } from '#core/modules/dynamicRouteLoader.js';
+import moduleGateway from '#core/modules/moduleGateway.js';
 
 // Swagger spec
 const swaggerSpec = loadJson('swagger.json');
@@ -115,6 +118,13 @@ export function createApp() {
   app.use(`${prefix}${apiUrls.database.base}`, databaseRoutes);
   app.use(`${prefix}${apiUrls.logs.base}`, logRoutes);
   app.use(`${prefix}${apiUrls.settings.base}`, generalSettingsRoutes);
+  // Modules route — public list endpoint + protected enable/disable
+  app.use(`${prefix}${apiUrls.modules.base}`, modulesRoutes);
+  // ── Dynamic Module Gateway ─────────────────────────────────────────────
+  // All dynamic module routes (e.g. /api/servicenow/*) are mounted onto
+  // moduleGateway at runtime by dynamicRouteLoader. This MUST sit before
+  // the 404 handler so dynamically added routes are reachable.
+  app.use(moduleGateway);
 
   // ── 11. Protected Routes (JWT required) ─────────────────────────────────
   app.use(`${prefix}${apiUrls.systemConfig.base}`, authenticate, configRoutes);
@@ -144,4 +154,14 @@ export function createApp() {
   });
 
   return app;
+}
+
+/**
+ * Initialize the app and rehydrate enabled modules.
+ * Called from server.js after createApp().
+ * @param {import('express').Express} app
+ * @returns {Promise<void>}
+ */
+export async function initializeModules(app) {
+  await rehydrateEnabledModules(app);
 }

@@ -23,7 +23,7 @@ export default function LoginForm({ onLogin, isLoading = false, defaultUsername 
   log.debug('mount', 'Login page accessed');
   // TODO: Remove default credentials before production deployment
   const [email, setEmail] = useState(defaultUsername || 'admin@test.com');
-  const [password, setPassword] = useState(defaultUsername ? '' : 'Infosys@123');
+  const [password, setPassword] = useState('Infosys@123');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);

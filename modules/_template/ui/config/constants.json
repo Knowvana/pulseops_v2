@@ -1,0 +1,12 @@
+{
+  "id": "my_module",
+  "name": "My Module",
+  "shortName": "MyMod",
+  "version": "1.0.0",
+  "description": "Description of your module.",
+  "roles": ["super_admin", "admin", "user"],
+  "isCore": false,
+  "order": 20,
+  "defaultView": "dashboard",
+  "configDefaultTab": "connection"
+}

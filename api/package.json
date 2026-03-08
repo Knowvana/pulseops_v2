@@ -9,6 +9,7 @@
     "#shared/*": "./src/shared/*",
     "#core/*": "./src/core/*",
     "#root/*": "./src/*",
+    "#modules/*": "./src/modules/*",
     "#apiRoot/*": "./*"
   },
   "scripts": {

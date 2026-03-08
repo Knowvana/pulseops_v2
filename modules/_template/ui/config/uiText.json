@@ -1,0 +1,20 @@
+{
+  "navItems": {
+    "dashboard": "Dashboard",
+    "config": "Configuration"
+  },
+  "config": {
+    "title": "My Module Configuration",
+    "subtitle": "Configure connection, settings, and preferences",
+    "tabs": {
+      "connection": {
+        "id": "connection",
+        "label": "Connection"
+      }
+    }
+  },
+  "dashboard": {
+    "title": "My Module Dashboard",
+    "subtitle": "Overview and statistics"
+  }
+}

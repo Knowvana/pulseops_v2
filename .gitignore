@@ -5,6 +5,7 @@ api/node_modules/
 # Build output
 dist/
 dist-modules/
+api/dist-modules/
 build/
 
 # Environment

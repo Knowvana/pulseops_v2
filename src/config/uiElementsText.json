@@ -98,7 +98,58 @@
     },
     "moduleManager": {
       "title": "Module Manager",
-      "subtitle": "Install, enable, disable, and manage platform modules"
+      "subtitle": "Install, enable, disable, and manage platform modules",
+      "tabs": {
+        "available": "Available",
+        "installed": "Installed"
+      },
+      "available": {
+        "title": "Available Modules",
+        "subtitle": "Modules discovered in the hot-drop folder. Install to register.",
+        "empty": "No modules found in the hot-drop folder. Build a module first.",
+        "scanning": "Scanning for available modules...",
+        "scanButton": "Scan for Modules"
+      },
+      "installed": {
+        "title": "Installed Modules",
+        "subtitle": "Modules registered in the platform. Enable to activate.",
+        "empty": "No modules installed yet. Scan for available modules first."
+      },
+      "actions": {
+        "install": "Install",
+        "enable": "Enable",
+        "disable": "Disable",
+        "remove": "Remove",
+        "refresh": "Refresh"
+      },
+      "status": {
+        "installed": "Installed",
+        "enabled": "Enabled",
+        "disabled": "Disabled",
+        "notInstalled": "Not Installed",
+        "apiLoaded": "API Routes Loaded",
+        "apiNotLoaded": "API Routes Not Loaded",
+        "uiBundle": "UI Bundle Available",
+        "apiBundle": "API Bundle Available"
+      },
+      "confirm": {
+        "enableTitle": "Enable Module",
+        "enableMessage": "This will load the module's API routes and make it available in the platform.",
+        "disableTitle": "Disable Module",
+        "disableMessage": "This will unload the module's API routes. The module will no longer be accessible.",
+        "removeTitle": "Remove Module",
+        "removeMessage": "This will remove the module from the platform registry. The bundle files will remain in dist-modules/.",
+        "installTitle": "Install Module",
+        "installMessage": "This will register the module in the platform. You can enable it afterwards."
+      },
+      "toast": {
+        "installSuccess": "Module installed successfully.",
+        "enableSuccess": "Module enabled successfully. API routes loaded.",
+        "disableSuccess": "Module disabled successfully.",
+        "removeSuccess": "Module removed successfully.",
+        "scanComplete": "Module scan complete.",
+        "actionFailed": "Module action failed. Check API logs."
+      }
     },
     "logs": {
       "title": "Platform Admin — Logs",

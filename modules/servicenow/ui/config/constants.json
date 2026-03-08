@@ -1,0 +1,12 @@
+{
+  "id": "servicenow",
+  "name": "ServiceNow",
+  "shortName": "SNOW",
+  "version": "1.0.0",
+  "description": "ServiceNow ITSM integration — incidents, SLA tracking, sync scheduling, and compliance reporting.",
+  "roles": ["super_admin", "admin", "user"],
+  "isCore": false,
+  "order": 10,
+  "defaultView": "dashboard",
+  "configDefaultTab": "connection"
+}

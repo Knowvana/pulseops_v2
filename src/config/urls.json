@@ -13,6 +13,7 @@
       "url": "http://localhost:4001"
     }
   },
+  "apiBaseUrl": "/api",
   "apiPrefix": "/api",
   "api": {
     "base": "/api",
@@ -44,7 +45,13 @@
   "modules": {
     "list": "/api/modules",
     "available": "/api/modules/available",
-    "bundle": "/api/modules/bundle"
+    "scan": "/api/modules/scan",
+    "bundle": "/api/modules/bundle",
+    "install": "/api/modules/{id}/install",
+    "enable": "/api/modules/{id}/enable",
+    "disable": "/api/modules/{id}/disable",
+    "remove": "/api/modules/{id}",
+    "status": "/api/modules/{id}/status"
   },
   "logs": {
     "stats": "/api/logs/stats",

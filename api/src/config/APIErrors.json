@@ -52,6 +52,17 @@
     "routeNotFound": "Route not found.",
     "internalServerError": "Internal server error.",
     "validationFailed": "Validation failed. Check your input.",
-    "invalidRequestBody": "Invalid request body...."
+    "invalidRequestBody": "Invalid request body....",
+    "snConfigLoadFailed": "Failed to load ServiceNow configuration.",
+    "snConfigSaveFailed": "Failed to save ServiceNow configuration.",
+    "snConnectionTestFailed": "Failed to perform ServiceNow connection test.",
+    "snConnectionRequired": "ServiceNow connection is not configured. Set up the connection in Configuration → Connection.",
+    "snStatsFailed": "Failed to retrieve ServiceNow dashboard statistics.",
+    "snIncidentsFetchFailed": "Failed to fetch incidents from ServiceNow.",
+    "snSyncFailed": "Failed to synchronize data from ServiceNow.",
+    "snReportsFailed": "Failed to generate ServiceNow reports.",
+    "snModuleListFailed": "Failed to retrieve module list.",
+    "snModuleEnableFailed": "Failed to enable module.",
+    "snModuleDisableFailed": "Failed to disable module."
   }
 }
