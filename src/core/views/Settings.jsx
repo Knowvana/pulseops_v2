@@ -275,16 +275,21 @@ function DatabaseObjectsTab() {
       const connResult = await connResponse.json();
 
       if (!connResult?.success) {
-        // Connection failed — report the real error, don't allow any DB operations
+        // Connection failed — check if it's because DB doesn't exist
         const errMsg = connResult?.error?.message || connectionText.failed;
         const errCode = connResult?.error?.code || 'CONNECTION_FAILED';
         log.warn('DatabaseObjectsTab:checkStatus', `Connection test failed: ${errMsg}`, { code: errCode });
+        
+        // If DB doesn't exist, we can still show the Create Database button
+        // Only show connection error if it's a real connection issue (not just missing DB)
+        const isDbNotExist = errCode === 'DB_NOT_EXIST';
+        
         setDbStatus({
-          connected: false,
-          exists: errCode !== 'DB_NOT_EXIST',
+          connected: !isDbNotExist,  // Connected to server but DB doesn't exist
+          exists: false,              // Database doesn't exist
           schemaInitialized: false,
           hasDefaultData: false,
-          connectionError: errMsg,
+          connectionError: isDbNotExist ? null : errMsg,  // Only show error if not DB_NOT_EXIST
         });
         setIsLoading(false);
         return;
@@ -399,8 +404,8 @@ function LogConfigTabNew() {
   const [cfg, setCfg] = useState({
     enabled: true,
     defaultLevel: 'info',
-    captureOptions: { ui: true, api: true, console: false, moduleLogs: true },
-    management: { maxUiEntries: 1000, maxApiEntries: 1000, pushIntervalMs: 5000 },
+    captureOptions: { uiLogs: true, apiLogs: true, consoleLogs: false, moduleLogs: true },
+    management: { maxUiEntries: 1000, maxApiEntries: 500, pushIntervalMs: 30000 },
   });
   const [dbStatus, setDbStatus] = useState({ status: 'idle', message: '' });
   const [showSaveModal, setShowSaveModal] = useState(false);
@@ -438,8 +443,8 @@ function LogConfigTabNew() {
           setCfg({
             enabled: d.enabled !== false,
             defaultLevel: d.defaultLevel || 'info',
-            captureOptions: d.captureOptions || { ui: true, api: true, console: false, moduleLogs: true },
-            management: d.management || { maxUiEntries: 1000, maxApiEntries: 1000, pushIntervalMs: 5000 },
+            captureOptions: d.captureOptions || { uiLogs: true, apiLogs: true, consoleLogs: false, moduleLogs: true },
+            management: d.management || { maxUiEntries: 1000, maxApiEntries: 500, pushIntervalMs: 30000 },
           });
           log.info('LogConfigTab', 'Config loaded', { enabled: d.enabled, level: d.defaultLevel });
         }
@@ -456,15 +461,16 @@ function LogConfigTabNew() {
     log.info('LogConfigTab:testDbConnection', 'Testing DB connection for logging');
     setDbStatus({ status: 'loading', message: connectionText.testing, lastTested: null });
     try {
-      const res = await fetch(urls.logs.configStatus, { credentials: 'include' });
+      const res = await fetch(urls.database.connection, { credentials: 'include' });
       const result = await res.json();
       const timeString = TimezoneService.formatCurrentTime();
-      if (result?.success && result?.data?.databaseAvailable) {
+      if (result?.success) {
         setDbStatus({ status: 'success', message: connectionText.connected, lastTested: timeString });
         log.info('LogConfigTab:testDbConnection', 'DB connection OK for logging');
       } else {
-        setDbStatus({ status: 'error', message: lcText.dbNotReady || connectionText.failed, lastTested: timeString });
-        log.warn('LogConfigTab:testDbConnection', 'DB not available for logging');
+        const errMsg = result?.error?.message || lcText.dbNotReady || connectionText.failed;
+        setDbStatus({ status: 'error', message: errMsg, lastTested: timeString });
+        log.warn('LogConfigTab:testDbConnection', 'DB connection failed', { error: result?.error?.code });
       }
     } catch (err) {
       setDbStatus({ status: 'error', message: err.message || connectionText.failed, lastTested: TimezoneService.formatCurrentTime() });
@@ -571,24 +577,24 @@ function LogConfigTabNew() {
               icon={Monitor}
               label="Console Output"
               description="Mirror logs to the browser developer console"
-              enabled={cfg.captureOptions.console}
-              onToggle={() => setCfg(prev => ({ ...prev, captureOptions: { ...prev.captureOptions, console: !prev.captureOptions.console } }))}
+              enabled={cfg.captureOptions.consoleLogs}
+              onToggle={() => setCfg(prev => ({ ...prev, captureOptions: { ...prev.captureOptions, consoleLogs: !prev.captureOptions.consoleLogs } }))}
             />
             <div className="w-1 h-16 bg-gradient-to-b from-transparent via-brand-400 to-transparent shadow-lg" />
             <ToggleRow
               icon={Server}
               label="API Logs"
               description="Track all backend API requests and responses"
-              enabled={cfg.captureOptions.api}
-              onToggle={() => setCfg(prev => ({ ...prev, captureOptions: { ...prev.captureOptions, api: !prev.captureOptions.api } }))}
+              enabled={cfg.captureOptions.apiLogs}
+              onToggle={() => setCfg(prev => ({ ...prev, captureOptions: { ...prev.captureOptions, apiLogs: !prev.captureOptions.apiLogs } }))}
             />
             <div className="w-1 h-16 bg-gradient-to-b from-transparent via-brand-400 to-transparent shadow-lg" />
             <ToggleRow
               icon={Eye}
               label="UI Logs"
               description="Capture UI interaction and navigation events"
-              enabled={cfg.captureOptions.ui}
-              onToggle={() => setCfg(prev => ({ ...prev, captureOptions: { ...prev.captureOptions, ui: !prev.captureOptions.ui } }))}
+              enabled={cfg.captureOptions.uiLogs}
+              onToggle={() => setCfg(prev => ({ ...prev, captureOptions: { ...prev.captureOptions, uiLogs: !prev.captureOptions.uiLogs } }))}
             />
             <div className="w-1 h-16 bg-gradient-to-b from-transparent via-brand-400 to-transparent shadow-lg" />
             <ToggleRow

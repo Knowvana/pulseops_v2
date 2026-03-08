@@ -295,11 +295,11 @@ class UILogServiceClass {
     this._navPopHandler = () => self._logNav(window.location.pathname);
     window.addEventListener('popstate', this._navPopHandler);
 
-    // Log initial page load
+    // Log initial page load — derive fileName from the page path
     this._addUiEntryRaw('info',
       `[Navigation] App loaded → ${window.location.pathname}`,
       { path: window.location.pathname }, 'navigation',
-      { file: 'UILogService.js', func: 'init' });
+      { file: this._pageToFileName(window.location.pathname), func: 'init' });
   }
 
   _logNav(url) {
@@ -309,7 +309,7 @@ class UILogServiceClass {
     this._addUiEntryRaw('info',
       `[Navigation] → ${path}`,
       { path }, 'navigation',
-      { file: 'UILogService.js', func: 'navigation' });
+      { file: this._pageToFileName(path), func: 'navigation' });
   }
 
   // ── Instrumentation: User interaction tracker ─────────────────────────────
@@ -354,7 +354,7 @@ class UILogServiceClass {
       this._addUiEntryRaw('debug',
         `[Interaction] ${label}: ${rawText || dataLog || tag}`,
         ctx, 'interaction',
-        { file: 'UILogService.js', func: 'interaction' });
+        { file: this._pageToFileName(window.location.pathname), func: 'interaction' });
     }, { capture: true, passive: true });
   }
 
@@ -364,19 +364,23 @@ class UILogServiceClass {
     window.addEventListener('unhandledrejection', (e) => {
       const msg   = e.reason?.message || String(e.reason) || 'Unhandled Promise Rejection';
       const stack = e.reason?.stack?.split('\n').slice(0, 3).join(' | ');
+      // Extract actual file from the rejection stack trace if available
+      const caller = this._callerFromStack(e.reason?.stack);
       this._addUiEntryRaw('error',
         `[UnhandledRejection] ${msg}`,
         stack ? { stack } : undefined, 'error',
-        { file: 'UILogService.js', func: 'unhandledRejection' });
+        caller || { file: this._pageToFileName(window.location.pathname), func: 'unhandledRejection' });
       this._flushNow();
     });
 
     window.addEventListener('error', (e) => {
       if (!e.message || e.message === 'Script error.') return;
+      // Use the actual error filename if available
+      const errorFile = e.filename ? e.filename.split('/').pop()?.split('?')[0] : null;
       this._addUiEntryRaw('error',
         `[WindowError] ${e.message}`,
         { file: e.filename, line: e.lineno }, 'error',
-        { file: 'UILogService.js', func: 'windowError' });
+        { file: errorFile || this._pageToFileName(window.location.pathname), func: 'windowError' });
       this._flushNow();
     });
   }
@@ -528,7 +532,8 @@ class UILogServiceClass {
             fileName:       e.fileName ? `${e.fileName}:${e.functionName || 'anonymous'}` : null,
             module:         'Core',
             message:        e.message,
-            user:           e.userId || 'Anonymous',
+            user:           this._userId || null,
+            pageUrl:        e.pageUrl || null,
             data:           e.context ?? null,
             timestamp:      e.timestamp,
           })),
@@ -598,6 +603,46 @@ class UILogServiceClass {
     } catch {
       return url.length > 80 ? url.slice(0, 80) + '\u2026' : url;
     }
+  }
+
+  /**
+   * Derive a meaningful filename from a URL path.
+   * E.g. /platform_admin/Settings → Settings.jsx
+   *      /platform_admin/logs     → LogManager.jsx
+   *      /                        → App.jsx
+   * Falls back to the last path segment capitalized + .jsx
+   */
+  _pageToFileName(path) {
+    if (!path || path === '/') return 'App.jsx';
+    const segment = path.split('/').filter(Boolean).pop() || 'App';
+    // Capitalize first letter and add .jsx extension
+    const name = segment.charAt(0).toUpperCase() + segment.slice(1);
+    return `${name}.jsx`;
+  }
+
+  /**
+   * Extract caller { file, func } from an Error stack trace string.
+   * Used by error handlers where we have a stack but no Error() to construct.
+   * @param {string} stackStr - The .stack property of an Error
+   * @returns {{ file: string, func: string } | null}
+   */
+  _callerFromStack(stackStr) {
+    if (!stackStr) return null;
+    try {
+      const lines = stackStr.split('\n');
+      for (let i = 1; i < Math.min(lines.length, 6); i++) {
+        const line = lines[i];
+        if (!line) continue;
+        if (SKIP_FRAMES.some(f => line.includes(f))) continue;
+        const m = line.match(FRAME_RE);
+        if (m) {
+          const func = (m[1] || 'anonymous').replace(/^Object\./, '').replace(/^Array\./, '').split('.').pop();
+          const file = (m[2] || '').split('/').pop() || m[2];
+          return { file, func };
+        }
+      }
+    } catch { /* ignore */ }
+    return null;
   }
 
   _genSessionId() {

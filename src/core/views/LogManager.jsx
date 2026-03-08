@@ -266,12 +266,13 @@ export default function LogManager() {
       {(() => {
         const isFile = stats.storage === 'file';
         const dsType = isFile ? 'JSON File' : 'Database';
+        const logsTable = logConfig?.database?.logsTable || 'system_logs';
         const dsUiName = isFile
           ? (logConfig?.file?.uiLogsPath || 'logs/ui-logs.json')
-          : (logConfig?.database?.uiLogsTable || 'system_ui_logs');
+          : `${logsTable} (UI)`;
         const dsApiName = isFile
           ? (logConfig?.file?.apiLogsPath || 'logs/api-logs.json')
-          : (logConfig?.database?.apiLogsTable || 'system_api_logs');
+          : `${logsTable} (API)`;
         const entryCount = stats.count || 0;
 
         return (

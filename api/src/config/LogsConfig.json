@@ -1,17 +1,22 @@
 {
-  "enabled": false,
+  "enabled": true,
   "storage": "database",
   "database": {
     "logsTable": "system_logs",
     "retentionDays": 90,
     "batchInsertSize": 50
   },
-  "levels": ["debug", "info", "warn", "error"],
+  "levels": [
+    "debug",
+    "info",
+    "warn",
+    "error"
+  ],
   "defaultLevel": "info",
   "captureOptions": {
     "uiLogs": true,
     "apiLogs": true,
-    "consoleLogs": true,
+    "consoleLogs": false,
     "moduleLogs": true
   },
   "management": {

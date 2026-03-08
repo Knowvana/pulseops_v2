@@ -2,24 +2,34 @@
 // LogService — PulseOps V2 API
 //
 // PURPOSE: Enterprise log management service that handles reading, writing,
-// and deleting logs from both JSON files and PostgreSQL database.
-// Supports two log types: UI Logs and API Logs.
+// and deleting logs from PostgreSQL database.
+// Supports two log types: UI Logs and API Logs via a unified
+// `system_logs` table with a `log_type` column.
 //
-// STORAGE MODES:
-//   - "file"     → JSON files in api/logs/ (default, no DB required)
-//   - "database" → PostgreSQL tables (system_ui_logs, system_api_logs)
+// STORAGE: Database-only (PostgreSQL). Storage mode is always "database".
+//
+// HOT-RELOAD: Configuration is read from LogsConfig.json on every operation
+// via getLogsConfig(). No API restart required when config changes.
+//
+// TABLE: pulseops.system_logs (from DefaultDatabaseSchema.json)
+//   Common:   id, transaction_id, correlation_id, session_id,
+//             log_type, level, source, event, message, module, file_name,
+//             data (JSONB), user_id, user_email, ip_address, user_agent, created_at
+//   UI-only:  page_url
+//   API-only: http_method, api_url, status_code, duration_ms,
+//             request_body (JSONB), response_body (JSONB)
 //
 // ARCHITECTURE:
-//   - Reads storage mode from LogsConfig.json at startup
-//   - All modules write logs with a LogModule column for filtering
+//   - Hot-loads LogsConfig.json on every operation (no cached state)
+//   - All modules write logs with a `module` column for filtering
 //   - Core platform logs use "Core" as the module identifier
 //   - Supports batch inserts for performance
-//   - File rotation when maxEntries is reached
+//   - File-based fallback kept for backward compatibility
 //
 // DEPENDENCIES:
-//   - fs/path          → File-based log I/O
+//   - fs/path          → File-based log I/O (fallback)
 //   - DatabaseService   → Database-based log I/O
-//   - LogsConfig.json   → Storage configuration
+//   - LogsConfig.json   → Storage configuration (hot-loaded)
 //   - APIMessages.json  → Response messages
 //   - APIErrors.json    → Error messages
 // ============================================================================
@@ -33,14 +43,24 @@ import { loadJson, messages, errors } from '#shared/loadJson.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const apiRoot = path.resolve(__dirname, '../../..');
 
-// Load log config
-let logsConfig = loadJson('LogsConfig.json');
-
 /**
- * Reload logs config from disk (called when config changes).
+ * Get the current logs configuration from disk (hot-loaded).
+ * This ensures configuration changes are honored immediately without restart.
+ * @returns {Object} Current LogsConfig
  */
-function reloadConfig() {
-  logsConfig = loadJson('LogsConfig.json');
+function getLogsConfig() {
+  try {
+    return loadJson('LogsConfig.json');
+  } catch (err) {
+    logger.warn('Failed to load LogsConfig.json, using defaults', { error: err.message });
+    return {
+      enabled: true,
+      storage: 'database',
+      defaultLevel: 'info',
+      captureOptions: { uiLogs: true, apiLogs: true, consoleLogs: false, moduleLogs: true },
+      management: { maxUiEntries: 1000, maxApiEntries: 500, pushIntervalMs: 30000 },
+    };
+  }
 }
 
 /**
@@ -48,7 +68,8 @@ function reloadConfig() {
  * @returns {string} "file" or "database"
  */
 function getStorageMode() {
-  return logsConfig.storage || 'file';
+  const config = getLogsConfig();
+  return config.storage || 'database';
 }
 
 /**
@@ -57,10 +78,11 @@ function getStorageMode() {
  * @returns {string} Absolute path to the log file
  */
 function getLogFilePath(logType) {
+  const cfg = getLogsConfig();
   const relativePath = logType === 'ui'
-    ? logsConfig.file.uiLogsPath
-    : logsConfig.file.apiLogsPath;
-  return path.resolve(apiRoot, relativePath);
+    ? cfg.file?.uiLogsPath
+    : cfg.file?.apiLogsPath;
+  return path.resolve(apiRoot, relativePath || 'api/logs');
 }
 
 /**
@@ -103,7 +125,8 @@ function readLogsFromFile(logType) {
 function writeLogsToFile(logType, logs) {
   const filePath = getLogFilePath(logType);
   ensureLogFile(filePath);
-  const maxEntries = logsConfig.file.maxEntries || 5000;
+  const cfg = getLogsConfig();
+  const maxEntries = cfg.file?.maxEntries || 5000;
   const trimmed = logs.length > maxEntries ? logs.slice(-maxEntries) : logs;
   fs.writeFileSync(filePath, JSON.stringify(trimmed, null, 2), 'utf8');
 }
@@ -161,9 +184,8 @@ function getFileLogStats(logType) {
  */
 function getLogTable(logType) {
   const schema = config.db.schema || 'pulseops';
-  const table = logType === 'ui'
-    ? (logsConfig.database.uiLogsTable || 'system_ui_logs')
-    : (logsConfig.database.apiLogsTable || 'system_api_logs');
+  const cfg = getLogsConfig();
+  const table = cfg.database?.logsTable || 'system_logs';
   return `${schema}.${table}`;
 }
 
@@ -178,32 +200,37 @@ async function getDbService() {
 
 /**
  * Read logs from database with optional filters.
+ * Queries the unified system_logs table, filtered by log_type.
+ * Column names match DefaultDatabaseSchema.json.
  * @param {string} logType - "ui" or "api"
- * @param {Object} filters - { level, search, limit, offset }
+ * @param {Object} filters - { level, search, module, limit, offset }
  * @returns {Promise<Array>}
  */
 async function readLogsFromDb(logType, filters = {}) {
   const db = await getDbService();
   const table = getLogTable(logType);
-  const conditions = [];
-  const params = [];
-  let paramIndex = 1;
+  const conditions = [`log_type = $1`];
+  const params = [logType];
+  let paramIndex = 2;
 
+  // Filter by log level (column: level)
   if (filters.level && filters.level !== 'all') {
-    conditions.push(`log_level = $${paramIndex++}`);
+    conditions.push(`level = $${paramIndex++}`);
     params.push(filters.level);
   }
+  // Full-text search across message, file_name, event, api_url, user_email columns
   if (filters.search) {
-    conditions.push(`(message ILIKE $${paramIndex} OR file_name ILIKE $${paramIndex} OR event ILIKE $${paramIndex})`);
+    conditions.push(`(message ILIKE $${paramIndex} OR file_name ILIKE $${paramIndex} OR event ILIKE $${paramIndex} OR api_url ILIKE $${paramIndex} OR user_email ILIKE $${paramIndex})`);
     params.push(`%${filters.search}%`);
     paramIndex++;
   }
+  // Filter by module (column: module)
   if (filters.module) {
-    conditions.push(`log_module = $${paramIndex++}`);
+    conditions.push(`module = $${paramIndex++}`);
     params.push(filters.module);
   }
 
-  const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+  const where = `WHERE ${conditions.join(' AND ')}`;
   const limit = filters.limit || 500;
   const offset = filters.offset || 0;
 
@@ -211,11 +238,21 @@ async function readLogsFromDb(logType, filters = {}) {
     `SELECT * FROM ${table} ${where} ORDER BY created_at DESC LIMIT $${paramIndex++} OFFSET $${paramIndex}`,
     [...params, limit, offset]
   );
+  logger.debug(`readLogsFromDb: Read ${result.rows.length} ${logType} logs from database`);
   return result.rows;
 }
 
 /**
- * Insert log entries into the database.
+ * Insert log entries into the unified system_logs database table.
+ * Column names match DefaultDatabaseSchema.json exactly.
+ * Both UI and API logs go into the same table, differentiated by log_type.
+ *
+ * Columns used:
+ *   Common:  log_type, transaction_id, correlation_id, session_id, level,
+ *            source, event, message, module, file_name, data, user_email, created_at
+ *   UI-only: page_url
+ *   API-only: http_method, api_url, status_code, duration_ms, request_body, response_body
+ *
  * @param {string} logType - "ui" or "api"
  * @param {Array} entries - Log entries to insert
  * @returns {Promise<number>} Number of rows inserted
@@ -225,66 +262,59 @@ async function writeLogsToDb(logType, entries) {
   const db = await getDbService();
   const table = getLogTable(logType);
 
-  if (logType === 'ui') {
-    for (const entry of entries) {
-      await db.query(
-        `INSERT INTO ${table} (transaction_id, log_level, source, event, file_name, log_module, user_name, message, result, data, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
-        [
-          entry.transactionId || null,
-          entry.level || 'info',
-          entry.source || 'UI',
-          entry.event || null,
-          entry.fileName || null,
-          entry.module || 'Core',
-          entry.user || 'Anonymous',
-          entry.message || '',
-          entry.result || null,
-          entry.data ? JSON.stringify(entry.data) : null,
-          entry.timestamp || new Date().toISOString(),
-        ]
-      );
-    }
-  } else {
-    for (const entry of entries) {
-      await db.query(
-        `INSERT INTO ${table} (transaction_id, log_level, source, user_name, log_module, api_url, method, status_code, response_time_ms, request_body, response_body, error, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
-        [
-          entry.transactionId || null,
-          entry.level || 'info',
-          entry.source || 'API',
-          entry.user || 'Anonymous',
-          entry.module || 'Core',
-          entry.url || null,
-          entry.method || null,
-          entry.statusCode || null,
-          entry.responseTime || null,
-          entry.requestBody ? JSON.stringify(entry.requestBody) : null,
-          entry.responseBody ? JSON.stringify(entry.responseBody) : null,
-          entry.error || null,
-          entry.timestamp || new Date().toISOString(),
-        ]
-      );
-    }
+  // Unified INSERT — all columns from DefaultDatabaseSchema.json system_logs table
+  const sql = `INSERT INTO ${table}
+    (log_type, transaction_id, correlation_id, session_id,
+     level, source, event, message, module, file_name, page_url,
+     http_method, api_url, status_code, duration_ms,
+     request_body, response_body, data, user_email, created_at)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)`;
+
+  for (const entry of entries) {
+    await db.query(sql, [
+      logType,                                                          // $1  log_type
+      entry.transactionId || null,                                      // $2  transaction_id
+      entry.correlationId || null,                                      // $3  correlation_id
+      entry.sessionId || null,                                          // $4  session_id
+      entry.level || 'info',                                            // $5  level
+      entry.source || (logType === 'ui' ? 'UI' : 'API'),               // $6  source
+      entry.event || null,                                              // $7  event
+      entry.message || '',                                              // $8  message
+      entry.module || 'Core',                                           // $9  module
+      entry.fileName || null,                                           // $10 file_name
+      entry.pageUrl || null,                                            // $11 page_url (UI logs)
+      entry.method || null,                                             // $12 http_method (API logs)
+      entry.url || null,                                                // $13 api_url (API logs)
+      entry.statusCode != null ? entry.statusCode : null,                 // $14 status_code (API logs)
+      entry.responseTime != null ? entry.responseTime : (entry.durationMs != null ? entry.durationMs : null), // $15 duration_ms
+      entry.requestBody ? JSON.stringify(entry.requestBody) : null,     // $16 request_body (API logs, JSONB)
+      entry.responseBody ? JSON.stringify(entry.responseBody) : null,   // $17 response_body (API logs, JSONB)
+      entry.data ? JSON.stringify(entry.data) : null,                   // $18 data (JSONB — context/metadata)
+      entry.user || entry.userEmail || null,                            // $19 user_email
+      entry.timestamp || new Date().toISOString(),                      // $20 created_at
+    ]);
   }
+  logger.debug(`writeLogsToDb: Inserted ${entries.length} ${logType} log entries into database`);
   return entries.length;
 }
 
 /**
- * Delete all logs from a database table.
+ * Delete all logs for a specific log type from the unified system_logs table.
+ * Uses log_type column to filter — only deletes the requested type.
  * @param {string} logType - "ui" or "api"
  * @returns {Promise<number>} Number of rows deleted
  */
 async function deleteLogsFromDb(logType) {
   const db = await getDbService();
   const table = getLogTable(logType);
-  const result = await db.query(`DELETE FROM ${table}`);
+  const result = await db.query(`DELETE FROM ${table} WHERE log_type = $1`, [logType]);
+  logger.info(`deleteLogsFromDb: Deleted ${result.rowCount} ${logType} log entries`);
   return result.rowCount;
 }
 
 /**
- * Get database log stats (count, last entry).
+ * Get database log stats (count, last entry) for a specific log type.
+ * Filters by log_type column in the unified system_logs table.
  * @param {string} logType - "ui" or "api"
  * @returns {Promise<Object>} { count, lastEntry }
  */
@@ -292,8 +322,8 @@ async function getDbLogStats(logType) {
   const db = await getDbService();
   const table = getLogTable(logType);
   try {
-    const countResult = await db.query(`SELECT COUNT(*) FROM ${table}`);
-    const lastResult = await db.query(`SELECT created_at FROM ${table} ORDER BY created_at DESC LIMIT 1`);
+    const countResult = await db.query(`SELECT COUNT(*) FROM ${table} WHERE log_type = $1`, [logType]);
+    const lastResult = await db.query(`SELECT created_at FROM ${table} WHERE log_type = $1 ORDER BY created_at DESC LIMIT 1`, [logType]);
     return {
       count: parseInt(countResult.rows[0].count, 10),
       lastEntry: lastResult.rows[0]?.created_at || null,
@@ -311,11 +341,13 @@ async function checkLogTablesExist() {
   try {
     const db = await getDbService();
     const schema = config.db.schema || 'pulseops';
+    const cfg = getLogsConfig();
+    const table = cfg.database?.logsTable || 'system_logs';
     const result = await db.query(
-      `SELECT table_name FROM information_schema.tables WHERE table_schema = $1 AND table_name IN ($2, $3)`,
-      [schema, logsConfig.database.uiLogsTable || 'system_ui_logs', logsConfig.database.apiLogsTable || 'system_api_logs']
+      `SELECT table_name FROM information_schema.tables WHERE table_schema = $1 AND table_name = $2`,
+      [schema, table]
     );
-    return result.rows.length === 2;
+    return result.rows.length === 1;
   } catch {
     return false;
   }
@@ -323,74 +355,69 @@ async function checkLogTablesExist() {
 
 /**
  * Create log tables in the database if they don't exist.
+ * Uses the system_logs table from DefaultDatabaseSchema.json
  * @returns {Promise<Object>} { created, tables }
  */
 async function createLogTables() {
   const db = await getDbService();
   const schema = config.db.schema || 'pulseops';
-  const uiTable = logsConfig.database.uiLogsTable || 'system_ui_logs';
-  const apiTable = logsConfig.database.apiLogsTable || 'system_api_logs';
+  const cfg = getLogsConfig();
+  const table = cfg.database?.logsTable || 'system_logs';
 
   await db.query(`CREATE SCHEMA IF NOT EXISTS ${schema}`);
 
+  // Create unified system_logs table (matches DefaultDatabaseSchema.json exactly)
   await db.query(`
-    CREATE TABLE IF NOT EXISTS ${schema}.${uiTable} (
-      id SERIAL PRIMARY KEY,
+    CREATE TABLE IF NOT EXISTS ${schema}.${table} (
+      id BIGSERIAL PRIMARY KEY,
       transaction_id VARCHAR(100),
-      log_level VARCHAR(10) NOT NULL DEFAULT 'info',
-      source VARCHAR(20) DEFAULT 'UI',
+      correlation_id VARCHAR(100),
+      session_id VARCHAR(100),
+      log_type VARCHAR(10) NOT NULL DEFAULT 'ui',
+      level VARCHAR(10) NOT NULL,
+      source VARCHAR(255),
       event VARCHAR(255),
-      file_name VARCHAR(255),
-      log_module VARCHAR(100) DEFAULT 'Core',
-      user_name VARCHAR(255),
       message TEXT NOT NULL,
-      result TEXT,
-      data JSONB,
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    )
-  `);
-
-  await db.query(`
-    CREATE TABLE IF NOT EXISTS ${schema}.${apiTable} (
-      id SERIAL PRIMARY KEY,
-      transaction_id VARCHAR(100),
-      log_level VARCHAR(10) NOT NULL DEFAULT 'info',
-      source VARCHAR(20) DEFAULT 'API',
-      user_name VARCHAR(255),
-      log_module VARCHAR(100) DEFAULT 'Core',
+      module VARCHAR(100),
+      file_name VARCHAR(255),
+      page_url VARCHAR(500),
+      http_method VARCHAR(10),
       api_url TEXT,
-      method VARCHAR(10),
       status_code INTEGER,
-      response_time_ms INTEGER,
+      duration_ms INTEGER,
       request_body JSONB,
       response_body JSONB,
-      error TEXT,
+      data JSONB,
+      user_id INTEGER,
+      user_email VARCHAR(255),
+      ip_address INET,
+      user_agent TEXT,
       created_at TIMESTAMPTZ DEFAULT NOW()
     )
   `);
 
-  // Create indexes for performance
-  await db.query(`CREATE INDEX IF NOT EXISTS idx_${uiTable}_level ON ${schema}.${uiTable}(log_level)`);
-  await db.query(`CREATE INDEX IF NOT EXISTS idx_${uiTable}_module ON ${schema}.${uiTable}(log_module)`);
-  await db.query(`CREATE INDEX IF NOT EXISTS idx_${uiTable}_created ON ${schema}.${uiTable}(created_at DESC)`);
-  await db.query(`CREATE INDEX IF NOT EXISTS idx_${apiTable}_level ON ${schema}.${apiTable}(log_level)`);
-  await db.query(`CREATE INDEX IF NOT EXISTS idx_${apiTable}_module ON ${schema}.${apiTable}(log_module)`);
-  await db.query(`CREATE INDEX IF NOT EXISTS idx_${apiTable}_created ON ${schema}.${apiTable}(created_at DESC)`);
+  // Create indexes for query performance
+  await db.query(`CREATE INDEX IF NOT EXISTS idx_${table}_level ON ${schema}.${table}(level)`);
+  await db.query(`CREATE INDEX IF NOT EXISTS idx_${table}_log_type ON ${schema}.${table}(log_type)`);
+  await db.query(`CREATE INDEX IF NOT EXISTS idx_${table}_module ON ${schema}.${table}(module)`);
+  await db.query(`CREATE INDEX IF NOT EXISTS idx_${table}_created_at ON ${schema}.${table}(created_at DESC)`);
+  await db.query(`CREATE INDEX IF NOT EXISTS idx_${table}_transaction_id ON ${schema}.${table}(transaction_id)`);
+  await db.query(`CREATE INDEX IF NOT EXISTS idx_${table}_correlation_id ON ${schema}.${table}(correlation_id)`);
+  await db.query(`CREATE INDEX IF NOT EXISTS idx_${table}_session_id ON ${schema}.${table}(session_id)`);
 
   logger.info('Log tables created successfully');
-  return { created: true, tables: [`${schema}.${uiTable}`, `${schema}.${apiTable}`] };
+  return { created: true, tables: [`${schema}.${table}`] };
 }
 
 // ── Public API ───────────────────────────────────────────────────────────────
 
 const LogService = {
   /**
-   * Get the current logging configuration.
+   * Get the current logging configuration (hot-loaded from disk).
    * @returns {Object} Current LogsConfig
    */
   getConfig() {
-    reloadConfig();
-    return { ...logsConfig };
+    return getLogsConfig();
   },
 
   /**
@@ -404,12 +431,13 @@ const LogService = {
   /**
    * Update logging configuration fields (enabled, level, captureOptions, management).
    * Merges provided fields into existing config and persists to LogsConfig.json.
+   * Configuration changes are immediately honored without restart.
    * @param {Object} updates - Partial config to merge { enabled?, defaultLevel?, captureOptions?, management? }
    * @returns {Object} Updated config
    */
   async updateConfig(updates) {
     const { saveJson } = await import('#shared/loadJson.js');
-    reloadConfig();
+    const logsConfig = getLogsConfig();
 
     // Allowed top-level fields that callers may update
     const allowed = ['enabled', 'defaultLevel', 'captureOptions', 'management'];
@@ -425,8 +453,9 @@ const LogService = {
     // Storage is always 'database' — never override
     logsConfig.storage = 'database';
     saveJson('LogsConfig.json', logsConfig);
-    reloadConfig();
-    return { ...logsConfig };
+    logger.info('Log configuration updated and persisted', { enabled: logsConfig.enabled, level: logsConfig.defaultLevel });
+    // Return fresh config from disk to ensure consistency
+    return getLogsConfig();
   },
 
   /**
@@ -438,9 +467,10 @@ const LogService = {
       throw new Error('Only database storage is supported. File-based logging has been removed.');
     }
     const { saveJson } = await import('#shared/loadJson.js');
-    logsConfig.storage = 'database';
-    saveJson('LogsConfig.json', logsConfig);
-    reloadConfig();
+    const cfg = getLogsConfig();
+    cfg.storage = 'database';
+    saveJson('LogsConfig.json', cfg);
+    logger.info('Storage mode set to database');
   },
 
   /**
@@ -487,7 +517,10 @@ const LogService = {
   },
 
   /**
-   * Write log entries.
+   * Write log entries. Respects ALL LogsConfig.json settings:
+   *   - enabled (global on/off)
+   *   - captureOptions.uiLogs / captureOptions.apiLogs (per-type on/off)
+   *   - defaultLevel (minimum log level threshold)
    * @param {string} logType - "ui" or "api"
    * @param {Array} entries - Log entries to write
    * @returns {Promise<Object>} { written, total }
@@ -495,12 +528,36 @@ const LogService = {
   async writeLogs(logType, entries) {
     if (!entries || entries.length === 0) return { written: 0, total: 0 };
 
-    // Global on/off switch — if disabled, silently discard (no DB required)
-    reloadConfig();
-    if (!logsConfig.enabled) return { written: 0, total: 0 };
+    // ── Hot-load config from disk (honors changes without restart) ──
+    const cfg = getLogsConfig();
+
+    // Global on/off switch
+    if (!cfg.enabled) {
+      logger.debug(`writeLogs: Logging globally disabled — discarding ${entries.length} ${logType} entries`);
+      return { written: 0, total: 0 };
+    }
+
+    // Per-type capture option check (uiLogs / apiLogs)
+    const captureKey = logType === 'ui' ? 'uiLogs' : 'apiLogs';
+    if (cfg.captureOptions && cfg.captureOptions[captureKey] === false) {
+      logger.debug(`writeLogs: captureOptions.${captureKey} is disabled — discarding ${entries.length} entries`);
+      return { written: 0, total: 0 };
+    }
+
+    // Log level threshold — discard entries below the configured minimum level
+    const LEVEL_ORDER = { debug: 0, info: 1, warn: 2, error: 3 };
+    const minLevel = LEVEL_ORDER[cfg.defaultLevel] ?? LEVEL_ORDER.info;
+    const filtered = entries.filter(e => {
+      const entryLevel = LEVEL_ORDER[(e.level || 'info').toLowerCase()] ?? 0;
+      return entryLevel >= minLevel;
+    });
+
+    if (filtered.length === 0) {
+      return { written: 0, total: 0 };
+    }
 
     // Add timestamp if missing
-    const timestamped = entries.map(e => ({
+    const timestamped = filtered.map(e => ({
       ...e,
       timestamp: e.timestamp || new Date().toISOString(),
     }));
@@ -510,10 +567,13 @@ const LogService = {
       try {
         const written = await writeLogsToDb(logType, timestamped);
         const stats = await getDbLogStats(logType);
+        logger.debug(`writeLogs: Wrote ${written} ${logType} entries to database`);
         return { written, total: stats.count };
       } catch (err) {
-        // DB unavailable — silently discard rather than propagating a 500
-        logger.warn(`writeLogs: DB write failed, entries discarded — ${err.message}`);
+        // DB unavailable or schema mismatch — log full error for diagnosis
+        logger.error(`writeLogs: DB write FAILED for ${logType} (${timestamped.length} entries) — ${err.message}`, {
+          logType, entryCount: timestamped.length, error: err.message, detail: err.detail || null
+        });
         return { written: 0, total: 0 };
       }
     }

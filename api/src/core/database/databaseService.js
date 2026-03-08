@@ -32,10 +32,16 @@
 //   - ../../shared/logger.js → structured logging
 // ============================================================================
 import pg from 'pg';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import bcrypt from 'bcryptjs';
 import { config } from '#config';
 import { logger } from '#shared/logger.js';
 import { messages, errors, loadJson } from '#shared/loadJson.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const schemaJsonPath = path.resolve(__dirname, 'DefaultDatabaseSchema.json');
 
 const { Pool } = pg;
 
@@ -241,12 +247,16 @@ const DatabaseService = {
 
   /**
    * Create the core database schema and all required tables.
-   * Reads table definitions from DefaultDatabaseSchema.json for
-   * maintainability and future extensibility.
+   * DYNAMICALLY reads table definitions from DefaultDatabaseSchema.json —
+   * the JSON is the single source of truth for all table columns and indexes.
    * Uses a single transaction for atomicity.
    * @returns {Promise<Object>} { success, message, tables }
    */
   async createSchema() {
+    // Read schema definition from JSON — single source of truth
+    const schemaDef = JSON.parse(fs.readFileSync(schemaJsonPath, 'utf8'));
+    const tableDefs = schemaDef.tables || [];
+
     const client = await getPool().connect();
     try {
       await client.query('BEGIN');
@@ -255,161 +265,44 @@ const DatabaseService = {
       await client.query(`CREATE SCHEMA IF NOT EXISTS ${schema}`);
       logger.info(`[databaseService:createSchema] Schema namespace created/verified: ${schema}`);
 
-      // ── system_users ────────────────────────────────────────────────────────
-      await client.query(`
-        CREATE TABLE IF NOT EXISTS ${schema}.system_users (
-          id           SERIAL PRIMARY KEY,
-          email        VARCHAR(255) UNIQUE NOT NULL,
-          password_hash VARCHAR(255),
-          name         VARCHAR(255) NOT NULL,
-          role         VARCHAR(50) NOT NULL DEFAULT 'user',
-          status       VARCHAR(20) NOT NULL DEFAULT 'active',
-          last_login   TIMESTAMPTZ,
-          created_at   TIMESTAMPTZ DEFAULT NOW(),
-          updated_at   TIMESTAMPTZ DEFAULT NOW()
-        )
-      `);
-      await client.query(`CREATE INDEX IF NOT EXISTS idx_system_users_email  ON ${schema}.system_users(email)`);
-      await client.query(`CREATE INDEX IF NOT EXISTS idx_system_users_role   ON ${schema}.system_users(role)`);
-      await client.query(`CREATE INDEX IF NOT EXISTS idx_system_users_status ON ${schema}.system_users(status)`);
+      // Create each table from the JSON definition
+      for (const tableDef of tableDefs) {
+        const tableName = tableDef.name;
+        const columns = tableDef.columns || [];
+        const compositePK = tableDef.primaryKey; // e.g. ["role_id", "permission_id"]
 
-      // ── system_roles ────────────────────────────────────────────────────────
-      await client.query(`
-        CREATE TABLE IF NOT EXISTS ${schema}.system_roles (
-          id          SERIAL PRIMARY KEY,
-          name        VARCHAR(100) UNIQUE NOT NULL,
-          description TEXT,
-          is_system   BOOLEAN DEFAULT FALSE,
-          created_at  TIMESTAMPTZ DEFAULT NOW(),
-          updated_at  TIMESTAMPTZ DEFAULT NOW()
-        )
-      `);
+        // Build column definitions — replace schema references (e.g. pulseops.system_users)
+        const colDefs = columns.map(col => {
+          // Replace hardcoded schema references in REFERENCES clauses with the actual schema
+          let colType = col.type;
+          if (colType.includes('pulseops.')) {
+            colType = colType.replace(/pulseops\./g, `${schema}.`);
+          }
+          return `${col.name} ${colType}`;
+        });
 
-      // ── system_permissions ──────────────────────────────────────────────────
-      await client.query(`
-        CREATE TABLE IF NOT EXISTS ${schema}.system_permissions (
-          id          SERIAL PRIMARY KEY,
-          name        VARCHAR(100) UNIQUE NOT NULL,
-          resource    VARCHAR(100) NOT NULL,
-          action      VARCHAR(50)  NOT NULL,
-          description TEXT,
-          created_at  TIMESTAMPTZ DEFAULT NOW()
-        )
-      `);
-      await client.query(`CREATE INDEX IF NOT EXISTS idx_system_permissions_resource ON ${schema}.system_permissions(resource)`);
+        // Add composite primary key if defined (for junction tables)
+        if (compositePK && compositePK.length > 0) {
+          colDefs.push(`PRIMARY KEY (${compositePK.join(', ')})`);
+        }
 
-      // ── system_role_permissions ─────────────────────────────────────────────
-      await client.query(`
-        CREATE TABLE IF NOT EXISTS ${schema}.system_role_permissions (
-          role_id       INTEGER NOT NULL REFERENCES ${schema}.system_roles(id) ON DELETE CASCADE,
-          permission_id INTEGER NOT NULL REFERENCES ${schema}.system_permissions(id) ON DELETE CASCADE,
-          granted_at    TIMESTAMPTZ DEFAULT NOW(),
-          PRIMARY KEY (role_id, permission_id)
-        )
-      `);
+        const createSQL = `CREATE TABLE IF NOT EXISTS ${schema}.${tableName} (\n  ${colDefs.join(',\n  ')}\n)`;
+        await client.query(createSQL);
+        logger.info(`[databaseService:createSchema] Table created/verified: ${schema}.${tableName} (${columns.length} columns)`);
 
-      // ── system_user_roles ───────────────────────────────────────────────────
-      await client.query(`
-        CREATE TABLE IF NOT EXISTS ${schema}.system_user_roles (
-          user_id    INTEGER NOT NULL REFERENCES ${schema}.system_users(id) ON DELETE CASCADE,
-          role_id    INTEGER NOT NULL REFERENCES ${schema}.system_roles(id) ON DELETE CASCADE,
-          granted_by INTEGER REFERENCES ${schema}.system_users(id),
-          granted_at TIMESTAMPTZ DEFAULT NOW(),
-          PRIMARY KEY (user_id, role_id)
-        )
-      `);
-
-      // ── system_config ───────────────────────────────────────────────────────
-      await client.query(`
-        CREATE TABLE IF NOT EXISTS ${schema}.system_config (
-          id          SERIAL PRIMARY KEY,
-          key         VARCHAR(255) UNIQUE NOT NULL,
-          value       JSONB NOT NULL DEFAULT '{}',
-          description TEXT,
-          created_at  TIMESTAMPTZ DEFAULT NOW(),
-          updated_at  TIMESTAMPTZ DEFAULT NOW()
-        )
-      `);
-      await client.query(`CREATE INDEX IF NOT EXISTS idx_system_config_key ON ${schema}.system_config(key)`);
-
-      // ── system_modules ──────────────────────────────────────────────────────
-      await client.query(`
-        CREATE TABLE IF NOT EXISTS ${schema}.system_modules (
-          id                 SERIAL PRIMARY KEY,
-          module_id          VARCHAR(100) UNIQUE NOT NULL,
-          name               VARCHAR(255) NOT NULL,
-          version            VARCHAR(50)  NOT NULL DEFAULT '1.0.0',
-          description        TEXT,
-          is_core            BOOLEAN DEFAULT FALSE,
-          enabled            BOOLEAN DEFAULT FALSE,
-          schema_initialized BOOLEAN DEFAULT FALSE,
-          "order"            INTEGER DEFAULT 99,
-          installed_at       TIMESTAMPTZ DEFAULT NOW(),
-          updated_at         TIMESTAMPTZ DEFAULT NOW()
-        )
-      `);
-      await client.query(`CREATE INDEX IF NOT EXISTS idx_system_modules_module_id ON ${schema}.system_modules(module_id)`);
-      await client.query(`CREATE INDEX IF NOT EXISTS idx_system_modules_enabled   ON ${schema}.system_modules(enabled)`);
-
-      // ── system_logs ─────────────────────────────────────────────────────────
-      // Unified table for both UI and API logs with full distributed tracing IDs
-      await client.query(`
-        CREATE TABLE IF NOT EXISTS ${schema}.system_logs (
-          id             BIGSERIAL PRIMARY KEY,
-          transaction_id VARCHAR(100),
-          correlation_id VARCHAR(100),
-          session_id     VARCHAR(100),
-          request_id     VARCHAR(100),
-          log_type       VARCHAR(10)  NOT NULL DEFAULT 'ui',
-          level          VARCHAR(10)  NOT NULL,
-          source         VARCHAR(255),
-          event          VARCHAR(255),
-          message        TEXT NOT NULL,
-          module         VARCHAR(100),
-          file_name      VARCHAR(255),
-          data           JSONB,
-          user_id        INTEGER,
-          user_email     VARCHAR(255),
-          ip_address     INET,
-          user_agent     TEXT,
-          duration_ms    INTEGER,
-          status_code    INTEGER,
-          created_at     TIMESTAMPTZ DEFAULT NOW()
-        )
-      `);
-      await client.query(`CREATE INDEX IF NOT EXISTS idx_system_logs_level          ON ${schema}.system_logs(level)`);
-      await client.query(`CREATE INDEX IF NOT EXISTS idx_system_logs_log_type       ON ${schema}.system_logs(log_type)`);
-      await client.query(`CREATE INDEX IF NOT EXISTS idx_system_logs_created_at     ON ${schema}.system_logs(created_at DESC)`);
-      await client.query(`CREATE INDEX IF NOT EXISTS idx_system_logs_transaction_id ON ${schema}.system_logs(transaction_id)`);
-      await client.query(`CREATE INDEX IF NOT EXISTS idx_system_logs_session_id     ON ${schema}.system_logs(session_id)`);
-
-      // ── system_sessions ─────────────────────────────────────────────────────
-      await client.query(`
-        CREATE TABLE IF NOT EXISTS ${schema}.system_sessions (
-          id         SERIAL PRIMARY KEY,
-          session_id VARCHAR(100) UNIQUE NOT NULL,
-          user_id    INTEGER NOT NULL REFERENCES ${schema}.system_users(id) ON DELETE CASCADE,
-          token_hash VARCHAR(255) NOT NULL,
-          ip_address INET,
-          user_agent TEXT,
-          is_active  BOOLEAN DEFAULT TRUE,
-          expires_at TIMESTAMPTZ NOT NULL,
-          created_at TIMESTAMPTZ DEFAULT NOW(),
-          updated_at TIMESTAMPTZ DEFAULT NOW()
-        )
-      `);
-      await client.query(`CREATE INDEX IF NOT EXISTS idx_system_sessions_user_id    ON ${schema}.system_sessions(user_id)`);
-      await client.query(`CREATE INDEX IF NOT EXISTS idx_system_sessions_is_active  ON ${schema}.system_sessions(is_active)`);
-      await client.query(`CREATE INDEX IF NOT EXISTS idx_system_sessions_expires_at ON ${schema}.system_sessions(expires_at)`);
+        // Create indexes from JSON definition
+        const indexes = tableDef.indexes || [];
+        for (const idx of indexes) {
+          const idxCols = idx.columns.join(', ');
+          const uniqueStr = idx.unique ? 'UNIQUE ' : '';
+          await client.query(`CREATE ${uniqueStr}INDEX IF NOT EXISTS ${idx.name} ON ${schema}.${tableName}(${idxCols})`);
+        }
+      }
 
       await client.query('COMMIT');
-      logger.info(messages.success.schemaCreated, { schema });
+      logger.info(messages.success.schemaCreated, { schema, tableCount: tableDefs.length });
 
-      const tables = [
-        'system_users', 'system_roles', 'system_permissions',
-        'system_role_permissions', 'system_user_roles',
-        'system_config', 'system_modules', 'system_logs', 'system_sessions',
-      ];
+      const tables = tableDefs.map(t => t.name);
       return { success: true, message: messages.success.schemaCreated, tables };
     } catch (err) {
       await client.query('ROLLBACK');

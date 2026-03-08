@@ -70,36 +70,35 @@ function StatusBadge({ code }) {
 
 const UI_COLUMNS = [
   { id: 'timestamp', label: gridText.time, width: 170, sortable: true, render: (row) => <span className="text-[13px] text-surface-700">{formatIST(row.timestamp || row.created_at)}</span> },
-  { id: 'transactionId', label: gridText.transactionId, width: 170, sortable: true, render: (row) => <span className="text-[13px] font-mono text-surface-500 truncate">{row.transactionId || row.transaction_id || '—'}</span> },
-  { id: 'sessionId', label: gridText.sessionId, width: 185, sortable: true, render: (row) => <span className="text-[13px] font-mono text-teal-600 truncate">{row.sessionId || row.session_id || '—'}</span> },
-  { id: 'correlationId', label: gridText.correlationId, width: 170, sortable: true, render: (row) => <span className="text-[13px] font-mono text-violet-500 truncate">{row.correlationId || row.correlation_id || '—'}</span> },
-  { id: 'level', label: gridText.logLevel, width: 85, sortable: true, render: (row) => <LevelBadge level={row.level || row.log_level} /> },
+  { id: 'sessionId', label: gridText.sessionId, width: 185, sortable: true, render: (row) => <span className="text-[13px] font-mono text-teal-600 truncate">{row.session_id || row.sessionId || '—'}</span> },
+  { id: 'transactionId', label: gridText.transactionId, width: 170, sortable: true, render: (row) => <span className="text-[13px] font-mono text-surface-500 truncate">{row.transaction_id || row.transactionId || '—'}</span> },
+  { id: 'correlationId', label: gridText.correlationId, width: 170, sortable: true, render: (row) => <span className="text-[13px] font-mono text-violet-500 truncate">{row.correlation_id || row.correlationId || '—'}</span> },
   { id: 'source', label: gridText.source, width: 65, sortable: true, render: (row) => <span className="text-[13px] font-medium text-surface-500">{row.source || 'UI'}</span> },
-  { id: 'fileName', label: gridText.fileName, width: 160, sortable: true, render: (row) => <span className="text-[13px] font-mono text-surface-500 truncate">{row.fileName || row.file_name || '—'}</span> },
-  { id: 'event', label: gridText.event, width: 130, sortable: true, render: (row) => <span className="text-[13px] text-surface-700 truncate">{row.event || '—'}</span> },
-  { id: 'module', label: gridText.module, width: 85, sortable: true, render: (row) => <span className="text-[13px] text-surface-500">{row.module || row.log_module || 'Core'}</span> },
-  { id: 'user', label: gridText.user, width: 120, sortable: true, render: (row) => <span className="text-[13px] text-surface-600 truncate">{row.user || row.user_name || 'Anonymous'}</span> },
-  { id: 'message', label: gridText.message, width: 280, sortable: false, render: (row) => <span className="text-[13px] text-surface-700 truncate block">{row.message || '—'}</span> },
-  { id: 'result', label: gridText.result, width: 110, sortable: false, render: (row) => <span className="text-[13px] text-surface-500 truncate">{row.result || '—'}</span> },
+  { id: 'user', label: gridText.user, width: 150, sortable: true, render: (row) => <span className="text-[13px] text-surface-600 truncate">{row.user_email || row.user || '—'}</span> },
+  { id: 'level', label: gridText.logLevel, width: 85, sortable: true, render: (row) => <LevelBadge level={row.level} /> },
+  { id: 'fileName', label: gridText.fileName, width: 160, sortable: true, render: (row) => <span className="text-[13px] font-mono text-surface-500 truncate">{row.file_name || row.fileName || '—'}</span> },
+  { id: 'event', label: gridText.event, width: 110, sortable: true, render: (row) => <span className="text-[13px] text-surface-700 truncate">{row.event || '—'}</span> },
+  { id: 'pageUrl', label: gridText.pageUrl, width: 180, sortable: true, render: (row) => <span className="text-[13px] font-mono text-surface-500 truncate">{row.page_url || row.pageUrl || '—'}</span> },
+  { id: 'message', label: gridText.message, width: 300, sortable: false, render: (row) => <span className="text-[13px] text-surface-700 truncate block">{row.message || '—'}</span> },
+  { id: 'module', label: gridText.module, width: 85, sortable: true, render: (row) => <span className="text-[13px] text-surface-500">{row.module || 'Core'}</span> },
 ];
 
 // ── API Log Columns ──────────────────────────────────────────────────────────
 
 const API_COLUMNS = [
   { id: 'timestamp', label: gridText.time, width: 170, sortable: true, render: (row) => <span className="text-[13px] text-surface-700">{formatIST(row.timestamp || row.created_at)}</span> },
-  { id: 'transactionId', label: gridText.transactionId, width: 170, sortable: true, render: (row) => <span className="text-[13px] font-mono text-surface-500 truncate">{row.transactionId || row.transaction_id || '—'}</span> },
-  { id: 'sessionId', label: gridText.sessionId, width: 185, sortable: true, render: (row) => <span className="text-[13px] font-mono text-teal-600 truncate">{row.sessionId || row.session_id || '—'}</span> },
-  { id: 'correlationId', label: gridText.correlationId, width: 170, sortable: true, render: (row) => <span className="text-[13px] font-mono text-violet-500 truncate">{row.correlationId || row.correlation_id || '—'}</span> },
-  { id: 'level', label: gridText.logLevel, width: 85, sortable: true, render: (row) => <LevelBadge level={row.level || row.log_level} /> },
-  { id: 'user', label: gridText.user, width: 120, sortable: true, render: (row) => <span className="text-[13px] text-surface-600 truncate">{row.user || row.user_name || 'Anonymous'}</span> },
-  { id: 'source', label: gridText.source, width: 65, sortable: true, render: (row) => <span className="text-[13px] font-medium text-surface-500">{row.source || 'API'}</span> },
-  { id: 'fileName', label: gridText.fileName, width: 160, sortable: true, render: (row) => <span className="text-[13px] font-mono text-surface-500 truncate">{row.fileName || row.file_name || '—'}</span> },
-  { id: 'method', label: gridText.method, width: 76, sortable: true, render: (row) => row.method ? <MethodBadge method={row.method} /> : <span className="text-[13px] text-surface-400">—</span> },
-  { id: 'url', label: gridText.apiUrl, width: 240, sortable: true, render: (row) => <span className="text-[13px] font-mono text-surface-600 truncate block">{row.url || row.api_url || '—'}</span> },
-  { id: 'statusCode', label: gridText.statusCode, width: 68, sortable: true, render: (row) => <StatusBadge code={row.statusCode || row.status_code} /> },
-  { id: 'responseTime', label: gridText.responseTime, width: 110, sortable: true, render: (row) => { const t = row.responseTime || row.response_time_ms; return t ? <span className="text-[13px] text-surface-600">{t}ms</span> : <span className="text-[13px] text-surface-400">—</span>; } },
+  { id: 'level', label: gridText.logLevel, width: 85, sortable: true, render: (row) => <LevelBadge level={row.level} /> },
+  { id: 'method', label: gridText.method, width: 76, sortable: true, render: (row) => { const m = row.http_method || row.method; return m ? <MethodBadge method={m} /> : <span className="text-[13px] text-surface-400">—</span>; } },
+  { id: 'url', label: gridText.apiUrl, width: 260, sortable: true, render: (row) => <span className="text-[13px] font-mono text-surface-600 truncate block">{row.api_url || row.url || '—'}</span> },
+  { id: 'statusCode', label: gridText.statusCode, width: 68, sortable: true, render: (row) => <StatusBadge code={row.status_code || row.statusCode} /> },
+  { id: 'responseTime', label: gridText.responseTime, width: 100, sortable: true, render: (row) => { const t = row.duration_ms || row.responseTime; return t ? <span className="text-[13px] text-surface-600">{t}ms</span> : <span className="text-[13px] text-surface-400">—</span>; } },
+  { id: 'user', label: gridText.user, width: 150, sortable: true, render: (row) => <span className="text-[13px] text-surface-600 truncate">{row.user_email || row.user || '—'}</span> },
+  { id: 'fileName', label: gridText.fileName, width: 160, sortable: true, render: (row) => <span className="text-[13px] font-mono text-surface-500 truncate">{row.file_name || row.fileName || '—'}</span> },
+  { id: 'message', label: gridText.message, width: 250, sortable: false, render: (row) => <span className="text-[13px] text-surface-700 truncate block">{row.message || '—'}</span> },
   { id: 'error', label: gridText.error, width: 200, sortable: false, render: (row) => <span className="text-[13px] text-danger-600 truncate block">{row.error || '—'}</span> },
-  { id: 'module', label: gridText.module, width: 85, sortable: true, render: (row) => <span className="text-[13px] text-surface-500">{row.module || row.log_module || 'Core'}</span> },
+  { id: 'module', label: gridText.module, width: 85, sortable: true, render: (row) => <span className="text-[13px] text-surface-500">{row.module || 'Core'}</span> },
+  { id: 'transactionId', label: gridText.transactionId, width: 170, sortable: true, render: (row) => <span className="text-[13px] font-mono text-surface-500 truncate">{row.transaction_id || row.transactionId || '—'}</span> },
+  { id: 'correlationId', label: gridText.correlationId, width: 170, sortable: true, render: (row) => <span className="text-[13px] font-mono text-violet-500 truncate">{row.correlation_id || row.correlationId || '—'}</span> },
 ];
 
 const PAGE_SIZE_OPTIONS = [25, 50, 100, 200];
@@ -127,7 +126,14 @@ function LogDetailPanel({ log, logType, onClose }) {
   };
 
   const renderJsonBlock = (label, data) => {
-    if (!data) return null;
+    if (!data) return (
+      <div>
+        <h4 className="text-xs font-bold text-surface-600 mb-1">{label}</h4>
+        <div className="bg-surface-50 rounded-lg border border-surface-200 p-3">
+          <pre className="text-[11px] font-mono text-surface-400">—</pre>
+        </div>
+      </div>
+    );
     let formatted;
     try {
       formatted = typeof data === 'string' ? JSON.stringify(JSON.parse(data), null, 2) : JSON.stringify(data, null, 2);
@@ -137,7 +143,7 @@ function LogDetailPanel({ log, logType, onClose }) {
     return (
       <div>
         <h4 className="text-xs font-bold text-surface-600 mb-1">{label}</h4>
-        <div className="bg-surface-50 rounded-lg border border-surface-200 p-3">
+        <div className="bg-surface-50 rounded-lg border border-surface-200 p-3 max-h-60 overflow-y-auto">
           <pre className="text-[11px] font-mono text-surface-700 whitespace-pre-wrap break-all">{formatted}</pre>
         </div>
       </div>
@@ -172,30 +178,30 @@ function LogDetailPanel({ log, logType, onClose }) {
 
       {/* Single scrollable area — fields + JSON blocks together */}
       <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
-        {renderField(detailText.transactionId, log.transactionId || log.transaction_id)}
-        {renderField(detailText.sessionId, log.sessionId || log.session_id)}
-        {renderField(detailText.correlationId, log.correlationId || log.correlation_id)}
+        {renderField(detailText.transactionId, log.transaction_id || log.transactionId)}
+        {renderField(detailText.sessionId, log.session_id || log.sessionId)}
+        {renderField(detailText.correlationId, log.correlation_id || log.correlationId)}
         {renderField(detailText.timestamp, formatIST(log.timestamp || log.created_at))}
-        {renderField(detailText.level, log.level || log.log_level)}
+        {renderField(detailText.level, log.level)}
         {renderField(detailText.source, log.source)}
-        {renderField(detailText.fileName, log.fileName || log.file_name)}
-        {renderField(detailText.user, log.user || log.user_name || 'Anonymous')}
-        {renderField(detailText.module, log.module || log.log_module)}
+        {renderField(detailText.fileName, log.file_name || log.fileName)}
+        {renderField(detailText.user, log.user_email || log.user)}
+        {renderField(detailText.module, log.module)}
 
         {isApi && (
           <>
-            {renderField(detailText.url, log.url || log.api_url)}
-            {renderField(detailText.method, log.method)}
-            {renderField(detailText.statusCode, log.statusCode || log.status_code)}
-            {renderField(detailText.responseTime, (log.responseTime || log.response_time_ms) ? `${log.responseTime || log.response_time_ms}ms` : null)}
+            {renderField(detailText.method, log.http_method || log.method)}
+            {renderField(detailText.url, log.api_url || log.url)}
+            {renderField(detailText.statusCode, log.status_code || log.statusCode)}
+            {renderField(detailText.responseTime, (log.duration_ms || log.responseTime) ? `${log.duration_ms || log.responseTime}ms` : null)}
           </>
         )}
 
         {!isApi && (
           <>
             {renderField(detailText.event, log.event)}
+            {renderField(detailText.pageUrl, log.page_url || log.pageUrl)}
             {renderField(detailText.message, log.message)}
-            {renderField(detailText.result, log.result)}
           </>
         )}
 
@@ -207,8 +213,14 @@ function LogDetailPanel({ log, logType, onClose }) {
 
         {isApi && (
           <div className="space-y-3 pt-1">
-            {renderJsonBlock(detailText.requestBody, log.requestBody || log.request_body)}
-            {renderJsonBlock(detailText.responseBody, log.responseBody || log.response_body)}
+            {renderJsonBlock(detailText.requestBody, log.request_body || log.requestBody)}
+            {renderJsonBlock(detailText.responseBody, log.response_body || log.responseBody)}
+          </div>
+        )}
+
+        {isApi && log.message && (
+          <div className="pt-1">
+            {renderField(detailText.message, log.message)}
           </div>
         )}
       </div>
@@ -254,14 +266,15 @@ export default function LogViewer({
     if (!searchTerm.trim()) return logs;
     const q = searchTerm.trim().toLowerCase();
     return logs.filter(log =>
-      (log.transactionId || log.transaction_id || '').toLowerCase().includes(q) ||
-      (log.sessionId || log.session_id || '').toLowerCase().includes(q) ||
-      (log.correlationId || log.correlation_id || '').toLowerCase().includes(q) ||
+      (log.transaction_id || log.transactionId || '').toLowerCase().includes(q) ||
+      (log.session_id || log.sessionId || '').toLowerCase().includes(q) ||
+      (log.correlation_id || log.correlationId || '').toLowerCase().includes(q) ||
       (log.message || '').toLowerCase().includes(q) ||
-      (log.fileName || log.file_name || '').toLowerCase().includes(q) ||
-      (log.user || log.user_name || '').toLowerCase().includes(q) ||
+      (log.file_name || log.fileName || '').toLowerCase().includes(q) ||
+      (log.user_email || log.user || '').toLowerCase().includes(q) ||
       (log.event || '').toLowerCase().includes(q) ||
-      (log.url || log.api_url || '').toLowerCase().includes(q)
+      (log.api_url || log.url || '').toLowerCase().includes(q) ||
+      (log.page_url || log.pageUrl || '').toLowerCase().includes(q)
     );
   }, [logs, searchTerm]);
 

@@ -42,6 +42,29 @@ function _extractUserEmail(req) {
   }
 }
 
+/**
+ * Derive a meaningful fileName from an API request path.
+ * Maps /api/{resource}/{action} → {resource}Routes.js:{action}
+ * E.g. /api/database/config → databaseRoutes.js:config
+ *      /api/auth/login      → authRoutes.js:login
+ *      /api/health          → healthRoutes.js:index
+ * @param {string} requestPath - The original URL path
+ * @returns {string} A human-readable file:function identifier
+ */
+function _deriveRouteFile(requestPath) {
+  try {
+    // Strip /api/ prefix and query string
+    const clean = requestPath.replace(/^\/api\//, '').split('?')[0];
+    const parts = clean.split('/').filter(Boolean);
+    if (parts.length === 0) return 'app.js:root';
+    const resource = parts[0]; // e.g. "database", "auth", "logs"
+    const action = parts.slice(1).join('/') || 'index'; // e.g. "config", "login"
+    return `${resource}Routes.js:${action}`;
+  } catch {
+    return 'unknown';
+  }
+}
+
 // ── 1. Helmet.js: HTTP Security Headers ─────────────────────────────────────
 export const helmetMiddleware = helmet({
   contentSecurityPolicy: false,
@@ -91,8 +114,10 @@ export function requestLogger(req, res, next) {
       const level = res.statusCode >= 500 ? 'error' : res.statusCode >= 400 ? 'warn' : 'info';
       const safeBody = req.method !== 'GET' && req.body
         ? { ...req.body, password: undefined, password_hash: undefined }
-        : undefined;
-      const userEmail = req.user?.email || _extractUserEmail(req) || 'Anonymous';
+        : null;
+      const userEmail = req.user?.email || _extractUserEmail(req) || null;
+      // Derive fileName from the route path (e.g. /api/database/config → databaseRoutes.js:config)
+      const routeFile = _deriveRouteFile(requestPath);
       import('#core/services/logService.js').then(mod => {
         mod.default.writeApiLog({
           transactionId: req.requestId,
@@ -100,8 +125,10 @@ export function requestLogger(req, res, next) {
           correlationId: req.correlationId || null,
           level,
           source: 'API',
+          event: `${req.method} ${requestPath}`,
+          message: `${req.method} ${requestPath} → ${res.statusCode} (${duration}ms)`,
           user: userEmail,
-          fileName: 'security.js:requestLogger',
+          fileName: routeFile,
           module: 'Core',
           url: requestPath,
           method: req.method,

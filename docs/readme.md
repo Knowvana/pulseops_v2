@@ -13,11 +13,13 @@ Enterprise modular operations platform with plug-and-play module architecture, R
 
 > **Note**: All URLs and ports are centralized in `src/config/urls.json` and `api/src/config/urls.json`
 
-| Service | URL |
-|---------|-----|
-| **Frontend** | http://localhost:1001 |
-| **API** | http://localhost:4001 |
-| **Swagger** | http://localhost:4001/api-docs |
+| Service | URL | Credentials |
+|---------|-----|-------------|
+| **Frontend** | http://localhost:1001 | - |
+| **API** | http://localhost:4001 | - |
+| **Swagger** | http://localhost:4001/api-docs | - |
+| **PostgreSQL** | localhost:5432 | `postgres` / `Infosys@123` |
+| **pgAdmin** | http://localhost:5050 | `admin@domain.com` / `Infosys@123` |
 
 ## Authentication
 

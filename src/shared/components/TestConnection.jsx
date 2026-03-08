@@ -52,6 +52,7 @@ import messages from '@config/UIMessages.json';
 const log = createLogger('TestConnection.jsx');
 const connMessages = messages.connection;
 const connText = uiText.shared?.testConnection || {};
+const dbConfigText = uiText.admin?.settings?.databaseConfiguration || {};
 
 export default function TestConnection({
   title = connText.defaultTitle || 'Connection Test',
@@ -237,15 +238,11 @@ export default function TestConnection({
 
   return (
     <div className="space-y-6">
-      {/* Connection Status */}
-      <ConnectionStatus
-        type={connectionStatus.type}
-        status={connectionStatus.status}
-        message={connectionStatus.message}
-        meta={connectionStatus.meta}
-        lastTested={connectionStatus.lastTested}
-        showBadge={true}
-      />
+      {/* Database Configuration Label */}
+      <div className="flex items-center gap-2">
+        <Database size={16} className="text-surface-600" />
+        <span className="text-sm font-semibold text-surface-800">{dbConfigText.title}</span>
+      </div>
 
       {/* Configuration Fields */}
       <div className="space-y-3">

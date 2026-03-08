@@ -62,20 +62,26 @@ export default function DatabaseManager({
     log.info('mount', 'Page accessed — loading database configuration from API');
     const fetchDbConfig = async () => {
       try {
-        const response = await fetch(urls.database.config, { credentials: 'include' });
-        if (response.ok) {
-          const result = await response.json();
-          if (result?.data) {
-            setDbConfig({
-              database: result.data.database || '',
-              schema: result.data.schema || '',
-              tables: result.data.tables || [],
-              defaultAdmin: result.data.defaultAdmin || { email: '' },
-            });
-            log.info('mount', 'Database config loaded from API', { database: result.data.database, schema: result.data.schema, tables: result.data.tables?.length || 0 });
-          }
-        } else {
-          log.warn('mount', `Failed to fetch DB config — HTTP ${response.status}`);
+        // Fetch database config
+        const configResponse = await fetch(urls.database.config, { credentials: 'include' });
+        const configResult = await configResponse.json();
+        
+        // Fetch schema definition
+        const schemaResponse = await fetch(urls.database.schema + '/definition', { credentials: 'include' });
+        const schemaResult = await schemaResponse.json();
+        
+        if (configResult?.data) {
+          setDbConfig({
+            database: configResult.data.database || '',
+            schema: configResult.data.schema || '',
+            tables: schemaResult?.data?.tables?.map(t => t.name) || configResult.data.tables || [],
+            defaultAdmin: configResult.data.defaultAdmin || { email: '' },
+          });
+          log.info('mount', 'Database config and schema loaded from API', { 
+            database: configResult.data.database, 
+            schema: configResult.data.schema, 
+            tables: schemaResult?.data?.totalTables || configResult.data.tables?.length || 0 
+          });
         }
       } catch (error) {
         log.error('mount', 'Failed to fetch database config', { message: error.message });

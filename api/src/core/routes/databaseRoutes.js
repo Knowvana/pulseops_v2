@@ -37,11 +37,17 @@
 //   - ../../shared/logger.js → structured logging
 // ============================================================================
 import { Router } from 'express';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import DatabaseService from '#core/database/databaseService.js';
 import { authenticate } from '#core/middleware/auth.js';
 import { messages, errors, saveJson, loadJson } from '#shared/loadJson.js';
 import { logger } from '#shared/logger.js';
 import { reloadDbConfig } from '#config';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const schemaPath = path.resolve(__dirname, '../database/DefaultDatabaseSchema.json');
 
 const router = Router();
 
@@ -51,18 +57,23 @@ router.get('/config', async (_req, res) => {
   try {
     const dbConfig = loadJson('DatabaseConfig.json');
     let defaultAdmin = { email: '' };
+    let tables = [];
     try {
       const adminData = loadJson('DefaultAdminUser.json');
       if (adminData?.users?.[0]?.email) {
         defaultAdmin = { email: adminData.users[0].email };
       }
     } catch { /* no admin file yet */ }
+    try {
+      const schemaData = JSON.parse(fs.readFileSync(schemaPath, 'utf8'));
+      tables = schemaData.tables?.map(t => t.name) || [];
+    } catch { /* schema file not found */ }
     const { password, ...safeConfig } = dbConfig;
     res.json({
       success: true,
       data: {
         ...safeConfig,
-        tables: ['system_users', 'system_config', 'system_modules', 'system_logs'],
+        tables,
         defaultAdmin,
       },
     });
@@ -161,6 +172,33 @@ router.get('/schema', async (_req, res) => {
   } catch (err) {
     logger.error(errors.errors.schemaInitFailed, { error: err.message });
     res.json({ success: true, data: { connected: false, initialized: false, hasDefaultData: false } });
+  }
+});
+
+// ── GET /database/schema/definition (Public) ──────────────────────────────────
+router.get('/schema/definition', async (_req, res) => {
+  logger.info('API event: GET /database/schema/definition');
+  try {
+    const schemaData = JSON.parse(fs.readFileSync(schemaPath, 'utf8'));
+    const tables = schemaData.tables?.map(t => ({
+      name: t.name,
+      description: t.description,
+      columnCount: t.columns?.length || 0,
+    })) || [];
+    res.json({
+      success: true,
+      data: {
+        schema: schemaData._meta?.schema || 'pulseops',
+        tables,
+        totalTables: tables.length,
+      },
+    });
+  } catch (err) {
+    logger.error('Failed to load schema definition', { error: err.message });
+    res.status(500).json({
+      success: false,
+      error: { message: 'Failed to load schema definition' },
+    });
   }
 });
 
