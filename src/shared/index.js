@@ -24,6 +24,7 @@ export { default as DatabaseManager } from '@shared/components/DatabaseManager';
 export { default as LoggingConfig } from '@shared/components/LoggingConfig';
 export { default as LogStats } from '@shared/components/LogStats';
 export { default as LogViewer } from '@shared/components/LogViewer';
+export { default as ConfigurationAlertModal } from '@shared/components/ConfigurationAlertModal';
 export { default as PageLoader } from '@shared/components/PageLoader';
 
 // --- Services ---

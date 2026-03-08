@@ -7,7 +7,7 @@
 // USAGE: Import in main.jsx for development testing.
 // ============================================================================
 import React, { useState } from 'react';
-import { LogIn, Database, Settings, Shield, Key, Sliders, AlertCircle, Clock, CheckCircle2, Ticket } from 'lucide-react';
+import { LogIn, Database, Settings, Shield, Key, Sliders, AlertCircle, Clock, CheckCircle2, Ticket, AlertTriangle } from 'lucide-react';
 import { createLogger } from '@shared/services/consoleLogger';
 import Button from '@shared/components/Button';
 import LoginForm from '@shared/components/LoginForm';
@@ -17,6 +17,7 @@ import TestConnection from '@shared/components/TestConnection';
 import StatsCount from '@shared/components/StatsCount';
 import DatabaseManager from '@shared/components/DatabaseManager';
 import LoggingConfig from '@shared/components/LoggingConfig';
+import ConfigurationAlertModal from '@shared/components/ConfigurationAlertModal';
 import PageLoader from '@shared/components/PageLoader';
 
 const log = createLogger('TestPage.jsx');
@@ -397,6 +398,71 @@ export default function TestPage() {
             <div className="border border-surface-200 rounded-xl p-4">
               <p className="text-xs font-bold text-surface-500 mb-2 text-center">Large</p>
               <PageLoader inline size="lg" message="Loading dashboard..." />
+            </div>
+          </div>
+        </section>
+
+        {/* ConfigurationAlertModal Component Test */}
+        <section className="bg-white rounded-2xl p-6 shadow-sm border border-surface-200">
+          <h2 className="text-xl font-bold text-surface-800 mb-4">ConfigurationAlertModal.jsx - ConfigurationAlertModal Component</h2>
+          <p className="text-sm text-surface-600 mb-6">Reusable modal for configuration alerts with customizable icon, header, message, and action button. Supports error, warning, and info variants.</p>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Error Variant Demo */}
+            <div className="relative bg-surface-50/50 border border-surface-200 rounded-xl overflow-hidden">
+              <div className="p-3 bg-surface-100 border-b border-surface-200">
+                <p className="text-xs font-semibold text-surface-700">Error Variant</p>
+              </div>
+              <div className="p-4 min-h-[300px] flex items-center justify-center">
+                <ConfigurationAlertModal
+                  isOpen={true}
+                  icon={AlertTriangle}
+                  header="Database Not Configured"
+                  messageDetail="The database schema has not been initialized. Please configure the database first from Platform Admin → Database Setup."
+                  actionIcon={Settings}
+                  actionText="Go to Database Setup"
+                  onAction={() => log.info('ConfigurationAlertModal', 'Error variant action clicked')}
+                  variant="error"
+                />
+              </div>
+            </div>
+
+            {/* Warning Variant Demo */}
+            <div className="relative bg-surface-50/50 border border-surface-200 rounded-xl overflow-hidden">
+              <div className="p-3 bg-surface-100 border-b border-surface-200">
+                <p className="text-xs font-semibold text-surface-700">Warning Variant</p>
+              </div>
+              <div className="p-4 min-h-[300px] flex items-center justify-center">
+                <ConfigurationAlertModal
+                  isOpen={true}
+                  icon={AlertTriangle}
+                  header="Logs Not Enabled"
+                  messageDetail="Database logging is currently disabled. Enable it from Platform Admin → Settings → Log Configuration."
+                  actionIcon={Settings}
+                  actionText="Go to Log Configuration"
+                  onAction={() => log.info('ConfigurationAlertModal', 'Warning variant action clicked')}
+                  variant="warning"
+                />
+              </div>
+            </div>
+
+            {/* Info Variant Demo */}
+            <div className="relative bg-surface-50/50 border border-surface-200 rounded-xl overflow-hidden">
+              <div className="p-3 bg-surface-100 border-b border-surface-200">
+                <p className="text-xs font-semibold text-surface-700">Info Variant</p>
+              </div>
+              <div className="p-4 min-h-[300px] flex items-center justify-center">
+                <ConfigurationAlertModal
+                  isOpen={true}
+                  icon={AlertCircle}
+                  header="Configuration Required"
+                  messageDetail="Some features require additional configuration. Please complete the setup wizard to enable all functionality."
+                  actionIcon={Settings}
+                  actionText="Open Setup Wizard"
+                  onAction={() => log.info('ConfigurationAlertModal', 'Info variant action clicked')}
+                  variant="info"
+                />
+              </div>
             </div>
           </div>
         </section>

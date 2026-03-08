@@ -63,5 +63,20 @@
   "settings": {
     "get": "/api/settings",
     "save": "/api/settings"
+  },
+  "UIRoutes": {
+    "platformAdmin": {
+      "dashboard": "/platform_admin",
+      "settings": "/platform_admin/Settings",
+      "databaseSetup": "/platform_admin/Settings?tab=databaseSetup"
+    },
+    "auth": {
+      "login": "/login",
+      "superAdmin": "/login/super-admin"
+    },
+    "core": {
+      "logs": "/logs",
+      "dashboard": "/"
+    }
   }
 }

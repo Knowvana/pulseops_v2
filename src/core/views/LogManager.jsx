@@ -6,13 +6,28 @@
 // core view.
 //
 // FEATURES:
-//   - Log type selector (UI Logs / API Logs)
-//   - Search bar + level filters (All, Debug, Info, Warn, Error)
-//   - Stats bar showing log source, last sync, entry count
-//   - Enterprise grid with sorting, column resizing, pagination
-//   - Slide-out detail panel with formatted JSON for request/response
-//   - Refresh and delete-all actions with confirmation
-//   - No page-level scrollbar — only grid + detail panel scroll
+//   - Log type selector (UI Logs / API Logs) - toggles between frontend and backend logs
+//   - Search bar + level filters (All, Debug, Info, Warn, Error) - filters logs by content and severity
+//   - Stats bar showing log source, last sync, entry count - displays current log statistics
+//   - Enterprise grid with sorting, column resizing, pagination - interactive log data table
+//   - Slide-out detail panel with formatted JSON for request/response - detailed log inspection
+//   - Refresh and delete-all actions with confirmation - data management controls
+//   - Database setup alerts - guides users when database is not configured
+//   - Logging disabled alerts - prompts when logging is turned off globally
+//   - No page-level scrollbar — only grid + detail panel scroll - optimized layout
+//
+// UI INTERACTIONS:
+//   - Click UI/API toggle: Switches between frontend (UI) and backend (API) logs
+//   - Click level filters: Filters logs by severity level (debug, info, warn, error, all)
+//   - Type in search: Client-side search across message, transaction ID, session ID, correlation ID
+//   - Click log row: Opens detail panel with full log information and JSON formatting
+//   - Click column headers: Sorts logs by that column (ascending/descending)
+//   - Drag column edges: Resizes column widths for better readability
+//   - Click pagination: Navigates through log pages (configurable page sizes)
+//   - Click refresh: Fetches latest logs and updates statistics
+//   - Click delete all: Shows confirmation modal, then permanently deletes all logs
+//   - Database not setup alert: Appears when database tables don't exist, navigates to setup
+//   - Logs disabled alert: Appears when logging is globally disabled, navigates to settings
 //
 // ROUTE: /logs
 //
@@ -22,13 +37,13 @@
 // DEPENDENCIES:
 //   - @config/uiElementsText.json → All UI labels
 //   - @config/UIMessages.json     → Success/error messages
-//   - @config/urls.json           → API endpoints
-//   - @shared → LogViewer, LogStats, ConfirmationModal
+//   - @config/urls.json           → API endpoints and UI routes
+//   - @shared → LogViewer, LogStats, ConfirmationModal, ConfigurationAlertModal
 // ============================================================================
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ScrollText, AlertTriangle, Settings as SettingsIcon } from 'lucide-react';
-import { LogViewer, LogStats, ConfirmationModal, createLogger } from '@shared';
+import { LogViewer, LogStats, ConfirmationModal, ConfigurationAlertModal, createLogger } from '@shared';
 import uiText from '@config/uiElementsText.json';
 import uiMessages from '@config/UIMessages.json';
 import urls from '@config/urls.json';
@@ -48,16 +63,22 @@ export default function LogManager() {
   const ready = useRef(false);       // True after initial fetch completes — gates Effects 2+
 
   // ── State ────────────────────────────────────────────────────────────────
-  const [logType, setLogType] = useState('api');
-  const [logs, setLogs] = useState([]);
-  const [stats, setStats] = useState({ storage: 'file', count: 0, lastSync: null });
-  const [isLoading, setIsLoading] = useState(false);
-  const [levelFilter, setLevelFilter] = useState('all');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [logConfig, setLogConfig] = useState(null);
+  // UI State - Controls what users see and interact with
+  const [logType, setLogType] = useState('api');           // 'ui' or 'api' - controls which logs are displayed
+  const [logs, setLogs] = useState([]);                   // Array of log entries fetched from API
+  const [stats, setStats] = useState({ storage: 'file', count: 0, lastSync: null }); // Log statistics (count, storage type, last sync time)
+  const [isLoading, setIsLoading] = useState(false);      // Shows loading spinner while fetching logs
+  const [levelFilter, setLevelFilter] = useState('all');  // 'all', 'debug', 'info', 'warn', 'error' - filters by severity
+  const [searchTerm, setSearchTerm] = useState('');       // Client-side search across multiple fields
+  
+  // Modal/Dialog State - Controls popup visibility
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false); // Shows delete confirmation modal
+  const [isDeleting, setIsDeleting] = useState(false);     // Shows loading during delete operation
+  const [isRefreshing, setIsRefreshing] = useState(false); // Shows loading during refresh operation
+  
+  // Configuration State - Determines what alerts to show
+  const [logConfig, setLogConfig] = useState(null);        // Logging configuration (enabled/disabled, etc.)
+  const [dbNotSetup, setDbNotSetup] = useState(false);     // True when database tables don't exist - shows setup alert
   // Search is pure client-side — LogViewer filters in-memory via useMemo.
   // No debounce or server-side search needed; eliminates per-keystroke API calls.
 
@@ -73,8 +94,15 @@ export default function LogManager() {
       const json = await res.json();
       if (json.success) {
         setLogs(json.data.logs || []);
+        setDbNotSetup(false);
       } else {
         setLogs([]);
+        // Check if error indicates database not setup
+        if (json.error?.message?.includes('does not exist') || 
+            json.error?.message?.includes('relation') ||
+            json.error?.message?.includes('schema')) {
+          setDbNotSetup(true);
+        }
         log.warn('fetchLogs', 'Logs fetch returned unsuccessful response');
       }
     } catch (err) {
@@ -92,13 +120,40 @@ export default function LogManager() {
       if (json.success && json.data) {
         const d = json.data;
         const total = (d.ui?.count || 0) + (d.api?.count || 0);
+        const storage = d.ui?.storage || d.api?.storage || 'file';
         setStats({
-          storage: d.ui?.storage || d.api?.storage || 'file',
+          storage,
           count: total,
           lastSync: d.ui?.lastEntry || d.api?.lastEntry || d.ui?.lastModified || d.api?.lastModified || null,
         });
+        // Database Setup Alert Logic:
+        // Shows "Database Not Configured" modal when:
+        // - Storage is 'database' (configured for database logging)
+        // - Total log count is 0 (no logs exist)
+        // - No lastEntry timestamps (tables exist but are empty)
+        // This indicates database schema exists but no logs have been written yet
+        if (storage === 'database' && total === 0 && !d.ui?.lastEntry && !d.api?.lastEntry) {
+          setDbNotSetup(true);
+        } else {
+          setDbNotSetup(false);
+        }
+      } else if (!json.success) {
+        // API Error Alert Logic:
+        // Shows setup modal if error indicates database schema issues
+        // Checks for common database error messages
+        if (json.error?.message?.includes('does not exist') || 
+            json.error?.message?.includes('relation') ||
+            json.error?.message?.includes('schema') ||
+            json.error?.message?.includes('database')) {
+          setDbNotSetup(true);
+        }
       }
-    } catch { /* keep existing stats on error */ }
+    } catch (err) {
+      log.warn('fetchStats', 'Failed to fetch stats', { message: err.message });
+      // Network Error Alert Logic:
+      // Network failures might indicate database connectivity issues
+      setDbNotSetup(true);
+    }
   }, []);
 
   const fetchLogConfig = useCallback(async () => {
@@ -129,7 +184,9 @@ export default function LogManager() {
     fetchStats();
   }, [logType, levelFilter, fetchLogs, fetchStats]);
 
-  // ── Refresh handler (async — returns promise for loading spinner) ────────
+  // ── Event Handlers ────────────────────────────────────────────────────────
+  // handleRefresh - Triggered by clicking the refresh button in stats bar
+  // Refetches logs, stats, and config from server, clears search term for fresh data
   const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);
     setSearchTerm('');             // Clear search to get full fresh dataset
@@ -144,7 +201,9 @@ export default function LogManager() {
     }
   }, [logType, levelFilter, fetchLogs, fetchStats, fetchLogConfig]);
 
-  // ── Delete handler ─────────────────────────────────────────────────────
+  // handleDelete - Triggered by confirming delete in the confirmation modal
+  // Permanently deletes all logs for current logType, handles backward compatibility
+  // Returns count of deleted entries for success feedback
   const handleDelete = useCallback(async () => {
     setIsDeleting(true);
     try {
@@ -201,8 +260,26 @@ export default function LogManager() {
   // ── Render ─────────────────────────────────────────────────────────────
   return (
     <div className="relative flex flex-col h-full animate-fade-in overflow-hidden">
-      {/* Logs Disabled Overlay */}
-      {logsDisabled && (
+      {/* Database Not Setup Alert - HIGHEST PRIORITY OVERLAY */}
+      {/* Appears when dbNotSetup is true - covers entire view with modal */}
+      {/* Shows when database tables don't exist or are empty after setup */}
+      {/* Button navigates to Platform Admin → Database Setup (dedicated view) */}
+      <ConfigurationAlertModal
+        isOpen={dbNotSetup}
+        icon={AlertTriangle}
+        header="Database Not Configured"
+        messageDetail="The database schema has not been initialized. Please configure the database first from Platform Admin → Settings → Database Setup."
+        actionIcon={SettingsIcon}
+        actionText="Go to Database Setup"
+        onAction={() => navigate(urls.UIRoutes.platformAdmin.databaseSetup)}
+        variant="error"
+      />
+
+      {/* Logs Disabled Alert - SECOND PRIORITY OVERLAY */}
+      {/* Appears when logsDisabled is true AND dbNotSetup is false */}
+      {/* Shows when logging is globally disabled in configuration */}
+      {/* Button navigates to Platform Admin → Settings → Log Configuration */}
+      {!dbNotSetup && logsDisabled && (
         <div className="absolute inset-0 z-30 flex items-center justify-center bg-surface-50/90 backdrop-blur-sm rounded-xl">
           <div className="bg-white border border-amber-200 rounded-2xl shadow-xl p-8 max-w-md mx-4 text-center space-y-4">
             <div className="w-14 h-14 bg-amber-50 rounded-2xl flex items-center justify-center mx-auto">
@@ -216,7 +293,7 @@ export default function LogManager() {
               </p>
             </div>
             <button
-              onClick={() => navigate('/platform_admin/Settings')}
+              onClick={() => navigate(urls.UIRoutes.platformAdmin.settings)}
               className="inline-flex items-center gap-2 px-5 py-2.5 bg-brand-500 text-white text-sm font-semibold rounded-xl hover:bg-brand-600 transition-colors"
             >
               <SettingsIcon size={15} />
@@ -225,7 +302,9 @@ export default function LogManager() {
           </div>
         </div>
       )}
-      {/* Page Header */}
+
+      {/* Page Header - ALWAYS VISIBLE */}
+      {/* Shows page title and description, positioned at top */}
       <div className="flex items-center gap-3 flex-shrink-0 mb-4">
         <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-50 to-brand-100 flex items-center justify-center shadow-sm">
           <ScrollText size={20} className="text-brand-600" />
@@ -236,7 +315,10 @@ export default function LogManager() {
         </div>
       </div>
 
-      {/* Stats Bar */}
+      {/* Stats Bar - ALWAYS VISIBLE */}
+      {/* Shows log count, storage type, last sync time, refresh/delete buttons */}
+      {/* Refresh button: Triggers handleRefresh, shows loading spinner */}
+      {/* Delete button: Triggers setShowDeleteConfirm(true) to show confirmation modal */}
       <div className="flex-shrink-0 mb-3">
         <LogStats
           storage={stats.storage}
@@ -249,7 +331,9 @@ export default function LogManager() {
         />
       </div>
 
-      {/* Log Grid + Detail Panel (controls moved inside LogViewer) */}
+      {/* Log Grid + Detail Panel - MAIN CONTENT AREA */}
+      {/* Contains LogViewer component with all log display functionality */}
+      {/* LogViewer handles: log type selection, level filters, search, grid display, pagination, detail panel */}
       <LogViewer
         logs={logs}
         logType={logType}
@@ -262,7 +346,9 @@ export default function LogManager() {
         onSearchChange={setSearchTerm}
       />
 
-      {/* Delete Confirmation Modal */}
+      {/* Delete Confirmation Modal - TRIGGERED BY DELETE BUTTON */}
+      {/* Shows detailed confirmation with log counts and datasource info */}
+      {/* Confirm action calls handleDelete, success refreshes data */}
       {(() => {
         const isFile = stats.storage === 'file';
         const dsType = isFile ? 'JSON File' : 'Database';

@@ -18,6 +18,7 @@
 //               Button, ConfirmationModal, ConnectionStatus
 // ============================================================================
 import React, { useState, useCallback, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Settings as SettingsIcon, Database, Layers, ScrollText,
   Shield, Globe, AlertTriangle, RefreshCw, Save, Globe2,
@@ -50,14 +51,37 @@ function DatabaseConfigTab() {
 
   const [savedConfig, setSavedConfig] = useState({});
   const [connStatus, setConnStatus] = useState({ status: 'loading', message: connectionText.testing, meta: null, lastTested: null });
+  const [progress, setProgress] = useState(0);
+  const progressIntervalRef = React.useRef(null);
   const initRan = React.useRef(false);
 
   const checkConnection = useCallback(async () => {
+    setProgress(0);
+    
+    // Animate progress from 0 to 100 over 2 seconds using interval
+    let currentProgress = 0;
+    const progressInterval = setInterval(() => {
+      currentProgress += 5; // Increment by 5% every 100ms = 100% in 2 seconds
+      if (currentProgress >= 100) {
+        currentProgress = 100;
+        clearInterval(progressInterval);
+      }
+      setProgress(currentProgress);
+    }, 100);
+    
     setConnStatus({ status: 'loading', message: connectionText.testing, meta: null, lastTested: null });
     try {
       const response = await fetch(urls.database.connection, { credentials: 'include' });
+      
+      // Add minimum delay to show progress animation (at least 2 seconds)
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
       const result = await response.json();
       const timeString = TimezoneService.formatCurrentTime();
+      
+      // Ensure progress is at 100%
+      setProgress(100);
+      
       if (result?.success) {
         const data = result.data || {};
         const parts = [];
@@ -69,7 +93,17 @@ function DatabaseConfigTab() {
         setConnStatus({ status: 'error', message: result?.error?.message || connectionText.failed, meta: null, lastTested: timeString });
       }
     } catch (err) {
+      // Ensure progress is at 100% on error
+      setProgress(100);
       setConnStatus({ status: 'error', message: err.message || connectionText.failed, meta: null, lastTested: TimezoneService.formatCurrentTime() });
+    } finally {
+      // Clear progress animation interval
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
+        progressIntervalRef.current = null;
+      }
+      // Reset progress after a delay
+      setTimeout(() => setProgress(0), 1000);
     }
   }, []);
 
@@ -138,6 +172,16 @@ function DatabaseConfigTab() {
     }
   }, []);
 
+  const handleTestResult = useCallback((result) => {
+    setProgress(result.progress || 0);
+    setConnStatus({
+      status: result.status,
+      message: result.message,
+      meta: result.meta || null,
+      lastTested: result.lastTested || null,
+    });
+  }, []);
+
   const handleSave = useCallback(async (config) => {
     log.info('DatabaseConfigTab:handleSave', 'Saving configuration', { host: config.host, database: config.database });
     const response = await fetch(urls.database.config, {
@@ -171,6 +215,7 @@ function DatabaseConfigTab() {
           meta={connStatus.meta}
           lastTested={connStatus.lastTested}
           icon={Database}
+          progress={progress}
           showBadge
         />
       </div>
@@ -183,6 +228,7 @@ function DatabaseConfigTab() {
           fields={dbFields}
           onTest={handleTest}
           onSave={handleSave}
+          onTestResult={handleTestResult}
           initialConfig={savedConfig}
         />
       </div>
@@ -408,6 +454,7 @@ function LogConfigTabNew() {
     management: { maxUiEntries: 1000, maxApiEntries: 500, pushIntervalMs: 30000 },
   });
   const [dbStatus, setDbStatus] = useState({ status: 'idle', message: '' });
+  const [dbProgress, setDbProgress] = useState(0);
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const initRan = React.useRef(false);
@@ -459,11 +506,32 @@ function LogConfigTabNew() {
 
   const testDbConnection = useCallback(async () => {
     log.info('LogConfigTab:testDbConnection', 'Testing DB connection for logging');
+    setDbProgress(0);
+    
+    // Animate progress from 0 to 100 over 2 seconds using interval
+    let currentProgress = 0;
+    const progressInterval = setInterval(() => {
+      currentProgress += 5; // Increment by 5% every 100ms = 100% in 2 seconds
+      if (currentProgress >= 100) {
+        currentProgress = 100;
+        clearInterval(progressInterval);
+      }
+      setDbProgress(currentProgress);
+    }, 100);
+    
     setDbStatus({ status: 'loading', message: connectionText.testing, lastTested: null });
     try {
       const res = await fetch(urls.database.connection, { credentials: 'include' });
+      
+      // Add minimum delay to show progress animation (at least 2 seconds)
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
       const result = await res.json();
       const timeString = TimezoneService.formatCurrentTime();
+      
+      // Ensure progress is at 100%
+      setDbProgress(100);
+      
       if (result?.success) {
         setDbStatus({ status: 'success', message: connectionText.connected, lastTested: timeString });
         log.info('LogConfigTab:testDbConnection', 'DB connection OK for logging');
@@ -473,8 +541,12 @@ function LogConfigTabNew() {
         log.warn('LogConfigTab:testDbConnection', 'DB connection failed', { error: result?.error?.code });
       }
     } catch (err) {
+      setDbProgress(100);
       setDbStatus({ status: 'error', message: err.message || connectionText.failed, lastTested: TimezoneService.formatCurrentTime() });
       log.error('LogConfigTab:testDbConnection', 'Test failed', { message: err.message });
+    } finally {
+      // Reset progress after a delay
+      setTimeout(() => setDbProgress(0), 1000);
     }
   }, []);
 
@@ -540,6 +612,7 @@ function LogConfigTabNew() {
               message={dbStatus.message}
               lastTested={dbStatus.lastTested}
               icon={Database}
+              progress={dbProgress}
               showBadge
             />
           )}
@@ -1109,6 +1182,10 @@ function GeneralSettingsTab() {
 
 // ── Main Settings Component ─────────────────────────────────────────────────
 export default function Settings() {
+  const [searchParams] = useSearchParams();
+  const tabParam = searchParams.get('tab');
+  const defaultTab = tabParam || 'dbConfig'; // Use query param if provided, otherwise default to dbConfig
+  
   const tabs = [
     { id: 'dbConfig',     label: tabText.dbConfig,     icon: Database,    content: () => <DatabaseConfigTab /> },
     { id: 'logConfig',    label: tabText.logConfig,    icon: ScrollText,  content: () => <LogConfigTab /> },
@@ -1126,7 +1203,7 @@ export default function Settings() {
       subtitle={viewText.subtitle}
       icon={SettingsIcon}
       tabs={tabs}
-      defaultTab="dbConfig"
+      defaultTab={defaultTab}
     />
   );
 }

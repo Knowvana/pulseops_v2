@@ -27,7 +27,7 @@ const loginText  = uiText.superAdminLogin || {};
 const authMessages = messages.auth;
 
 export default function SuperAdminLoginForm({ onLogin }) {
-  const [password, setPassword] = useState('');
+  const [password, setPassword] = useState('Infosys@123');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);

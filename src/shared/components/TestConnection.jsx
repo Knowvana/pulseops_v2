@@ -61,6 +61,7 @@ export default function TestConnection({
   fields = [],
   onTest,
   onSave,
+  onTestResult,
   initialConfig = {},
   autoTest = false,
 }) {
@@ -102,6 +103,8 @@ export default function TestConnection({
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [saveMessage, setSaveMessage] = useState(null);
   const [validationError, setValidationError] = useState(null);
+  const [progress, setProgress] = useState(0);
+  const progressIntervalRef = React.useRef(null);
 
   const handleFieldChange = (name, value) => {
     setConfig(prev => ({ ...prev, [name]: value }));
@@ -112,6 +115,19 @@ export default function TestConnection({
     log.info('handleTest', `Testing connection for: ${title}`, { config });
 
     setIsTesting(true);
+    setProgress(0);
+    
+    // Animate progress from 0 to 100 over 2 seconds using interval
+    let currentProgress = 0;
+    const progressInterval = setInterval(() => {
+      currentProgress += 5; // Increment by 5% every 100ms = 100% in 2 seconds
+      if (currentProgress >= 100) {
+        currentProgress = 100;
+        clearInterval(progressInterval);
+      }
+      setProgress(currentProgress);
+    }, 100);
+    
     setConnectionStatus({
       type: title,
       status: 'loading',
@@ -119,11 +135,29 @@ export default function TestConnection({
       meta: null,
       lastTested: null,
     });
+    
+    // Notify parent of loading state
+    if (onTestResult) {
+      onTestResult({
+        status: 'loading',
+        message: connMessages.testing,
+        meta: null,
+        lastTested: null,
+        progress: 0,
+      });
+    }
 
     try {
       const result = await onTest(config);
+      
+      // Add minimum delay to show progress animation (at least 2 seconds)
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
       const timeString = TimezoneService.formatCurrentTime();
       setLastTestedTime(timeString);
+      
+      // Ensure progress is at 100%
+      setProgress(100);
       
       if (result.success) {
         log.info('handleTest', `Connection test successful — ${title}`, { message: result.message, meta: result.meta });
@@ -134,6 +168,17 @@ export default function TestConnection({
           meta: result.meta || null,
           lastTested: timeString,
         });
+        
+        // Notify parent of success
+        if (onTestResult) {
+          onTestResult({
+            status: 'success',
+            message: result.message || connMessages.success,
+            meta: result.meta || null,
+            lastTested: timeString,
+            progress: 100,
+          });
+        }
       } else {
         log.warn('handleTest', `Connection test failed — ${title}`, { message: result.message });
         setConnectionStatus({
@@ -143,11 +188,25 @@ export default function TestConnection({
           meta: result.meta || null,
           lastTested: timeString,
         });
+        
+        // Notify parent of failure
+        if (onTestResult) {
+          onTestResult({
+            status: 'error',
+            message: result.message || connMessages.failed,
+            meta: result.meta || null,
+            lastTested: timeString,
+            progress: 100,
+          });
+        }
       }
     } catch (error) {
       const timeString = TimezoneService.formatCurrentTime();
       setLastTestedTime(timeString);
       log.error('handleTest', `Connection test error — ${title}`, { message: error.message });
+      
+      // Complete progress to 100% on error
+      setProgress(100);
       
       setConnectionStatus({
         type: title,
@@ -156,8 +215,26 @@ export default function TestConnection({
         meta: null,
         lastTested: timeString,
       });
+      
+      // Notify parent of error
+      if (onTestResult) {
+        onTestResult({
+          status: 'error',
+          message: error.message || connMessages.testFailed,
+          meta: null,
+          lastTested: timeString,
+          progress: 100,
+        });
+      }
     } finally {
+      // Clear progress animation interval
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
+        progressIntervalRef.current = null;
+      }
       setIsTesting(false);
+      // Reset progress after a delay
+      setTimeout(() => setProgress(0), 1000);
     }
   };
 

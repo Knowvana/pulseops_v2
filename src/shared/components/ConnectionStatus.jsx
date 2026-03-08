@@ -72,16 +72,16 @@ const STATUS_CONFIG = {
     icon: Info,
   },
   loading: {
-    bg: 'bg-gradient-to-r from-brand-50 to-cyan-50',
-    border: 'border-brand-200',
-    iconBg: 'bg-gradient-to-br from-brand-100 to-cyan-100',
-    iconColor: 'text-brand-600',
-    textColor: 'text-brand-700',
+    bg: 'bg-gradient-to-r from-amber-50 to-orange-50',
+    border: 'border-amber-200',
+    iconBg: 'bg-gradient-to-br from-amber-100 to-orange-100',
+    iconColor: 'text-amber-600',
+    textColor: 'text-amber-700',
     labelColor: 'text-surface-700',
     metaColor: 'text-surface-500',
     icon: Loader,
-    progressBg: 'bg-brand-200',
-    progressFill: 'bg-brand-500',
+    progressBg: 'bg-amber-200',
+    progressFill: 'bg-amber-500',
   },
 };
 
