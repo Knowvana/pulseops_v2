@@ -26,7 +26,7 @@
 //   - @layouts/LeftSideNavBar
 //   - @layouts/RightLogsView
 // ============================================================================
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import TopMenu from '@layouts/TopMenu';
 import LeftSideNavBar from '@layouts/LeftSideNavBar';
 import RightLogsView from '@layouts/RightLogsView';
@@ -60,15 +60,40 @@ export default function AppShell({
   const [uiLogs, setUiLogs] = useState([]);
   const [apiCalls, setApiCalls] = useState([]);
   const [totalLogCount, setTotalLogCount] = useState(null);
+  const pollIntervalRef = useRef(null);
 
   // Subscribe to UILogService for updates (service already initialized in main.jsx)
   useEffect(() => {
     const unsub = UILogService.subscribe(({ logs, apiCalls: calls }) => {
-      setUiLogs(logs);
-      setApiCalls(calls);
+      // Create new array references to ensure React detects the change
+      setUiLogs([...logs]);
+      setApiCalls([...calls]);
     });
     return unsub;
   }, []);
+
+  // Force real-time updates while panel is open by calling forceNotify every 200ms
+  useEffect(() => {
+    if (!isRightPanelOpen) {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+      }
+      return;
+    }
+
+    // Poll every 200ms to force immediate notification of new logs
+    pollIntervalRef.current = setInterval(() => {
+      UILogService.forceNotify();
+    }, 200);
+
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+      }
+    };
+  }, [isRightPanelOpen]);
 
   // Fetch total log count from backend whenever panel opens
   useEffect(() => {

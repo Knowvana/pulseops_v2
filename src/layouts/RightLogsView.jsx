@@ -192,12 +192,38 @@ export default function RightLogsView({ isOpen, onClose, logs = [], apiCalls = [
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [fontScale, setFontScale]           = useState(1);
   const scrollEndRef = useRef(null);
+  const scrollContainerRef = useRef(null);
+  const wasAtBottomRef = useRef(true);
+  const prevLogCountRef = useRef(0);
 
   const filteredLogs = logFilter === 'all' ? logs : logs.filter(l => l.level === logFilter);
 
+  // Track if user is scrolled to bottom before updates
   useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    const handleScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = container;
+      // Consider "at bottom" if within 50px of the bottom
+      wasAtBottomRef.current = scrollHeight - scrollTop - clientHeight < 50;
+    };
+
+    container.addEventListener('scroll', handleScroll);
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // Only auto-scroll when panel opens or when user was already at bottom
+  useEffect(() => {
+    const currentLogCount = activeTab === 'logs' ? filteredLogs.length : apiCalls.length;
+    const isNewLogs = currentLogCount > prevLogCountRef.current;
+    prevLogCountRef.current = currentLogCount;
+
+    // Auto-scroll only if: panel just opened OR (new logs arrived AND user was at bottom)
     if (isOpen && scrollEndRef.current) {
-      scrollEndRef.current.scrollIntoView({ behavior: 'smooth' });
+      if (!isNewLogs || wasAtBottomRef.current) {
+        scrollEndRef.current.scrollIntoView({ behavior: 'auto', block: 'nearest' });
+      }
     }
   }, [filteredLogs.length, apiCalls.length, isOpen, activeTab]);
 
@@ -306,7 +332,7 @@ export default function RightLogsView({ isOpen, onClose, logs = [], apiCalls = [
       )}
 
       {/* ── Content ── */}
-      <div className="flex-1 overflow-y-auto p-2 space-y-1">
+      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-2 space-y-1">
 
         {/* UI logs only */}
         {activeTab === 'logs' && (

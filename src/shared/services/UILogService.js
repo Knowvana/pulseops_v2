@@ -185,6 +185,18 @@ class UILogServiceClass {
   clearLogs()     { this._uiLogs   = []; this._notify(); }
   clearApiCalls() { this._apiCalls = []; this._notify(); }
 
+  /**
+   * Force immediate notification to all subscribers without debouncing.
+   * Useful for real-time monitoring when the logs panel is open.
+   */
+  forceNotify() {
+    clearTimeout(this._notifyTimer);
+    this._notifyTimer = null;
+    this._notifyPending = false;
+    const snap = { logs: this._uiLogs, apiCalls: this._apiCalls };
+    this._listeners.forEach(cb => { try { cb(snap); } catch { /* ignore */ } });
+  }
+
   // ── Instrumentation: Fetch interceptor ───────────────────────────────────
 
   _interceptFetch() {
